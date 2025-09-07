@@ -64,6 +64,23 @@ export interface CameraSettings {
   far: number;
 }
 
+export interface FilterOptions {
+  bounds?: {
+    min: Point3D;
+    max: Point3D;
+  };
+  intensityRange?: {
+    min: number;
+    max: number;
+  };
+  classificationFilter?: number[];
+  colorFilter?: {
+    r: { min: number; max: number };
+    g: { min: number; max: number };
+    b: { min: number; max: number };
+  };
+}
+
 export type PointCloudEventType = 
   | 'loaded'
   | 'loading'

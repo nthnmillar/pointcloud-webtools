@@ -144,6 +144,74 @@
   font-weight: 500;
 }
 
+/* Filter Panel */
+.filter-panel {
+  background: #2a2a2a;
+  padding: 1rem;
+  border-bottom: 1px solid #444;
+  margin-bottom: 1rem;
+}
+
+.filter-panel h3 {
+  margin: 0 0 1rem 0;
+  color: #61dafb;
+  font-size: 1.1rem;
+}
+
+.filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* Statistics Panel */
+.statistics-panel {
+  background: #2a2a2a;
+  padding: 1rem;
+  border-bottom: 1px solid #444;
+  margin-bottom: 1rem;
+}
+
+.statistics-panel h3 {
+  margin: 0 0 1rem 0;
+  color: #61dafb;
+  font-size: 1.1rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: #3a3a3a;
+  border-radius: 4px;
+}
+
+.stat-item label {
+  font-weight: 500;
+  color: #ccc;
+}
+
+.stat-item span {
+  color: #61dafb;
+  font-weight: 600;
+}
+
+/* Point Cloud Viewer V2 */
+.point-cloud-viewer-v2 {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1a1a1a;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .viewer-controls {
@@ -157,5 +225,14 @@
   
   .app-header h1 {
     font-size: 1.5rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-controls {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
