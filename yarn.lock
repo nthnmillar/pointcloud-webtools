@@ -160,6 +160,21 @@
     "@babel/helper-string-parser" "^7.27.1"
     "@babel/helper-validator-identifier" "^7.27.1"
 
+"@babylonjs/core@^8.26.0":
+  version "8.26.0"
+  resolved "https://registry.yarnpkg.com/@babylonjs/core/-/core-8.26.0.tgz#61300736af06f11eec8235cd6f0d8268d6695622"
+  integrity sha512-3FeiI4I280lre57yqwbBkTUWfussXz4MT89tOotMstRSDkjC8M/LmoJFjp9Vj0hdWK40E1FxZ56G8YR8vdqdVw==
+
+"@babylonjs/loaders@^8.26.0":
+  version "8.26.0"
+  resolved "https://registry.yarnpkg.com/@babylonjs/loaders/-/loaders-8.26.0.tgz#67dc8ed2b7e91f26b50cb3d8b8cdefdff071afb4"
+  integrity sha512-uJ/Arpee/2xaSaediZ60wxrG+7/bEncwFPzIgzPArTcfbwXi+6tXever3Tg7iw/GoFs54MfdD8GKBszVUS+0QQ==
+
+"@babylonjs/materials@^8.26.0":
+  version "8.26.0"
+  resolved "https://registry.yarnpkg.com/@babylonjs/materials/-/materials-8.26.0.tgz#2afbde9cbde4e50d5af2df16bf1a068341fddc80"
+  integrity sha512-WS5wlSl6HZ5Q/3rjY4r1X5v+DGCQX0KkHZK8dFkO3LxRgbP0MnXZ8H+kcFqz9IP5sWcRUfkHRdRql/NDTkzFJw==
+
 "@esbuild/aix-ppc64@0.25.9":
   version "0.25.9"
   resolved "https://registry.yarnpkg.com/@esbuild/aix-ppc64/-/aix-ppc64-0.25.9.tgz#bef96351f16520055c947aba28802eede3c9e9a9"
@@ -740,6 +755,11 @@ argparse@^2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/argparse/-/argparse-2.0.1.tgz#246f50f3ca78a3240f6c997e8a9bd1eac49e4b38"
   integrity sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==
+
+babylonjs-gltf2interface@^8.26.0:
+  version "8.26.0"
+  resolved "https://registry.yarnpkg.com/babylonjs-gltf2interface/-/babylonjs-gltf2interface-8.26.0.tgz#b02950ec6f7f58eb7a32f8ab57d5cb1ec55c5407"
+  integrity sha512-D6Q80Ozg796eQfO4wlHUo2CADSKTt+Xvp3x+DcLVLM3miCMhEfg8rgIGEqRFvMz9So0vQyH4WX/+XmzuRASo4Q==
 
 balanced-match@^1.0.0:
   version "1.0.2"
