@@ -1,5 +1,6 @@
 import { BaseService } from './BaseService';
 import { PointService } from './point/PointService';
+import { SceneService } from './scene/SceneService';
 import { RenderService } from './render/RenderService';
 import type { 
   PointCloudData, 
@@ -10,30 +11,37 @@ import type {
  * Service Manager - Coordinates all services and manages their lifecycle
  */
 export class ServiceManager extends BaseService {
-  private pointService: PointService;
-  private renderService: RenderService;
-  private _canvas: HTMLCanvasElement | null = null;
+  private _pointService: PointService;
+  private _sceneService: SceneService;
+  private _renderService: RenderService;
 
   constructor() {
     super();
     
     // Initialize services
-    this.pointService = new PointService();
-    this.renderService = new RenderService();
+    this._pointService = new PointService();
+    this._sceneService = new SceneService();
+    this._renderService = new RenderService();
 
     // Set up service communication
     this.setupServiceCommunication();
   }
 
   async initialize(canvas: HTMLCanvasElement, ...args: any[]): Promise<void> {
-    this._canvas = canvas;
 
     try {
-      // Initialize all services
+      // Initialize services
       await Promise.all([
-        this.pointService.initialize(),
-        this.renderService.initialize(canvas)
+        this._sceneService.initialize(canvas),
+        this._renderService.initialize()
       ]);
+      
+      // Initialize point service with the scene
+      const scene = this._sceneService.scene;
+      if (!scene) {
+        throw new Error('Failed to get scene from scene service');
+      }
+      await this._pointService.initialize(scene);
 
       this.isInitialized = true;
       this.emit('initialized');
@@ -45,8 +53,9 @@ export class ServiceManager extends BaseService {
 
   dispose(): void {
     // Dispose all services
-    this.pointService.dispose();
-    this.renderService.dispose();
+    this._pointService.dispose();
+    this._sceneService.dispose();
+    this._renderService.dispose();
     
     this.removeAllObservers();
   }
@@ -56,117 +65,104 @@ export class ServiceManager extends BaseService {
    */
   private setupServiceCommunication(): void {
     // Point service events
-    this.pointService.on('loaded', (data) => {
+    this._pointService.on('loaded', (data) => {
       this.emit('pointCloudLoaded', data);
       this.renderActivePointCloud();
     });
 
-    this.pointService.on('loading', (data) => {
+    this._pointService.on('loading', (data) => {
       this.emit('pointCloudLoading', data);
     });
 
-    this.pointService.on('error', (data) => {
+    this._pointService.on('error', (data) => {
       this.emit('pointCloudError', data);
     });
 
-    this.pointService.on('selectionChanged', (data) => {
+    this._pointService.on('selectionChanged', (data) => {
       this.emit('selectionChanged', data);
       this.renderActivePointCloud();
     });
 
-    this.pointService.on('removed', (data) => {
-      this.renderService.removePointCloud(data.id);
+    this._pointService.on('removed', (data) => {
       this.emit('pointCloudRemoved', data);
     });
 
-    // Render service events
-    this.renderService.on('pointCloudRendered', (data) => {
+    this._pointService.on('pointCloudRendered', (data) => {
       this.emit('pointCloudRendered', data);
+    });
+
+    this._pointService.on('renderOptionsUpdated', (data) => {
+      this.emit('renderOptionsUpdated', data);
+    });
+
+    // Render service events
+    this._renderService.on('renderRequested', () => {
+      this.renderActivePointCloud();
+    });
+
+    this._renderService.on('renderOptionsChanged', (data) => {
+      this.emit('renderOptionsChanged', data);
     });
   }
 
   // Point Service Methods
   async loadPointCloud(id: string, data: PointCloudData): Promise<void> {
-    return this.pointService.loadPointCloud(id, data);
+    return this._pointService.loadPointCloud(id, data);
   }
 
   generateSamplePointCloud(id: string, pointCount: number = 1000): PointCloudData {
-    return this.pointService.generateSamplePointCloud(id, pointCount);
+    return this._pointService.generateSamplePointCloud(id, pointCount);
   }
 
   getPointCloud(id: string): PointCloudData | undefined {
-    return this.pointService.getPointCloud(id);
+    return this._pointService.getPointCloud(id);
   }
 
-  getPointCloudIds(): string[] {
-    return this.pointService.getPointCloudIds();
+  get pointCloudIds(): string[] {
+    return this._pointService.pointCloudIds;
   }
 
-  setActivePointCloud(id: string): void {
-    this.pointService.setActivePointCloud(id);
+  set activePointCloudId(id: string) {
+    this._pointService.activePointCloudId = id;
   }
 
-  getActivePointCloud(): PointCloudData | null {
-    return this.pointService.getActivePointCloud();
+  get activePointCloud(): PointCloudData | null {
+    return this._pointService.activePointCloud;
   }
 
-  getActivePointCloudId(): string | null {
-    return this.pointService.getActivePointCloudId();
+  get activePointCloudId(): string | null {
+    return this._pointService.activePointCloudId;
   }
 
   removePointCloud(id: string): void {
-    this.pointService.removePointCloud(id);
+    this._pointService.removePointCloud(id);
   }
 
 
-  // Render Service Methods
-  updateRenderOptions(options: Partial<RenderOptions>): void {
-    const currentOptions = this.getRenderOptions();
-    const newOptions = { ...currentOptions, ...options };
-    
-    this.emit('renderOptionsChanged', newOptions);
-    this.renderActivePointCloud();
-  }
-
-  getRenderOptions(): RenderOptions {
-    // Default render options
-    return {
-      pointSize: 2.0,
-      colorMode: 'original',
-      showBoundingBox: false,
-      showAxes: true,
-      backgroundColor: { r: 0.1, g: 0.1, b: 0.1 }
-    };
-  }
 
 
   /**
    * Render the active point cloud
    */
   private renderActivePointCloud(): void {
-    const activePointCloud = this.pointService.getActivePointCloud();
-    const activeId = this.pointService.getActivePointCloudId();
-    
-    console.log('ServiceManager: renderActivePointCloud called', { 
-      hasActivePointCloud: !!activePointCloud, 
-      activeId,
-      pointCount: activePointCloud?.points.length 
-    });
-    
-    if (activePointCloud && activeId) {
-      const renderOptions = this.getRenderOptions();
-      this.renderService.renderPointCloud(activeId, activePointCloud, renderOptions);
-    } else {
-      console.warn('ServiceManager: No active point cloud to render');
-    }
+    this._renderService.renderActivePointCloud(this._pointService);
   }
 
   // Service Access Methods (for advanced usage)
-  getPointService(): PointService {
-    return this.pointService;
+  get pointService(): PointService {
+    return this._pointService;
   }
 
-  getRenderService(): RenderService {
-    return this.renderService;
+  get sceneService(): SceneService {
+    return this._sceneService;
+  }
+
+  get renderService(): RenderService {
+    return this._renderService;
+  }
+
+  // Convenience methods for UI
+  get renderOptions(): RenderOptions {
+    return this._renderService.renderOptions;
   }
 }

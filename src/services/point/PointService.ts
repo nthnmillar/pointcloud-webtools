@@ -1,9 +1,11 @@
 import { BaseService } from '../BaseService';
+import { PointMesh } from './PointMesh';
 import type { 
   PointCloudData, 
   PointCloudMetadata, 
   PointCloudPoint, 
-  Point3D 
+  Point3D,
+  RenderOptions 
 } from '../../types/PointCloud';
 
 /**
@@ -11,16 +13,21 @@ import type {
  */
 export class PointService extends BaseService {
   private pointClouds: Map<string, PointCloudData> = new Map();
-  private activePointCloudId: string | null = null;
+  private _activePointCloudId: string | null = null;
+  private pointMesh: PointMesh | null = null;
 
-  async initialize(...args: any[]): Promise<void> {
+  async initialize(scene: any, ...args: any[]): Promise<void> {
+    this.pointMesh = new PointMesh(scene);
     this.isInitialized = true;
     this.emit('initialized');
   }
 
   dispose(): void {
+    if (this.pointMesh) {
+      this.pointMesh.dispose();
+    }
     this.pointClouds.clear();
-    this.activePointCloudId = null;
+    this._activePointCloudId = null;
     this.removeAllObservers();
   }
 
@@ -106,35 +113,35 @@ export class PointService extends BaseService {
   /**
    * Get all point cloud IDs
    */
-  getPointCloudIds(): string[] {
+  get pointCloudIds(): string[] {
     return Array.from(this.pointClouds.keys());
   }
 
   /**
    * Set active point cloud
    */
-  setActivePointCloud(id: string): void {
+  set activePointCloudId(id: string) {
     if (!this.pointClouds.has(id)) {
       throw new Error(`Point cloud with ID ${id} not found`);
     }
     
-    this.activePointCloudId = id;
+    this._activePointCloudId = id;
     this.emit('selectionChanged', { activeId: id });
   }
 
   /**
    * Get active point cloud
    */
-  getActivePointCloud(): PointCloudData | null {
-    if (!this.activePointCloudId) return null;
-    return this.pointClouds.get(this.activePointCloudId) || null;
+  get activePointCloud(): PointCloudData | null {
+    if (!this._activePointCloudId) return null;
+    return this.pointClouds.get(this._activePointCloudId) || null;
   }
 
   /**
    * Get active point cloud ID
    */
-  getActivePointCloudId(): string | null {
-    return this.activePointCloudId;
+  get activePointCloudId(): string | null {
+    return this._activePointCloudId;
   }
 
   /**
@@ -144,12 +151,42 @@ export class PointService extends BaseService {
     if (this.pointClouds.has(id)) {
       this.pointClouds.delete(id);
       
-      if (this.activePointCloudId === id) {
-        this.activePointCloudId = this.pointClouds.size > 0 ? 
+      // Remove mesh if it exists
+      if (this.pointMesh) {
+        this.pointMesh.removePointCloudMesh(id);
+      }
+      
+      if (this._activePointCloudId === id) {
+        this._activePointCloudId = this.pointClouds.size > 0 ? 
           Array.from(this.pointClouds.keys())[0] : null;
       }
       
       this.emit('removed', { id });
+    }
+  }
+
+  /**
+   * Render a point cloud
+   */
+  renderPointCloud(id: string, options: RenderOptions): void {
+    const pointCloud = this.pointClouds.get(id);
+    if (!pointCloud || !this.pointMesh) {
+      console.error('PointService: Cannot render point cloud - not found or mesh not initialized');
+      return;
+    }
+
+    console.log(`PointService: Rendering point cloud ${id} with ${pointCloud.points.length} points`);
+    this.pointMesh.createPointCloudMesh(id, pointCloud, options);
+    this.emit('pointCloudRendered', { id, pointCount: pointCloud.points.length });
+  }
+
+  /**
+   * Update render options for a point cloud
+   */
+  updateRenderOptions(id: string, options: Partial<RenderOptions>): void {
+    if (this.pointMesh) {
+      this.pointMesh.updateMeshMaterial(id, options);
+      this.emit('renderOptionsUpdated', { id, options });
     }
   }
 

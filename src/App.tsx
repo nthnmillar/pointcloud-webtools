@@ -1,5 +1,5 @@
 import React from 'react'
-import { PointCloudViewerV2 } from './components/PointCloudViewerV2'
+import { PointCloudViewer } from './components/PointCloudViewer'
 import './App.css'
 
 function App() {
@@ -11,7 +11,7 @@ function App() {
       </header>
       
       <main className="app-main">
-        <PointCloudViewerV2 className="main-viewer" />
+        <PointCloudViewer className="main-viewer" />
       </main>
       
       <footer className="app-footer">

@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { PointCloudManager } from '../core/PointCloudManager';
-import { BabylonSceneManager } from '../rendering/BabylonSceneManager';
-import type { PointCloudEvent, RenderOptions, CameraSettings } from '../types/PointCloud';
+import { ServiceManager } from '../services/ServiceManager';
+import type { RenderOptions } from '../types/PointCloud';
 
 interface PointCloudViewerProps {
   className?: string;
@@ -9,8 +8,7 @@ interface PointCloudViewerProps {
 
 export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pointCloudManagerRef = useRef<PointCloudManager | null>(null);
-  const sceneManagerRef = useRef<BabylonSceneManager | null>(null);
+  const serviceManagerRef = useRef<ServiceManager | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,123 +22,107 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
     backgroundColor: { r: 0.1, g: 0.1, b: 0.1 }
   });
 
-  // Initialize managers
+  // Initialize service manager
   useEffect(() => {
     if (!canvasRef.current) return;
 
     try {
-      // Initialize point cloud manager
-      const pointCloudManager = new PointCloudManager();
-      pointCloudManagerRef.current = pointCloudManager;
-
-      // Initialize scene manager
-      const sceneManager = new BabylonSceneManager(canvasRef.current);
-      sceneManagerRef.current = sceneManager;
+      const serviceManager = new ServiceManager();
+      serviceManagerRef.current = serviceManager;
 
       // Set up event listeners
-      pointCloudManager.on('loaded', handlePointCloudLoaded);
-      pointCloudManager.on('loading', handlePointCloudLoading);
-      pointCloudManager.on('error', handlePointCloudError);
-      pointCloudManager.on('selectionChanged', handleSelectionChanged);
-      pointCloudManager.on('renderOptionsChanged', handleRenderOptionsChanged);
+      serviceManager.on('initialized', handleInitialized);
+      serviceManager.on('pointCloudLoaded', handlePointCloudLoaded);
+      serviceManager.on('pointCloudLoading', handlePointCloudLoading);
+      serviceManager.on('pointCloudError', handlePointCloudError);
+      serviceManager.on('selectionChanged', handleSelectionChanged);
+      serviceManager.on('renderOptionsChanged', handleRenderOptionsChanged);
+      serviceManager.on('pointCloudRendered', handlePointCloudRendered);
 
-      // Load sample data
-      loadSampleData();
+      // Initialize the service manager
+      serviceManager.initialize(canvasRef.current);
 
       return () => {
         // Cleanup
-        pointCloudManager.removeAllListeners();
-        sceneManager.dispose();
+        serviceManager.dispose();
       };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to initialize viewer');
     }
   }, []);
 
-  // Handle point cloud loaded
-  const handlePointCloudLoaded = (event: PointCloudEvent) => {
+  // Event handlers
+  const handleInitialized = () => {
+    console.log('Service manager initialized');
+    loadSampleData();
+  };
+
+  const handlePointCloudLoaded = (_data: any) => {
     setIsLoading(false);
     setError(null);
     updatePointCloudList();
-    renderActivePointCloud();
   };
 
-  // Handle point cloud loading
-  const handlePointCloudLoading = (event: PointCloudEvent) => {
+  const handlePointCloudLoading = (_data: any) => {
     setIsLoading(true);
     setError(null);
   };
 
-  // Handle point cloud error
-  const handlePointCloudError = (event: PointCloudEvent) => {
+  const handlePointCloudError = (data: any) => {
     setIsLoading(false);
-    setError(event.data?.error || 'Unknown error occurred');
+    setError(data.error || 'Unknown error occurred');
   };
 
-  // Handle selection changed
-  const handleSelectionChanged = (event: PointCloudEvent) => {
-    setActivePointCloudId(event.data?.activeId || null);
-    renderActivePointCloud();
+  const handleSelectionChanged = (data: any) => {
+    setActivePointCloudId(data.activeId || null);
   };
 
-  // Handle render options changed
-  const handleRenderOptionsChanged = (event: PointCloudEvent) => {
-    setRenderOptions(event.data);
-    renderActivePointCloud();
+  const handleRenderOptionsChanged = (options: RenderOptions) => {
+    setRenderOptions(options);
   };
 
-  // Update point cloud list
+  const handlePointCloudRendered = (data: any) => {
+    console.log(`Rendered point cloud ${data.id} with ${data.pointCount} points`);
+  };
+
+  // Helper methods
   const updatePointCloudList = () => {
-    if (pointCloudManagerRef.current) {
-      setPointCloudIds(pointCloudManagerRef.current.getPointCloudIds());
+    if (serviceManagerRef.current) {
+      setPointCloudIds(serviceManagerRef.current.pointCloudIds);
     }
   };
 
-  // Render active point cloud
-  const renderActivePointCloud = () => {
-    if (!pointCloudManagerRef.current || !sceneManagerRef.current) return;
 
-    const activePointCloud = pointCloudManagerRef.current.getActivePointCloud();
-    if (activePointCloud) {
-      const currentOptions = pointCloudManagerRef.current.getRenderOptions();
-      sceneManagerRef.current.renderPointCloud(
-        pointCloudManagerRef.current.getActivePointCloudId()!,
-        activePointCloud,
-        currentOptions
-      );
-    }
-  };
-
-  // Load sample data
   const loadSampleData = async () => {
-    if (!pointCloudManagerRef.current) return;
+    if (!serviceManagerRef.current) return;
 
     try {
-      const sampleData = pointCloudManagerRef.current.generateSamplePointCloud('sample-1', 5000);
-      await pointCloudManagerRef.current.loadPointCloud('sample-1', sampleData);
+      const sampleData = serviceManagerRef.current.generateSamplePointCloud('sample-1', 5000);
+      await serviceManagerRef.current.loadPointCloud('sample-1', sampleData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sample data');
     }
   };
 
-  // Handle render options change
+  // UI event handlers
   const handleRenderOptionChange = (option: keyof RenderOptions, value: any) => {
-    if (!pointCloudManagerRef.current) return;
+    if (!serviceManagerRef.current) return;
 
     const newOptions = { ...renderOptions, [option]: value };
     setRenderOptions(newOptions);
-    pointCloudManagerRef.current.updateRenderOptions(newOptions);
+    // Update render options directly through RenderService
+    serviceManagerRef.current.renderService.renderOptions = newOptions;
   };
 
-  // Handle point cloud selection
   const handlePointCloudSelect = (id: string) => {
-    if (pointCloudManagerRef.current) {
-      pointCloudManagerRef.current.setActivePointCloud(id);
+    if (serviceManagerRef.current) {
+      serviceManagerRef.current.activePointCloudId = id;
     }
   };
 
+
   return (
-    <div className={`point-cloud-viewer ${className || ''}`}>
+    <div className={`point-cloud-viewer-v2 ${className || ''}`}>
       <div className="viewer-controls">
         <div className="control-group">
           <label>Point Cloud:</label>
@@ -208,7 +190,9 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
             {isLoading ? 'Loading...' : 'Load Sample Data'}
           </button>
         </div>
+
       </div>
+
 
       <div className="viewer-canvas-container">
         {error && (
