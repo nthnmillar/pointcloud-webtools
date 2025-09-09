@@ -1,12 +1,12 @@
 import { BaseService } from '../BaseService';
-import { PointMesh } from './PointMesh';
+import { PointMesh } from './pointMesh';
 import type { 
   PointCloudData, 
   PointCloudMetadata, 
   PointCloudPoint, 
   Point3D,
   RenderOptions 
-} from '../../types/PointCloud';
+} from './pointCloud';
 
 /**
  * Point Service - Handles point cloud data operations
@@ -35,7 +35,6 @@ export class PointService extends BaseService {
    * Load point cloud data
    */
   async loadPointCloud(id: string, data: PointCloudData): Promise<void> {
-    console.log(`PointService: Loading point cloud ${id} with ${data.points.length} points`);
     this.emit('loading', { id });
     
     try {
@@ -43,13 +42,11 @@ export class PointService extends BaseService {
       this.pointClouds.set(id, data);
       
       if (!this.activePointCloudId) {
-        this.setActivePointCloud(id);
+        this.activePointCloudId = id;
       }
       
-      console.log(`PointService: Point cloud ${id} loaded successfully`);
       this.emit('loaded', { id, metadata: data.metadata });
     } catch (error) {
-      console.error(`PointService: Error loading point cloud ${id}:`, error);
       this.emit('error', { id, error: error instanceof Error ? error.message : 'Unknown error' });
       throw error;
     }
@@ -171,21 +168,38 @@ export class PointService extends BaseService {
   renderPointCloud(id: string, options: RenderOptions): void {
     const pointCloud = this.pointClouds.get(id);
     if (!pointCloud || !this.pointMesh) {
-      console.error('PointService: Cannot render point cloud - not found or mesh not initialized');
       return;
     }
 
-    console.log(`PointService: Rendering point cloud ${id} with ${pointCloud.points.length} points`);
     this.pointMesh.createPointCloudMesh(id, pointCloud, options);
     this.emit('pointCloudRendered', { id, pointCount: pointCloud.points.length });
   }
 
   /**
-   * Update render options for a point cloud
+   * Get current render options (placeholder - should get from RenderService)
+   */
+  private getRenderOptions(): RenderOptions {
+    return {
+      pointSize: 2.0,
+      colorMode: 'original',
+      showBoundingBox: false,
+      showAxes: true,
+      backgroundColor: { r: 0.1, g: 0.1, b: 0.1 }
+    };
+  }
+
+  /**
+   * Update render options for a point cloud (updates existing mesh)
    */
   updateRenderOptions(id: string, options: Partial<RenderOptions>): void {
     if (this.pointMesh) {
-      this.pointMesh.updateMeshMaterial(id, options);
+      // Check if mesh already exists
+      const existingMesh = this.pointMesh.getPointCloudMesh(id);
+      if (existingMesh) {
+        this.pointMesh.updateMeshMaterial(id, options);
+      } else {
+        this.renderPointCloud(id, { ...this.getRenderOptions(), ...options });
+      }
       this.emit('renderOptionsUpdated', { id, options });
     }
   }

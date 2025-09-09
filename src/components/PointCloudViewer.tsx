@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
-import type { RenderOptions } from '../types/PointCloud';
+import type { RenderOptions } from '../services/point/pointCloud';
 
 interface PointCloudViewerProps {
   className?: string;
@@ -110,8 +110,15 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
 
     const newOptions = { ...renderOptions, [option]: value };
     setRenderOptions(newOptions);
-    // Update render options directly through RenderService
+    
+    // Update render options through RenderService (for state management)
     serviceManagerRef.current.renderService.renderOptions = newOptions;
+    
+    // Update the active point cloud mesh with new options (this handles the actual rendering)
+    const activeId = serviceManagerRef.current.activePointCloudId;
+    if (activeId) {
+      serviceManagerRef.current.pointService.updateRenderOptions(activeId, newOptions);
+    }
   };
 
   const handlePointCloudSelect = (id: string) => {
@@ -141,13 +148,14 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
           <label>Point Size:</label>
           <input
             type="range"
-            min="0.5"
-            max="10"
-            step="0.5"
+            min="0.1"
+            max="20"
+            step="0.1"
             value={renderOptions.pointSize}
             onChange={(e) => handleRenderOptionChange('pointSize', parseFloat(e.target.value))}
+            style={{ width: '120px' }}
           />
-          <span>{renderOptions.pointSize}</span>
+          <span style={{ minWidth: '40px', textAlign: 'right' }}>{renderOptions.pointSize.toFixed(1)}</span>
         </div>
 
         <div className="control-group">

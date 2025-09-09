@@ -5,7 +5,7 @@ import { RenderService } from './render/RenderService';
 import type { 
   PointCloudData, 
   RenderOptions 
-} from '../types/PointCloud';
+} from './point/pointCloud';
 
 /**
  * Service Manager - Coordinates all services and manages their lifecycle
@@ -137,8 +137,6 @@ export class ServiceManager extends BaseService {
   removePointCloud(id: string): void {
     this._pointService.removePointCloud(id);
   }
-
-
 
 
   /**

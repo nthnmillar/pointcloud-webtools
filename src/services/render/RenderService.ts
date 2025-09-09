@@ -1,5 +1,5 @@
 import { BaseService } from '../BaseService';
-import type { RenderOptions } from '../../types/PointCloud';
+import type { RenderOptions } from '../point/pointCloud';
 
 /**
  * Render Service - Handles rendering operations and render options
@@ -27,8 +27,7 @@ export class RenderService extends BaseService {
   set renderOptions(options: Partial<RenderOptions>) {
     this._renderOptions = { ...this._renderOptions, ...options };
     this.emit('renderOptionsChanged', this._renderOptions);
-    // Trigger re-render when options change
-    this.emit('renderRequested');
+    // Note: Re-render is handled manually by the UI to avoid double rendering
   }
 
   /**
@@ -44,14 +43,8 @@ export class RenderService extends BaseService {
   renderActivePointCloud(pointService: { activePointCloudId: string | null; renderPointCloud(id: string, options: RenderOptions): void }): void {
     const activeId = pointService.activePointCloudId;
     
-    console.log('RenderService: renderActivePointCloud called', { 
-      activeId
-    });
-    
     if (activeId) {
       pointService.renderPointCloud(activeId, this._renderOptions);
-    } else {
-      console.warn('RenderService: No active point cloud to render');
     }
   }
 
