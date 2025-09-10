@@ -22,6 +22,17 @@ export class PointMesh {
   }
 
   /**
+   * Convert coordinates from robotics (X=forward, Y=left, Z=up) to Babylon.js (X=right, Y=up, Z=forward)
+   */
+  private convertRoboticsToBabylonJS(point: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+    return {
+      x: -point.y,  // left -> right
+      y: point.z,   // up -> up  
+      z: point.x    // forward -> forward
+    };
+  }
+
+  /**
    * Create a point cloud mesh using PointsCloudSystem
    */
   createPointCloudMesh(id: string, pointCloudData: PointCloudData, options: RenderOptions): any {
@@ -31,7 +42,10 @@ export class PointMesh {
     // Add points to the system
     pointCloudData.points.forEach((point) => {
       pcs.addPoints(1, (particle: { position: Vector3; color: Color4; }) => {
-        particle.position = new Vector3(point.position.x, point.position.y, point.position.z);
+        // Convert coordinates from robotics to Babylon.js
+        const convertedPoint = this.convertRoboticsToBabylonJS(point.position);
+        
+        particle.position = new Vector3(convertedPoint.x, convertedPoint.y, convertedPoint.z);
         
         // Color based on mode
         let color = { r: 1, g: 1, b: 1, a: 1 }; // Default white

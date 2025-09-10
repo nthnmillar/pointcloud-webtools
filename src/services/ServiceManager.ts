@@ -183,8 +183,16 @@ export class ServiceManager extends BaseService {
   /**
    * Render the active point cloud
    */
-  private renderActivePointCloud(): void {
+  renderActivePointCloud(): void {
     this._renderService.renderActivePointCloud(this._pointService);
+  }
+
+  /**
+   * Clear all point clouds from the scene
+   */
+  clearAllPointClouds(): void {
+    this._pointService.clearAllPointClouds();
+    this._renderService.clearScene();
   }
 
   // Service Access Methods (for advanced usage)

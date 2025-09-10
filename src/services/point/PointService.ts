@@ -39,6 +39,8 @@ export class PointService extends BaseService {
     
     try {
       this.validatePointCloudData(data);
+      
+      
       this.pointClouds.set(id, data);
       
       if (!this.activePointCloudId) {
@@ -160,6 +162,24 @@ export class PointService extends BaseService {
       
       this.emit('removed', { id });
     }
+  }
+
+  /**
+   * Clear all point clouds
+   */
+  clearAllPointClouds(): void {
+    // Remove all meshes
+    if (this.pointMesh) {
+      for (const id of this.pointClouds.keys()) {
+        this.pointMesh.removePointCloudMesh(id);
+      }
+    }
+    
+    // Clear the point clouds map
+    this.pointClouds.clear();
+    this._activePointCloudId = null;
+    
+    this.emit('cleared', {});
   }
 
   /**

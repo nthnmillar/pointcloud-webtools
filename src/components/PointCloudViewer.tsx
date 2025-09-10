@@ -59,7 +59,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   // Event handlers
   const handleInitialized = () => {
     console.log('Service manager initialized');
-    loadSampleData();
+    // No longer auto-load sample data - user can choose to load it
   };
 
   const handlePointCloudLoaded = (_data: any) => {
@@ -126,10 +126,21 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
     if (!serviceManagerRef.current) return;
 
     try {
+      setIsLoading(true);
+      setError(null);
+      
       const sampleData = serviceManagerRef.current.generateSamplePointCloud('sample-1', 5000);
       await serviceManagerRef.current.loadPointCloud('sample-1', sampleData);
+      
+      // Set the sample data as active and trigger rendering
+      serviceManagerRef.current.activePointCloudId = 'sample-1';
+      serviceManagerRef.current.renderActivePointCloud();
+      
+      updatePointCloudList();
+      setIsLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sample data');
+      setIsLoading(false);
     }
   };
 
@@ -263,6 +274,18 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
         <div className="control-group">
           <button onClick={loadSampleData} disabled={isLoading}>
             {isLoading ? 'Loading...' : 'Load Sample Data'}
+          </button>
+          <button 
+            onClick={() => {
+              if (serviceManagerRef.current) {
+                serviceManagerRef.current.clearAllPointClouds();
+                updatePointCloudList();
+              }
+            }} 
+            disabled={isLoading}
+            style={{ marginLeft: '8px' }}
+          >
+            Clear Scene
           </button>
         </div>
 

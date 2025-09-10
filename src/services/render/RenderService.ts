@@ -49,6 +49,15 @@ export class RenderService extends BaseService {
   }
 
   /**
+   * Clear the scene (remove all rendered content)
+   */
+  clearScene(): void {
+    // This is a placeholder - in a real implementation, this would clear the 3D scene
+    // For now, we just emit an event that the scene has been cleared
+    this.emit('sceneCleared');
+  }
+
+  /**
    * Get default render options
    */
   private getDefaultRenderOptions(): RenderOptions {

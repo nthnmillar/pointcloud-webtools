@@ -334,7 +334,7 @@ export class LoadLaz {
         hasColor: false,
         hasIntensity: false,
         hasClassification: false,
-        coordinateSystem: 'WGS84', // Default, could be extracted from LAZ header
+        coordinateSystem: 'local',
         units: 'meters', // Default, could be extracted from LAZ header
         created: new Date(),
         modified: new Date(),
