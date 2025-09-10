@@ -10,4 +10,7 @@ export default defineConfig({
       delay: 200
     })
   ],
+  optimizeDeps: {
+    include: ['laz-perf']
+  }
 })

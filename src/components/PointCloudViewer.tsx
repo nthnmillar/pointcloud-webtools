@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
 import type { RenderOptions } from '../services/point/pointCloud';
+import type { LazLoadingProgress } from '../services/loader/LoadLaz';
 
 interface PointCloudViewerProps {
   className?: string;
@@ -14,6 +15,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   const [error, setError] = useState<string | null>(null);
   const [activePointCloudId, setActivePointCloudId] = useState<string | null>(null);
   const [pointCloudIds, setPointCloudIds] = useState<string[]>([]);
+  const [loadingProgress, setLoadingProgress] = useState<LazLoadingProgress | null>(null);
   const [renderOptions, setRenderOptions] = useState<RenderOptions>({
     pointSize: 2.0,
     colorMode: 'original',
@@ -38,6 +40,9 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
       serviceManager.on('selectionChanged', handleSelectionChanged);
       serviceManager.on('renderOptionsChanged', handleRenderOptionsChanged);
       serviceManager.on('pointCloudRendered', handlePointCloudRendered);
+      serviceManager.on('fileLoadingStarted', handleFileLoadingStarted);
+      serviceManager.on('fileLoadingCompleted', handleFileLoadingCompleted);
+      serviceManager.on('fileLoadingError', handleFileLoadingError);
 
       // Initialize the service manager
       serviceManager.initialize(canvasRef.current);
@@ -85,6 +90,30 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
     console.log(`Rendered point cloud ${data.id} with ${data.pointCount} points`);
   };
 
+  const handleFileLoadingStarted = (data: any) => {
+    setIsLoading(true);
+    setError(null);
+    setLoadingProgress({
+      stage: 'initializing',
+      progress: 0,
+      message: `Loading ${data.fileName}...`
+    });
+  };
+
+  const handleFileLoadingCompleted = (data: any) => {
+    setIsLoading(false);
+    setError(null);
+    setLoadingProgress(null);
+    updatePointCloudList();
+    console.log(`Successfully loaded file: ${data.fileName}`);
+  };
+
+  const handleFileLoadingError = (data: any) => {
+    setIsLoading(false);
+    setError(data.error || 'Failed to load file');
+    setLoadingProgress(null);
+  };
+
   // Helper methods
   const updatePointCloudList = () => {
     if (serviceManagerRef.current) {
@@ -101,6 +130,31 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
       await serviceManagerRef.current.loadPointCloud('sample-1', sampleData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sample data');
+    }
+  };
+
+  const handleFileLoad = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !serviceManagerRef.current) return;
+
+    try {
+      // Check if file format is supported
+      const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+      if (!serviceManagerRef.current.isSupportedFormat(extension)) {
+        setError(`Unsupported file format: ${extension}. Supported formats: ${serviceManagerRef.current.getSupportedFormats().join(', ')}`);
+        return;
+      }
+
+      // Load the file with progress tracking
+      await serviceManagerRef.current.loadFile(file, (progress) => {
+        setLoadingProgress(progress);
+      });
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load file');
+    } finally {
+      // Reset file input
+      event.target.value = '';
     }
   };
 
@@ -194,6 +248,19 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
         </div>
 
         <div className="control-group">
+          <label>
+            Load LAZ File:
+            <input
+              type="file"
+              accept=".laz,.las"
+              onChange={handleFileLoad}
+              disabled={isLoading}
+              style={{ marginLeft: '8px' }}
+            />
+          </label>
+        </div>
+
+        <div className="control-group">
           <button onClick={loadSampleData} disabled={isLoading}>
             {isLoading ? 'Loading...' : 'Load Sample Data'}
           </button>
@@ -208,6 +275,20 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
             Error: {error}
           </div>
         )}
+        
+        {loadingProgress && (
+          <div className="loading-progress">
+            <div className="progress-message">{loadingProgress.message}</div>
+            <div className="progress-bar">
+              <div 
+                className="progress-fill" 
+                style={{ width: `${loadingProgress.progress}%` }}
+              />
+            </div>
+            <div className="progress-percentage">{Math.round(loadingProgress.progress)}%</div>
+          </div>
+        )}
+        
         <canvas
           ref={canvasRef}
           className="viewer-canvas"

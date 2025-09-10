@@ -2,10 +2,17 @@ import { BaseService } from './BaseService';
 import { PointService } from './point/PointService';
 import { SceneService } from './scene/SceneService';
 import { RenderService } from './render/RenderService';
+import { LoaderService } from './loader/LoaderService';
 import type { 
   PointCloudData, 
   RenderOptions 
 } from './point/pointCloud';
+import type { 
+  LoaderEventData 
+} from './loader/LoaderService';
+import type { 
+  LazLoadingProgress 
+} from './loader/LoadLaz';
 
 /**
  * Service Manager - Coordinates all services and manages their lifecycle
@@ -14,6 +21,7 @@ export class ServiceManager extends BaseService {
   private _pointService: PointService;
   private _sceneService: SceneService;
   private _renderService: RenderService;
+  private _loaderService: LoaderService;
 
   constructor() {
     super();
@@ -22,18 +30,20 @@ export class ServiceManager extends BaseService {
     this._pointService = new PointService();
     this._sceneService = new SceneService();
     this._renderService = new RenderService();
+    this._loaderService = new LoaderService();
 
     // Set up service communication
     this.setupServiceCommunication();
   }
 
-  async initialize(canvas: HTMLCanvasElement, ...args: any[]): Promise<void> {
+  async initialize(canvas: HTMLCanvasElement): Promise<void> {
 
     try {
       // Initialize services
       await Promise.all([
         this._sceneService.initialize(canvas),
-        this._renderService.initialize()
+        this._renderService.initialize(),
+        this._loaderService.initialize()
       ]);
       
       // Initialize point service with the scene
@@ -56,6 +66,7 @@ export class ServiceManager extends BaseService {
     this._pointService.dispose();
     this._sceneService.dispose();
     this._renderService.dispose();
+    this._loaderService.dispose();
     
     this.removeAllObservers();
   }
@@ -102,6 +113,36 @@ export class ServiceManager extends BaseService {
 
     this._renderService.on('renderOptionsChanged', (data) => {
       this.emit('renderOptionsChanged', data);
+    });
+
+    // Loader service events
+    this._loaderService.on('loadingStarted', (data: LoaderEventData) => {
+      this.emit('fileLoadingStarted', data);
+    });
+
+    this._loaderService.on('loadingCompleted', (data: LoaderEventData) => {
+      this.emit('fileLoadingCompleted', data);
+      // Automatically load the point cloud data into the point service
+      if (data.pointCloudData) {
+        console.log('ServiceManager: Received point cloud data:', {
+          pointCount: data.pointCloudData.points.length,
+          metadata: data.pointCloudData.metadata
+        });
+        // Generate a unique ID for the loaded point cloud
+        const id = `loaded_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.loadPointCloud(id, data.pointCloudData);
+        // Set the newly loaded point cloud as active
+        this.activePointCloudId = id;
+        console.log('ServiceManager: Set active point cloud to:', id);
+        // Trigger rendering of the new point cloud
+        this.renderActivePointCloud();
+      } else {
+        console.log('ServiceManager: No point cloud data received');
+      }
+    });
+
+    this._loaderService.on('loadingError', (data: LoaderEventData) => {
+      this.emit('fileLoadingError', data);
     });
   }
 
@@ -162,5 +203,43 @@ export class ServiceManager extends BaseService {
   // Convenience methods for UI
   get renderOptions(): RenderOptions {
     return this._renderService.renderOptions;
+  }
+
+  // Loader Service Methods
+  async loadFile(file: File, onProgress?: (progress: LazLoadingProgress) => void): Promise<PointCloudData> {
+    return this._loaderService.loadFile(file, onProgress);
+  }
+
+  async loadLazFromArrayBuffer(
+    arrayBuffer: ArrayBuffer, 
+    fileName: string, 
+    onProgress?: (progress: LazLoadingProgress) => void
+  ): Promise<PointCloudData> {
+    return this._loaderService.loadLazFromArrayBuffer(arrayBuffer, fileName, onProgress);
+  }
+
+  async getFileMetadata(file: File): Promise<any> {
+    return this._loaderService.getFileMetadata(file);
+  }
+
+  isSupportedFormat(extension: string): boolean {
+    return this._loaderService.isSupportedFormat(extension);
+  }
+
+  getSupportedFormats(): string[] {
+    return this._loaderService.getSupportedFormats();
+  }
+
+  get isFileLoading(): boolean {
+    return this._loaderService.isProcessing;
+  }
+
+  get isLoaderReady(): boolean {
+    return this._loaderService.isReady;
+  }
+
+  // Service Access Methods (for advanced usage)
+  get loaderService(): LoaderService {
+    return this._loaderService;
   }
 }
