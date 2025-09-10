@@ -1,5 +1,5 @@
 import { LoadLazWorker } from './LoadLazWorker';
-import type { PointCloudData, PointCloudPoint } from '../point/pointCloud';
+import type { PointCloudData, PointCloudPoint } from '../point/PointCloud';
 
 /**
  * Interface for LAZ loading progress

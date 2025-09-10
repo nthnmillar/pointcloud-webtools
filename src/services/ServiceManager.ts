@@ -6,7 +6,7 @@ import { LoaderService } from './loader/LoaderService';
 import type { 
   PointCloudData, 
   RenderOptions 
-} from './point/pointCloud';
+} from './point/PointCloud';
 import type { 
   LoaderEventData 
 } from './loader/LoaderService';

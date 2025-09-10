@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
-import type { RenderOptions } from '../services/point/pointCloud';
+import type { RenderOptions } from '../services/point/PointCloud';
 import type { LazLoadingProgress } from '../services/loader/LoadLaz';
 
 interface PointCloudViewerProps {

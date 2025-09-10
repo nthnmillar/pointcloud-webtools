@@ -1,6 +1,6 @@
 import { BaseService } from '../BaseService';
 import { LoadLaz } from './LoadLaz';
-import type { PointCloudData } from '../point/pointCloud';
+import type { PointCloudData } from '../point/PointCloud';
 import type { LazLoadingProgress, LazFileMetadata } from './LoadLaz';
 
 /**

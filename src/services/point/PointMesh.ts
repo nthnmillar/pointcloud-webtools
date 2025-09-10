@@ -7,7 +7,7 @@ import {
 import type { 
   PointCloudData, 
   RenderOptions 
-} from './pointCloud';
+} from './PointCloud';
 
 /**
  * PointMesh - Handles point cloud mesh creation and management using PointsCloudSystem

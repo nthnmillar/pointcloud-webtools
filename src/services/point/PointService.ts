@@ -1,12 +1,12 @@
 import { BaseService } from '../BaseService';
-import { PointMesh } from './pointMesh';
+import { PointMesh } from './PointMesh';
 import type { 
   PointCloudData, 
   PointCloudMetadata, 
   PointCloudPoint, 
   Point3D,
   RenderOptions 
-} from './pointCloud';
+} from './PointCloud';
 
 /**
  * Point Service - Handles point cloud data operations
