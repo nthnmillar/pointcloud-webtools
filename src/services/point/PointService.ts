@@ -188,9 +188,11 @@ export class PointService extends BaseService {
   renderPointCloud(id: string, options: RenderOptions): void {
     const pointCloud = this.pointClouds.get(id);
     if (!pointCloud || !this.pointMesh) {
+      console.log('PointService: Cannot render - pointCloud:', !!pointCloud, 'pointMesh:', !!this.pointMesh);
       return;
     }
 
+    console.log('PointService: Rendering point cloud', id, 'with', pointCloud.points.length, 'points');
     this.pointMesh.createPointCloudMesh(id, pointCloud, options);
     this.emit('pointCloudRendered', { id, pointCount: pointCloud.points.length });
   }

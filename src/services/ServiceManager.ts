@@ -30,7 +30,7 @@ export class ServiceManager extends BaseService {
     this._pointService = new PointService();
     this._sceneService = new SceneService();
     this._renderService = new RenderService();
-    this._loaderService = new LoaderService();
+    this._loaderService = new LoaderService(this);
 
     // Set up service communication
     this.setupServiceCommunication();
@@ -215,6 +215,7 @@ export class ServiceManager extends BaseService {
 
   // Loader Service Methods
   async loadFile(file: File, onProgress?: (progress: LazLoadingProgress) => void): Promise<PointCloudData> {
+    console.log('ServiceManager: loadFile called with', file.name);
     return this._loaderService.loadFile(file, onProgress);
   }
 

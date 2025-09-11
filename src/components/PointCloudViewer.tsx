@@ -145,23 +145,34 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   };
 
   const handleFileLoad = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('PointCloudViewer: File input changed');
     const file = event.target.files?.[0];
-    if (!file || !serviceManagerRef.current) return;
+    console.log('PointCloudViewer: Selected file:', file?.name, 'ServiceManager:', !!serviceManagerRef.current);
+    
+    if (!file || !serviceManagerRef.current) {
+      console.log('PointCloudViewer: No file or service manager, returning');
+      return;
+    }
 
     try {
       // Check if file format is supported
       const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+      console.log('PointCloudViewer: File extension:', extension);
+      
       if (!serviceManagerRef.current.isSupportedFormat(extension)) {
         setError(`Unsupported file format: ${extension}. Supported formats: ${serviceManagerRef.current.getSupportedFormats().join(', ')}`);
         return;
       }
 
+      console.log('PointCloudViewer: Starting file load...');
       // Load the file with progress tracking
       await serviceManagerRef.current.loadFile(file, (progress) => {
+        console.log('PointCloudViewer: Progress:', progress);
         setLoadingProgress(progress);
       });
 
     } catch (err) {
+      console.error('PointCloudViewer: Error loading file:', err);
       setError(err instanceof Error ? err.message : 'Failed to load file');
     } finally {
       // Reset file input

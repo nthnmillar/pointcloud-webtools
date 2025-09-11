@@ -25,17 +25,26 @@ export class PointMesh {
    * Convert coordinates from robotics (X=forward, Y=left, Z=up) to Babylon.js (X=right, Y=up, Z=forward)
    */
   private convertRoboticsToBabylonJS(point: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
-    return {
+    const converted = {
       x: -point.y,  // left -> right
       y: point.z,   // up -> up  
       z: point.x    // forward -> forward
     };
+    
+    // Debug first few points
+    if (Math.random() < 0.001) { // Log ~0.1% of points
+      console.log('PointMesh: Converting point:', point, '->', converted);
+    }
+    
+    return converted;
   }
 
   /**
    * Create a point cloud mesh using PointsCloudSystem
    */
   createPointCloudMesh(id: string, pointCloudData: PointCloudData, options: RenderOptions): any {
+    console.log('PointMesh: Creating mesh for', id, 'with', pointCloudData.points.length, 'points');
+    
     // Create PointsCloudSystem
     const pcs = new PointsCloudSystem(`pointCloud_${id}`, 1, this.scene);
     
@@ -65,12 +74,18 @@ export class PointMesh {
       });
     });
 
+    console.log('PointMesh: Added', pointCloudData.points.length, 'points to PCS');
+
     // Build the mesh
     pcs.buildMeshAsync().then(() => {
+      console.log('PointMesh: Mesh built successfully');
       // Set point size
       if (pcs.mesh && pcs.mesh.material) {
         pcs.mesh.material.pointSize = options.pointSize;
+        console.log('PointMesh: Set point size to', options.pointSize);
       }
+    }).catch((error) => {
+      console.error('PointMesh: Error building mesh:', error);
     });
 
     // Store the system
