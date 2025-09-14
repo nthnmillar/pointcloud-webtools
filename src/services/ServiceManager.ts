@@ -3,6 +3,7 @@ import { PointService } from './point/PointService';
 import { SceneService } from './scene/SceneService';
 import { RenderService } from './render/RenderService';
 import { LoaderService } from './loader/LoaderService';
+import { CameraService } from './camera/CameraService';
 import type { 
   PointCloudData, 
   RenderOptions 
@@ -193,6 +194,10 @@ export class ServiceManager extends BaseService {
 
   get renderService(): RenderService {
     return this._renderService;
+  }
+
+  get cameraService(): CameraService {
+    return this._sceneService.cameraService;
   }
 
   // Convenience methods for UI

@@ -13,6 +13,8 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   const [error, setError] = useState<string | null>(null);
   const [batchSize, setBatchSize] = useState(500);
   const [pointSize, setPointSize] = useState(2.0);
+  const [zoomSensitivity, setZoomSensitivity] = useState(0.005);
+  const [panningSensitivity, setPanningSensitivity] = useState(0.05);
 
   // Initialize service manager
   useEffect(() => {
@@ -33,7 +35,11 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
       serviceManager.on('fileLoadingError', handleFileLoadingError);
 
       // Initialize the service manager
-      serviceManager.initialize(canvasRef.current);
+      serviceManager.initialize(canvasRef.current).then(() => {
+        // Initialize UI values from service
+        setZoomSensitivity(serviceManager.cameraService.zoomSensitivity);
+        setPanningSensitivity(serviceManager.cameraService.panningSensitivity);
+      });
 
       return () => {
         // Cleanup
@@ -146,6 +152,20 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
     }
   };
 
+  const handleZoomSensitivityChange = (newZoomSensitivity: number) => {
+    if (!serviceManagerRef.current) return;
+    
+    setZoomSensitivity(newZoomSensitivity);
+    serviceManagerRef.current.cameraService.zoomSensitivity = newZoomSensitivity;
+  };
+
+  const handlePanningSensitivityChange = (newPanningSensitivity: number) => {
+    if (!serviceManagerRef.current) return;
+    
+    setPanningSensitivity(newPanningSensitivity);
+    serviceManagerRef.current.cameraService.panningSensitivity = newPanningSensitivity;
+  };
+
 
 
   return (
@@ -164,6 +184,34 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
             style={{ width: '120px' }}
           />
           <span style={{ minWidth: '20px', textAlign: 'right' }}>{pointSize.toFixed(1)}</span>
+        </div>
+
+        <div className="control-group">
+          <label>Zoom Sensitivity:</label>
+          <input
+            type="range"
+            min="0.001"
+            max="0.1"
+            step="0.001"
+            value={zoomSensitivity}
+            onChange={(e) => handleZoomSensitivityChange(parseFloat(e.target.value))}
+            style={{ width: '120px' }}
+          />
+          <span style={{ minWidth: '30px', textAlign: 'right' }}>{zoomSensitivity.toFixed(3)}</span>
+        </div>
+
+        <div className="control-group">
+          <label>Panning Sensitivity:</label>
+          <input
+            type="range"
+            min="0.01"
+            max="0.5"
+            step="0.01"
+            value={panningSensitivity}
+            onChange={(e) => handlePanningSensitivityChange(parseFloat(e.target.value))}
+            style={{ width: '120px' }}
+          />
+          <span style={{ minWidth: '30px', textAlign: 'right' }}>{panningSensitivity.toFixed(2)}</span>
         </div>
 
 
