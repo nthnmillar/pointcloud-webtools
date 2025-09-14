@@ -1,6 +1,5 @@
 import { BaseService } from '../BaseService';
 import { LoadLaz } from './LoadLaz';
-import type { PointCloudData } from '../point/PointCloud';
 
 export interface LazLoadingProgress {
   stage: 'initializing' | 'processing' | 'complete' | 'error';
@@ -30,8 +29,9 @@ export class LoaderService extends BaseService {
 
   async loadFile(
     file: File, 
-    onProgress?: (progress: LazLoadingProgress) => void
-  ): Promise<PointCloudData> {
+    onProgress?: (progress: LazLoadingProgress) => void,
+    batchSize: number = 500
+  ): Promise<void> {
     console.log('LoaderService: loadFile called with', file.name);
     
     const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
@@ -47,16 +47,13 @@ export class LoaderService extends BaseService {
         fileName: file.name,
       });
 
-      console.log('LoaderService: Delegating to LoadLaz');
-      const result = await this.loadLaz.loadFromFile(file, onProgress);
-
+      console.log('LoaderService: Using batch loading');
+      await this.loadLaz.loadFromFile(file, onProgress, batchSize);
       this.emit('loadingCompleted', {
         type: 'LAZ',
         fileName: file.name,
-        pointCloudData: result,
+        pointCloudData: null, // Batches are handled individually
       });
-
-      return result;
     } catch (error) {
       this.emit('loadingError', {
         type: 'LAZ',

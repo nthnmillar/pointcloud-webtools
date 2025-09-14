@@ -16,7 +16,7 @@ export class PointService extends BaseService {
   private _activePointCloudId: string | null = null;
   private pointMesh: PointMesh | null = null;
 
-  async initialize(scene: any, ...args: any[]): Promise<void> {
+  async initialize(scene: any): Promise<void> {
     this.pointMesh = new PointMesh(scene);
     this.isInitialized = true;
     this.emit('initialized');
@@ -40,11 +40,15 @@ export class PointService extends BaseService {
     try {
       this.validatePointCloudData(data);
       
-      
       this.pointClouds.set(id, data);
       
       if (!this.activePointCloudId) {
         this.activePointCloudId = id;
+      }
+      
+      // Only render if mesh doesn't already exist
+      if (!this.pointMesh?.getPointCloudMesh(id)) {
+        this.renderPointCloud(id, this.getRenderOptions());
       }
       
       this.emit('loaded', { id, metadata: data.metadata });
@@ -183,16 +187,41 @@ export class PointService extends BaseService {
   }
 
   /**
+   * Create point cloud mesh directly (bypasses loadPointCloud)
+   */
+  createPointCloudMesh(id: string, data: PointCloudData): void {
+    try {
+      this.validatePointCloudData(data);
+      
+      // Store the point cloud data
+      this.pointClouds.set(id, data);
+      
+      if (!this.activePointCloudId) {
+        this.activePointCloudId = id;
+      }
+      
+      // Render immediately
+      this.renderPointCloud(id, this.getRenderOptions());
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
    * Render a point cloud
    */
   renderPointCloud(id: string, options: RenderOptions): void {
     const pointCloud = this.pointClouds.get(id);
     if (!pointCloud || !this.pointMesh) {
-      console.log('PointService: Cannot render - pointCloud:', !!pointCloud, 'pointMesh:', !!this.pointMesh);
       return;
     }
 
-    console.log('PointService: Rendering point cloud', id, 'with', pointCloud.points.length, 'points');
+    // Check if mesh already exists
+    const existingMesh = this.pointMesh.getPointCloudMesh(id);
+    if (existingMesh) {
+      return;
+    }
+
     this.pointMesh.createPointCloudMesh(id, pointCloud, options);
     this.emit('pointCloudRendered', { id, pointCount: pointCloud.points.length });
   }

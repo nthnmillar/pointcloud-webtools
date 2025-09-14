@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
 import type { RenderOptions } from '../services/point/PointCloud';
-import type { LazLoadingProgress } from '../services/loader/LoadLaz';
 
 interface PointCloudViewerProps {
   className?: string;
@@ -15,7 +14,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   const [error, setError] = useState<string | null>(null);
   const [activePointCloudId, setActivePointCloudId] = useState<string | null>(null);
   const [pointCloudIds, setPointCloudIds] = useState<string[]>([]);
-  const [loadingProgress, setLoadingProgress] = useState<LazLoadingProgress | null>(null);
+  const [batchSize, setBatchSize] = useState(500);
   const [renderOptions, setRenderOptions] = useState<RenderOptions>({
     pointSize: 2.0,
     colorMode: 'original',
@@ -93,17 +92,12 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   const handleFileLoadingStarted = (data: any) => {
     setIsLoading(true);
     setError(null);
-    setLoadingProgress({
-      stage: 'initializing',
-      progress: 0,
-      message: `Loading ${data.fileName}...`
-    });
+    console.log(`Starting to load file: ${data.fileName}`);
   };
 
   const handleFileLoadingCompleted = (data: any) => {
     setIsLoading(false);
     setError(null);
-    setLoadingProgress(null);
     updatePointCloudList();
     console.log(`Successfully loaded file: ${data.fileName}`);
   };
@@ -111,7 +105,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   const handleFileLoadingError = (data: any) => {
     setIsLoading(false);
     setError(data.error || 'Failed to load file');
-    setLoadingProgress(null);
   };
 
   // Helper methods
@@ -164,12 +157,9 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
         return;
       }
 
-      console.log('PointCloudViewer: Starting file load...');
-      // Load the file with progress tracking
-      await serviceManagerRef.current.loadFile(file, (progress) => {
-        console.log('PointCloudViewer: Progress:', progress);
-        setLoadingProgress(progress);
-      });
+      console.log('PointCloudViewer: Starting file load...', 'batch size:', batchSize);
+      // Load the file - batches will appear in scene as they load
+      await serviceManagerRef.current.loadFile(file, undefined, batchSize);
 
     } catch (err) {
       console.error('PointCloudViewer: Error loading file:', err);
@@ -270,6 +260,20 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
         </div>
 
         <div className="control-group">
+          <label>Batch Size:</label>
+          <input
+            type="number"
+            min="100"
+            max="2000"
+            step="100"
+            value={batchSize}
+            onChange={(e) => setBatchSize(parseInt(e.target.value) || 500)}
+            style={{ width: '80px', marginLeft: '8px' }}
+          />
+          <span style={{ marginLeft: '8px' }}>points per batch</span>
+        </div>
+
+        <div className="control-group">
           <label>
             Load LAZ File:
             <input
@@ -310,18 +314,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
           </div>
         )}
         
-        {loadingProgress && (
-          <div className="loading-progress">
-            <div className="progress-message">{loadingProgress.message}</div>
-            <div className="progress-bar">
-              <div 
-                className="progress-fill" 
-                style={{ width: `${loadingProgress.progress}%` }}
-              />
-            </div>
-            <div className="progress-percentage">{Math.round(loadingProgress.progress)}%</div>
-          </div>
-        )}
         
         <canvas
           ref={canvasRef}

@@ -8,9 +8,6 @@ import type {
   RenderOptions 
 } from './point/PointCloud';
 import type { 
-  LoaderEventData 
-} from './loader/LoaderService';
-import type { 
   LazLoadingProgress 
 } from './loader/LoadLaz';
 
@@ -116,11 +113,11 @@ export class ServiceManager extends BaseService {
     });
 
     // Loader service events
-    this._loaderService.on('loadingStarted', (data: LoaderEventData) => {
+    this._loaderService.on('loadingStarted', (data: any) => {
       this.emit('fileLoadingStarted', data);
     });
 
-    this._loaderService.on('loadingCompleted', (data: LoaderEventData) => {
+    this._loaderService.on('loadingCompleted', (data: any) => {
       this.emit('fileLoadingCompleted', data);
       // Automatically load the point cloud data into the point service
       if (data.pointCloudData) {
@@ -141,7 +138,7 @@ export class ServiceManager extends BaseService {
       }
     });
 
-    this._loaderService.on('loadingError', (data: LoaderEventData) => {
+    this._loaderService.on('loadingError', (data: any) => {
       this.emit('fileLoadingError', data);
     });
   }
@@ -214,18 +211,15 @@ export class ServiceManager extends BaseService {
   }
 
   // Loader Service Methods
-  async loadFile(file: File, onProgress?: (progress: LazLoadingProgress) => void): Promise<PointCloudData> {
+  async loadFile(
+    file: File, 
+    onProgress?: (progress: LazLoadingProgress) => void,
+    batchSize: number = 500
+  ): Promise<void> {
     console.log('ServiceManager: loadFile called with', file.name);
-    return this._loaderService.loadFile(file, onProgress);
+    return this._loaderService.loadFile(file, onProgress, batchSize);
   }
 
-  async loadLazFromArrayBuffer(
-    arrayBuffer: ArrayBuffer, 
-    fileName: string, 
-    onProgress?: (progress: LazLoadingProgress) => void
-  ): Promise<PointCloudData> {
-    return this._loaderService.loadLazFromArrayBuffer(arrayBuffer, fileName, onProgress);
-  }
 
   async getFileMetadata(file: File): Promise<any> {
     return this._loaderService.getFileMetadata(file);
