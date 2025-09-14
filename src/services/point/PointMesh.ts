@@ -105,7 +105,12 @@ export class PointMesh {
     pcs.setParticles();
     
     // Build the mesh asynchronously but don't wait for it - this allows batches to process immediately
-    pcs.buildMeshAsync();
+    pcs.buildMeshAsync().then(() => {
+      // Set point size after mesh is built
+      if (pcs.mesh && pcs.mesh.material) {
+        pcs.mesh.material.pointSize = options.pointSize;
+      }
+    });
     
     // Update performance stats
     const renderTime = performance.now() - startTime;
@@ -159,6 +164,29 @@ export class PointMesh {
     }
     
     return selectedPoints;
+  }
+
+  /**
+   * Update point size for a specific mesh
+   */
+  updatePointSize(id: string, pointSize: number): void {
+    const mesh = this.meshes.get(id);
+    if (mesh && mesh.mesh && mesh.mesh.material) {
+      mesh.mesh.material.pointSize = pointSize;
+      console.log(`Updated point size for ${id}: ${pointSize}`);
+    }
+  }
+
+  /**
+   * Update point size for all meshes
+   */
+  updateAllPointSizes(pointSize: number): void {
+    for (const [id, mesh] of this.meshes) {
+      if (mesh.mesh && mesh.mesh.material) {
+        mesh.mesh.material.pointSize = pointSize;
+      }
+    }
+    console.log(`Updated point size for all meshes: ${pointSize}`);
   }
 
   /**

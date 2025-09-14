@@ -148,6 +148,13 @@ export class PointService extends BaseService {
   }
 
   /**
+   * Get point mesh instance
+   */
+  get pointMeshInstance(): PointMesh | null {
+    return this.pointMesh;
+  }
+
+  /**
    * Remove point cloud
    */
   removePointCloud(id: string): void {
@@ -245,8 +252,16 @@ export class PointService extends BaseService {
    * Update render options for a point cloud (updates existing mesh)
    */
   updateRenderOptions(id: string, options: Partial<RenderOptions>): void {
-    // Re-render with new options
-    this.renderPointCloud(id, { ...this.getRenderOptions(), ...options });
+    // Update point size if provided
+    if (options.pointSize !== undefined && this.pointMesh) {
+      this.pointMesh.updatePointSize(id, options.pointSize);
+    }
+    
+    // Re-render with new options if other properties changed
+    if (Object.keys(options).some(key => key !== 'pointSize')) {
+      this.renderPointCloud(id, { ...this.getRenderOptions(), ...options });
+    }
+    
     this.emit('renderOptionsUpdated', { id, options });
   }
 

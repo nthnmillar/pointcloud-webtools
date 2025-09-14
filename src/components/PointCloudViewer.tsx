@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
-import type { RenderOptions } from '../services/point/PointCloud';
 
 interface PointCloudViewerProps {
   className?: string;
@@ -13,13 +12,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [batchSize, setBatchSize] = useState(500);
-  const [renderOptions, setRenderOptions] = useState<RenderOptions>({
-    pointSize: 2.0,
-    colorMode: 'original',
-    showBoundingBox: false,
-    showAxes: true,
-    backgroundColor: { r: 0.1, g: 0.1, b: 0.1 }
-  });
+  const [pointSize, setPointSize] = useState(2.0);
 
   // Initialize service manager
   useEffect(() => {
@@ -34,7 +27,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
       serviceManager.on('pointCloudLoaded', handlePointCloudLoaded);
       serviceManager.on('pointCloudLoading', handlePointCloudLoading);
       serviceManager.on('pointCloudError', handlePointCloudError);
-      serviceManager.on('renderOptionsChanged', handleRenderOptionsChanged);
       serviceManager.on('pointCloudRendered', handlePointCloudRendered);
       serviceManager.on('fileLoadingStarted', handleFileLoadingStarted);
       serviceManager.on('fileLoadingCompleted', handleFileLoadingCompleted);
@@ -72,9 +64,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
     setError(data.error || 'Unknown error occurred');
   };
 
-  const handleRenderOptionsChanged = (options: RenderOptions) => {
-    setRenderOptions(options);
-  };
 
   const handlePointCloudRendered = (_data: any) => {
     // Point cloud rendered
@@ -146,19 +135,14 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   };
 
   // UI event handlers
-  const handleRenderOptionChange = (option: keyof RenderOptions, value: any) => {
+  const handlePointSizeChange = (newPointSize: number) => {
     if (!serviceManagerRef.current) return;
 
-    const newOptions = { ...renderOptions, [option]: value };
-    setRenderOptions(newOptions);
+    setPointSize(newPointSize);
     
-    // Update render options through RenderService (for state management)
-    serviceManagerRef.current.renderService.renderOptions = newOptions;
-    
-    // Update the active point cloud mesh with new options (this handles the actual rendering)
-    const activeId = serviceManagerRef.current.activePointCloudId;
-    if (activeId) {
-      serviceManagerRef.current.pointService.updateRenderOptions(activeId, newOptions);
+    // Update all point cloud meshes with new point size
+    if (serviceManagerRef.current.pointService.pointMeshInstance) {
+      serviceManagerRef.current.pointService.pointMeshInstance.updateAllPointSizes(newPointSize);
     }
   };
 
@@ -175,47 +159,13 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
             min="0.1"
             max="20"
             step="0.1"
-            value={renderOptions.pointSize}
-            onChange={(e) => handleRenderOptionChange('pointSize', parseFloat(e.target.value))}
+            value={pointSize}
+            onChange={(e) => handlePointSizeChange(parseFloat(e.target.value))}
             style={{ width: '120px' }}
           />
-          <span style={{ minWidth: '40px', textAlign: 'right' }}>{renderOptions.pointSize.toFixed(1)}</span>
+          <span style={{ minWidth: '40px', textAlign: 'right' }}>{pointSize.toFixed(1)}</span>
         </div>
 
-        <div className="control-group">
-          <label>Color Mode:</label>
-          <select 
-            value={renderOptions.colorMode} 
-            onChange={(e) => handleRenderOptionChange('colorMode', e.target.value)}
-          >
-            <option value="original">Original</option>
-            <option value="intensity">Intensity</option>
-            <option value="height">Height</option>
-            <option value="classification">Classification</option>
-          </select>
-        </div>
-
-        <div className="control-group">
-          <label>
-            <input
-              type="checkbox"
-              checked={renderOptions.showBoundingBox}
-              onChange={(e) => handleRenderOptionChange('showBoundingBox', e.target.checked)}
-            />
-            Show Bounding Box
-          </label>
-        </div>
-
-        <div className="control-group">
-          <label>
-            <input
-              type="checkbox"
-              checked={renderOptions.showAxes}
-              onChange={(e) => handleRenderOptionChange('showAxes', e.target.checked)}
-            />
-            Show Axes
-          </label>
-        </div>
 
         <div className="control-group">
           <label>Batch Size:</label>
