@@ -16,7 +16,6 @@ export class LoadLaz {
   private currentFileId: string | null = null;
   private batchCount: number = 0;
   private headerData: any = null;
-  private centerOffset: { x: number; y: number; z: number } | null = null;
 
   constructor(serviceManager: ServiceManager) {
     this.serviceManager = serviceManager;
@@ -36,7 +35,6 @@ export class LoadLaz {
     this.currentFileId = null;
     this.batchCount = 0;
     this.headerData = null;
-    this.centerOffset = null;
   }
 
   async loadFromFile(
@@ -144,8 +142,8 @@ export class LoadLaz {
 
           case 'PROCESSING_COMPLETE':
             this.worker!.removeEventListener('message', handleMessage);
-            // Create the final unified point cloud
-            this.createUnifiedPointCloud(data);
+            // All batch meshes are now visible, forming the complete point cloud
+            this.createUnifiedPointCloud();
             this.resetAccumulator(); // Reset the accumulator after processing completes
             resolve();
             break;
@@ -211,16 +209,17 @@ export class LoadLaz {
       return;
     }
 
-    // Center the points if we have header data
-    const centeredPoints = this.centerPoints(points);
+    // Don't center individual batches - they should maintain their relative positions
+    // Only center the final unified mesh at the end
+    const batchPoints = points;
 
     // Create individual batch mesh with unique ID
     const batchId = `${this.currentFileId}_batch_${this.batchCount + 1}`;
     const pointCloudData: PointCloudData = {
-      points: centeredPoints,
+      points: batchPoints,
       metadata: {
         name: batchId,
-        totalPoints: centeredPoints.length,
+        totalPoints: batchPoints.length,
         bounds: bounds,
         hasColor: false,
         hasIntensity: false,
@@ -229,77 +228,23 @@ export class LoadLaz {
     };
 
     // Create the batch mesh immediately
-    console.log(`LoadLaz: Creating batch mesh ${batchId} with ${centeredPoints.length} points`);
+    console.log(`LoadLaz: Creating batch mesh ${batchId} with ${batchPoints.length} points`);
+    console.log(`LoadLaz: First few points:`, batchPoints.slice(0, 3).map(p => p.position));
     this.serviceManager.pointService.createPointCloudMesh(batchId, pointCloudData);
   }
 
-  private createUnifiedPointCloud(finalData: any): void {
+  private createUnifiedPointCloud(): void {
     if (this.accumulatedPoints.length === 0) {
       return;
     }
 
-    // Remove all batch meshes first
-    if (this.currentFileId) {
-      for (let i = 1; i <= this.batchCount; i++) {
-        this.serviceManager.pointService.removePointCloud(`${this.currentFileId}_batch_${i}`);
-      }
-    }
-
-    // Center the points if we have header data
-    const centeredPoints = this.centerPoints(this.accumulatedPoints);
-
-    // Create the final unified point cloud data
-    const pointCloudData: PointCloudData = {
-      points: centeredPoints,
-      metadata: {
-        name: this.currentFileId || 'loadedLaz',
-        totalPoints: centeredPoints.length,
-        bounds: this.globalBounds || finalData.globalBounds,
-        hasColor: false,
-        hasIntensity: false,
-        hasClassification: false
-      }
-    };
-
-    // Create the single unified point cloud mesh
-    console.log(`LoadLaz: Creating final unified mesh with ${centeredPoints.length} points`);
-    this.serviceManager.pointService.createPointCloudMesh(this.currentFileId || 'loadedLaz', pointCloudData);
+    // Keep all batch meshes visible - they form the complete point cloud together
+    // No need to create a final unified mesh since the batches already show the complete point cloud
+    
+    console.log(`LoadLaz: All ${this.batchCount} batch meshes are now visible, forming the complete point cloud`);
+    console.log(`LoadLaz: Total points across all batches: ${this.accumulatedPoints.length}`);
   }
 
-  private centerPoints(points: PointCloudPoint[]): PointCloudPoint[] {
-    if (!this.headerData || points.length === 0) {
-      return points;
-    }
-
-    // Calculate center offset from header bounds
-    if (!this.centerOffset) {
-      const minX = this.headerData.MinX || 0;
-      const maxX = this.headerData.MaxX || 0;
-      const minY = this.headerData.MinY || 0;
-      const maxY = this.headerData.MaxY || 0;
-      const minZ = this.headerData.MinZ || 0;
-      const maxZ = this.headerData.MaxZ || 0;
-
-      this.centerOffset = {
-        x: (minX + maxX) / 2,
-        y: (minY + maxY) / 2,
-        z: (minZ + maxZ) / 2
-      };
-
-      console.log('LoadLaz: Calculated center offset:', this.centerOffset);
-      console.log('LoadLaz: Header bounds:', { minX, maxX, minY, maxY, minZ, maxZ });
-    }
-
-    // Center all points around origin
-    return points.map(point => ({
-      ...point,
-      position: {
-        x: point.position.x - this.centerOffset!.x,
-        y: point.position.y - this.centerOffset!.y,
-        z: point.position.z - this.centerOffset!.z
-      }
-    }));
-  }
 
   private async readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
     return new Promise((resolve, reject) => {

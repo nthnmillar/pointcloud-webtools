@@ -145,8 +145,10 @@ export class PointMesh {
         console.log(`PointMesh: Mesh enabled for ${id}, position:`, pcs.mesh.position);
         console.log(`PointMesh: Mesh bounding box:`, pcs.mesh.getBoundingInfo().boundingBox);
         
-        // Try to fit camera to the point cloud
-        this.fitCameraToPointCloud(pcs.mesh);
+        // Try to fit camera to the point cloud (only for first mesh)
+        if (this.pointCloudSystems.size === 1) {
+          this.fitCameraToPointCloud(pcs.mesh);
+        }
       }
     }).catch((error) => {
       console.error(`PointMesh: Error building mesh for ${id}:`, error);
@@ -154,6 +156,9 @@ export class PointMesh {
 
     // Store the system
     this.pointCloudSystems.set(id, pcs);
+    
+    console.log(`PointMesh: Stored mesh ${id}. Total meshes: ${this.pointCloudSystems.size}`);
+    console.log(`PointMesh: All mesh IDs:`, Array.from(this.pointCloudSystems.keys()));
 
     return pcs;
   }

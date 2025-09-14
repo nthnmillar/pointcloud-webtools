@@ -196,6 +196,9 @@ export class PointService extends BaseService {
       // Store the point cloud data
       this.pointClouds.set(id, data);
       
+      console.log(`PointService: Created point cloud ${id} with ${data.points.length} points`);
+      console.log(`PointService: Total point clouds: ${this.pointClouds.size}`);
+      
       if (!this.activePointCloudId) {
         this.activePointCloudId = id;
       }
