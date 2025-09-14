@@ -159,12 +159,23 @@ export class LoadLaz {
     // Calculate centroid only once from header data
     let centroid = { x: 0, y: 0, z: 0 };
     if (this.headerData && !this.calculatedCentroid) {
-      centroid = {
-        x: (this.headerData.MinX + this.headerData.MaxX) / 2,
-        y: (this.headerData.MinY + this.headerData.MaxY) / 2,
-        z: (this.headerData.MinZ + this.headerData.MaxZ) / 2
-      };
+      // Use the actual centroid from header data if available, otherwise calculate from bounds
+      if (this.headerData.CenterX !== undefined && this.headerData.CenterY !== undefined && this.headerData.CenterZ !== undefined) {
+        centroid = {
+          x: this.headerData.CenterX,
+          y: this.headerData.CenterY,
+          z: this.headerData.CenterZ
+        };
+      } else {
+        // Fallback to calculating from min/max bounds
+        centroid = {
+          x: (this.headerData.MinX + this.headerData.MaxX) / 2,
+          y: (this.headerData.MinY + this.headerData.MaxY) / 2,
+          z: (this.headerData.MinZ + this.headerData.MaxZ) / 2
+        };
+      }
       this.calculatedCentroid = centroid;
+      console.log(`Point cloud centroid: (${centroid.x.toFixed(2)}, ${centroid.y.toFixed(2)}, ${centroid.z.toFixed(2)})`);
     } else if (this.calculatedCentroid) {
       centroid = this.calculatedCentroid;
     }
@@ -173,14 +184,14 @@ export class LoadLaz {
     const pointCount = points.length / 3;
     const pointCloudPoints: PointCloudPoint[] = new Array(pointCount);
     
-    // Pre-allocate objects to reduce garbage collection
+    // Pre-allocate objects to reduce garbage collection and center points around origin
     for (let i = 0; i < pointCount; i++) {
       const arrayIndex = i * 3;
       pointCloudPoints[i] = {
         position: {
-          x: points[arrayIndex],
-          y: points[arrayIndex + 1],
-          z: points[arrayIndex + 2]
+          x: points[arrayIndex] - centroid.x,     // Center around origin
+          y: points[arrayIndex + 1] - centroid.y, // Center around origin
+          z: points[arrayIndex + 2] - centroid.z  // Center around origin
         }
       };
     }
