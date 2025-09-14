@@ -14,6 +14,8 @@ export class LoadLaz {
   private currentFileId: string | null = null;
   private batchCount: number = 0;
   private headerData: any = null;
+  private calculatedCentroid: { x: number; y: number; z: number } | null = null;
+  private totalPointsProcessed: number = 0;
 
   constructor(serviceManager: ServiceManager) {
     this.serviceManager = serviceManager;
@@ -31,11 +33,12 @@ export class LoadLaz {
     this.currentFileId = null;
     this.batchCount = 0;
     this.headerData = null;
+    this.calculatedCentroid = null;
+    this.totalPointsProcessed = 0;
   }
 
   async loadFromFile(
     file: File,
-    onProgress?: (progress: LazLoadingProgress) => void,
     batchSize: number = 500
   ): Promise<void> {
     if (this.isProcessing) {
@@ -48,36 +51,13 @@ export class LoadLaz {
 
     try {
       // Initialize worker
-      onProgress?.({
-        stage: 'initializing',
-        progress: 10,
-        message: 'Initializing LAZ processor...'
-      });
-
       await this.initializeWorker();
 
       // Process file with batches
-      onProgress?.({
-        stage: 'processing',
-        progress: 20,
-        message: 'Processing LAZ data in batches...'
-      });
-
       const arrayBuffer = await this.readFileAsArrayBuffer(file);
-      await this.processFile(arrayBuffer, onProgress, batchSize);
-
-      onProgress?.({
-        stage: 'complete',
-        progress: 100,
-        message: 'LAZ file loaded successfully'
-      });
+      await this.processFile(arrayBuffer, batchSize);
 
     } catch (error) {
-      onProgress?.({
-        stage: 'error',
-        progress: 0,
-        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      });
       throw error;
     } finally {
       this.isProcessing = false;
@@ -108,7 +88,7 @@ export class LoadLaz {
     });
   }
 
-  private async processFile(fileBuffer: ArrayBuffer, onProgress?: (progress: LazLoadingProgress) => void, batchSize: number = 500): Promise<void> {
+  private async processFile(fileBuffer: ArrayBuffer, batchSize: number = 500): Promise<void> {
     if (!this.worker) throw new Error('Worker not initialized');
 
     return new Promise((resolve, reject) => {
@@ -116,30 +96,23 @@ export class LoadLaz {
         const { type, data } = e.data;
 
         switch (type) {
+          case 'FILE_INITIALIZED':
+            // File is initialized, log total points
+            console.log(`Total points in file: ${data.pointCount}`);
+            // Start processing batches
+            this.processNextBatch();
+            break;
+
           case 'BATCH_COMPLETE':
             // Process this batch immediately
             this.processBatch(data);
-            
-            // Update progress
-            onProgress?.({
-              stage: 'processing',
-              progress: 20 + (data.progress * 0.8),
-              message: `Processing LAZ data... ${Math.round(data.progress)}%`
-            });
-            break;
-
-          case 'PROGRESS':
-            onProgress?.({
-              stage: 'processing',
-              progress: 20 + (e.data.progress * 0.8),
-              message: `Processing LAZ data... ${Math.round(e.data.progress)}%`
-            });
+            // Request next batch
+            this.processNextBatch();
             break;
 
           case 'PROCESSING_COMPLETE':
             this.worker!.removeEventListener('message', handleMessage);
             // All batch meshes are now visible, forming the complete point cloud
-            console.log(`LoadLaz: All ${this.batchCount} batches loaded successfully`);
             this.resetAccumulator(); // Reset the accumulator after processing completes
             resolve();
             break;
@@ -152,8 +125,14 @@ export class LoadLaz {
       };
 
       this.worker!.addEventListener('message', handleMessage);
-      this.worker!.postMessage({ type: 'PROCESS_BATCH', data: { fileBuffer, batchSize } });
+      this.worker!.postMessage({ type: 'INITIALIZE_FILE', data: { fileBuffer, batchSize } });
     });
+  }
+
+  private processNextBatch(): void {
+    if (this.worker) {
+      this.worker.postMessage({ type: 'PROCESS_NEXT_BATCH' });
+    }
   }
 
   private processBatch(batchData: any): void {
@@ -161,54 +140,70 @@ export class LoadLaz {
       return;
     }
     
-    // Convert batch points to PointCloudPoint array
-    const points: PointCloudPoint[] = [];
-    for (let i = 0; i < batchData.points.length; i += 3) {
-      points.push({
-        position: {
-          x: batchData.points[i],
-          y: batchData.points[i + 1],
-          z: batchData.points[i + 2]
-        }
-      });
-    }
-
     // Store header data for centering (from first batch)
     if (batchData.header && !this.headerData) {
       this.headerData = batchData.header;
     }
 
-    // Create individual batch mesh immediately
-    this.createBatchMesh(points, batchData.bounds);
+    // Create individual batch mesh immediately - pass raw points array
+    this.createBatchMesh(batchData.points);
     
     this.batchCount++;
   }
 
-  private createBatchMesh(points: PointCloudPoint[], bounds: any): void {
+  private createBatchMesh(points: Float32Array): void {
     if (points.length === 0) {
       return;
     }
 
-    // Don't center individual batches - they should maintain their relative positions
-    // Only center the final unified mesh at the end
-    const batchPoints = points;
+    // Calculate centroid only once from header data
+    let centroid = { x: 0, y: 0, z: 0 };
+    if (this.headerData && !this.calculatedCentroid) {
+      centroid = {
+        x: (this.headerData.MinX + this.headerData.MaxX) / 2,
+        y: (this.headerData.MinY + this.headerData.MaxY) / 2,
+        z: (this.headerData.MinZ + this.headerData.MaxZ) / 2
+      };
+      this.calculatedCentroid = centroid;
+    } else if (this.calculatedCentroid) {
+      centroid = this.calculatedCentroid;
+    }
+
+    // Convert raw points to PointCloudPoint array more efficiently
+    const pointCount = points.length / 3;
+    const pointCloudPoints: PointCloudPoint[] = new Array(pointCount);
+    
+    // Pre-allocate objects to reduce garbage collection
+    for (let i = 0; i < pointCount; i++) {
+      const arrayIndex = i * 3;
+      pointCloudPoints[i] = {
+        position: {
+          x: points[arrayIndex],
+          y: points[arrayIndex + 1],
+          z: points[arrayIndex + 2]
+        }
+      };
+    }
 
     // Create individual batch mesh with unique ID
     const batchId = `${this.currentFileId}_batch_${this.batchCount + 1}`;
+    this.totalPointsProcessed += pointCount;
+    console.log(`Creating batch: ${batchId} (${pointCount} points, ${this.totalPointsProcessed} total processed)`);
+    
     const pointCloudData: PointCloudData = {
-      points: batchPoints,
+      points: pointCloudPoints,
       metadata: {
         name: batchId,
-        totalPoints: batchPoints.length,
-        bounds: bounds,
+        totalPoints: pointCount,
+        bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } }, // Dummy bounds
         hasColor: false,
         hasIntensity: false,
-        hasClassification: false
+        hasClassification: false,
+        centroid: centroid
       }
     };
 
     // Create the batch mesh immediately
-    console.log(`LoadLaz: Creating batch mesh ${batchId} with ${points.length} points`);
     this.serviceManager.pointService.createPointCloudMesh(batchId, pointCloudData);
   }
 

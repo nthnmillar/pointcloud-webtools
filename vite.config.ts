@@ -12,5 +12,11 @@ export default defineConfig({
   ],
   optimizeDeps: {
     include: ['laz-perf']
+  },
+  server: {
+    hmr: {
+      port: 5173,
+      host: 'localhost'
+    }
   }
 })

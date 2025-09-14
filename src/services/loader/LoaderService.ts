@@ -29,13 +29,9 @@ export class LoaderService extends BaseService {
 
   async loadFile(
     file: File, 
-    onProgress?: (progress: LazLoadingProgress) => void,
     batchSize: number = 500
   ): Promise<void> {
-    console.log('LoaderService: loadFile called with', file.name);
-    
     const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-    console.log('LoaderService: File extension:', fileExtension);
     
     if (!['.laz', '.las'].includes(fileExtension)) {
       throw new Error(`Unsupported file format: ${fileExtension}`);
@@ -47,8 +43,8 @@ export class LoaderService extends BaseService {
         fileName: file.name,
       });
 
-      console.log('LoaderService: Using batch loading');
-      await this.loadLaz.loadFromFile(file, onProgress, batchSize);
+      // Using batch loading
+      await this.loadLaz.loadFromFile(file, batchSize);
       this.emit('loadingCompleted', {
         type: 'LAZ',
         fileName: file.name,

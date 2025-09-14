@@ -12,8 +12,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activePointCloudId, setActivePointCloudId] = useState<string | null>(null);
-  const [pointCloudIds, setPointCloudIds] = useState<string[]>([]);
   const [batchSize, setBatchSize] = useState(500);
   const [renderOptions, setRenderOptions] = useState<RenderOptions>({
     pointSize: 2.0,
@@ -36,7 +34,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
       serviceManager.on('pointCloudLoaded', handlePointCloudLoaded);
       serviceManager.on('pointCloudLoading', handlePointCloudLoading);
       serviceManager.on('pointCloudError', handlePointCloudError);
-      serviceManager.on('selectionChanged', handleSelectionChanged);
       serviceManager.on('renderOptionsChanged', handleRenderOptionsChanged);
       serviceManager.on('pointCloudRendered', handlePointCloudRendered);
       serviceManager.on('fileLoadingStarted', handleFileLoadingStarted);
@@ -57,14 +54,12 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
 
   // Event handlers
   const handleInitialized = () => {
-    console.log('Service manager initialized');
-    // No longer auto-load sample data - user can choose to load it
+    // Service manager initialized
   };
 
   const handlePointCloudLoaded = (_data: any) => {
     setIsLoading(false);
     setError(null);
-    updatePointCloudList();
   };
 
   const handlePointCloudLoading = (_data: any) => {
@@ -77,29 +72,22 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
     setError(data.error || 'Unknown error occurred');
   };
 
-  const handleSelectionChanged = (data: any) => {
-    setActivePointCloudId(data.activeId || null);
-  };
-
   const handleRenderOptionsChanged = (options: RenderOptions) => {
     setRenderOptions(options);
   };
 
-  const handlePointCloudRendered = (data: any) => {
-    console.log(`Rendered point cloud ${data.id} with ${data.pointCount} points`);
+  const handlePointCloudRendered = (_data: any) => {
+    // Point cloud rendered
   };
 
-  const handleFileLoadingStarted = (data: any) => {
+  const handleFileLoadingStarted = (_data: any) => {
     setIsLoading(true);
     setError(null);
-    console.log(`Starting to load file: ${data.fileName}`);
   };
 
-  const handleFileLoadingCompleted = (data: any) => {
+  const handleFileLoadingCompleted = (_data: any) => {
     setIsLoading(false);
     setError(null);
-    updatePointCloudList();
-    console.log(`Successfully loaded file: ${data.fileName}`);
   };
 
   const handleFileLoadingError = (data: any) => {
@@ -108,11 +96,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   };
 
   // Helper methods
-  const updatePointCloudList = () => {
-    if (serviceManagerRef.current) {
-      setPointCloudIds(serviceManagerRef.current.pointCloudIds);
-    }
-  };
 
 
   const loadSampleData = async () => {
@@ -129,7 +112,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
       serviceManagerRef.current.activePointCloudId = 'sample-1';
       serviceManagerRef.current.renderActivePointCloud();
       
-      updatePointCloudList();
       setIsLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sample data');
@@ -138,28 +120,21 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   };
 
   const handleFileLoad = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('PointCloudViewer: File input changed');
     const file = event.target.files?.[0];
-    console.log('PointCloudViewer: Selected file:', file?.name, 'ServiceManager:', !!serviceManagerRef.current);
     
     if (!file || !serviceManagerRef.current) {
-      console.log('PointCloudViewer: No file or service manager, returning');
       return;
     }
 
     try {
       // Check if file format is supported
       const extension = '.' + file.name.split('.').pop()?.toLowerCase();
-      console.log('PointCloudViewer: File extension:', extension);
-      
       if (!serviceManagerRef.current.isSupportedFormat(extension)) {
         setError(`Unsupported file format: ${extension}. Supported formats: ${serviceManagerRef.current.getSupportedFormats().join(', ')}`);
         return;
       }
-
-      console.log('PointCloudViewer: Starting file load...', 'batch size:', batchSize);
       // Load the file - batches will appear in scene as they load
-      await serviceManagerRef.current.loadFile(file, undefined, batchSize);
+      await serviceManagerRef.current.loadFile(file, batchSize);
 
     } catch (err) {
       console.error('PointCloudViewer: Error loading file:', err);
@@ -187,28 +162,11 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
     }
   };
 
-  const handlePointCloudSelect = (id: string) => {
-    if (serviceManagerRef.current) {
-      serviceManagerRef.current.activePointCloudId = id;
-    }
-  };
 
 
   return (
     <div className={`point-cloud-viewer-v2 ${className || ''}`}>
       <div className="viewer-controls">
-        <div className="control-group">
-          <label>Point Cloud:</label>
-          <select 
-            value={activePointCloudId || ''} 
-            onChange={(e) => handlePointCloudSelect(e.target.value)}
-          >
-            <option value="">Select a point cloud</option>
-            {pointCloudIds.map(id => (
-              <option key={id} value={id}>{id}</option>
-            ))}
-          </select>
-        </div>
 
         <div className="control-group">
           <label>Point Size:</label>
@@ -294,7 +252,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
             onClick={() => {
               if (serviceManagerRef.current) {
                 serviceManagerRef.current.clearAllPointClouds();
-                updatePointCloudList();
               }
             }} 
             disabled={isLoading}

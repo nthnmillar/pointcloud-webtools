@@ -41,6 +41,7 @@ export interface PointCloudMetadata {
   units?: string;
   created?: Date;
   modified?: Date;
+  centroid?: Point3D; // Optional centroid for efficient centering
 }
 
 export interface PointCloudData {

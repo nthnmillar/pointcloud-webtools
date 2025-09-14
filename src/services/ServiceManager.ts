@@ -7,9 +7,6 @@ import type {
   PointCloudData, 
   RenderOptions 
 } from './point/PointCloud';
-import type { 
-  LazLoadingProgress 
-} from './loader/LoadLaz';
 
 /**
  * Service Manager - Coordinates all services and manages their lifecycle
@@ -95,9 +92,7 @@ export class ServiceManager extends BaseService {
       this.emit('pointCloudRemoved', data);
     });
 
-    this._pointService.on('pointCloudRendered', (data) => {
-      this.emit('pointCloudRendered', data);
-    });
+    // Point cloud rendering handled directly
 
     this._pointService.on('renderOptionsUpdated', (data) => {
       this.emit('renderOptionsUpdated', data);
@@ -121,20 +116,15 @@ export class ServiceManager extends BaseService {
       this.emit('fileLoadingCompleted', data);
       // Automatically load the point cloud data into the point service
       if (data.pointCloudData) {
-        console.log('ServiceManager: Received point cloud data:', {
-          pointCount: data.pointCloudData.points.length,
-          metadata: data.pointCloudData.metadata
-        });
+        // Received point cloud data
         // Generate a unique ID for the loaded point cloud
         const id = `loaded_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         this.loadPointCloud(id, data.pointCloudData);
         // Set the newly loaded point cloud as active
         this.activePointCloudId = id;
-        console.log('ServiceManager: Set active point cloud to:', id);
+        // Set active point cloud
         // Trigger rendering of the new point cloud
         this.renderActivePointCloud();
-      } else {
-        console.log('ServiceManager: No point cloud data received');
       }
     });
 
@@ -213,11 +203,10 @@ export class ServiceManager extends BaseService {
   // Loader Service Methods
   async loadFile(
     file: File, 
-    onProgress?: (progress: LazLoadingProgress) => void,
     batchSize: number = 500
   ): Promise<void> {
-    console.log('ServiceManager: loadFile called with', file.name);
-    return this._loaderService.loadFile(file, onProgress, batchSize);
+    // Loading file
+    return this._loaderService.loadFile(file, batchSize);
   }
 
 

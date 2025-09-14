@@ -15,8 +15,10 @@ export class PointService extends BaseService {
   private pointClouds: Map<string, PointCloudData> = new Map();
   private _activePointCloudId: string | null = null;
   private pointMesh: PointMesh | null = null;
+  private scene: any = null;
 
   async initialize(scene: any): Promise<void> {
+    this.scene = scene;
     this.pointMesh = new PointMesh(scene);
     this.isInitialized = true;
     this.emit('initialized');
@@ -152,7 +154,10 @@ export class PointService extends BaseService {
     if (this.pointClouds.has(id)) {
       this.pointClouds.delete(id);
       
-      // Mesh cleanup is handled by Babylon.js scene
+      // Clean up the mesh
+      if (this.pointMesh) {
+        this.pointMesh.removeMesh(id);
+      }
       
       if (this._activePointCloudId === id) {
         this._activePointCloudId = this.pointClouds.size > 0 ? 
@@ -167,7 +172,12 @@ export class PointService extends BaseService {
    * Clear all point clouds
    */
   clearAllPointClouds(): void {
-    // Mesh cleanup is handled by Babylon.js scene
+    // Clean up all meshes
+    if (this.pointMesh) {
+      this.pointMesh.dispose();
+      // Recreate the pointMesh for future use
+      this.pointMesh = new PointMesh(this.scene);
+    }
     
     // Clear the point clouds map
     this.pointClouds.clear();
@@ -181,20 +191,23 @@ export class PointService extends BaseService {
    */
   createPointCloudMesh(id: string, data: PointCloudData): void {
     try {
+      console.log(`Creating point cloud: ${id}`);
+      
       this.validatePointCloudData(data);
       
       // Store the point cloud data
       this.pointClouds.set(id, data);
       
-      console.log(`PointService: Created point cloud ${id} with ${data.points.length} points`);
-      console.log(`PointService: Total point clouds: ${this.pointClouds.size}`);
+      // Point cloud created
       
       if (!this.activePointCloudId) {
         this.activePointCloudId = id;
       }
       
-      // Render immediately
-      this.renderPointCloud(id, this.getRenderOptions());
+      // Create the mesh directly - don't call renderPointCloud to avoid duplication
+      if (this.pointMesh) {
+        this.pointMesh.createPointCloudMesh(id, data, this.getRenderOptions());
+      }
     } catch (error) {
       throw error;
     }
@@ -204,6 +217,8 @@ export class PointService extends BaseService {
    * Render a point cloud
    */
   renderPointCloud(id: string, options: RenderOptions): void {
+    console.log(`Rendering: ${id}`);
+    
     const pointCloud = this.pointClouds.get(id);
     if (!pointCloud || !this.pointMesh) {
       return;
@@ -211,7 +226,6 @@ export class PointService extends BaseService {
 
     // Create the mesh directly
     this.pointMesh.createPointCloudMesh(id, pointCloud, options);
-    this.emit('pointCloudRendered', { id, pointCount: pointCloud.points.length });
   }
 
   /**

@@ -2,7 +2,8 @@ import {
   Scene,
   PointsCloudSystem,
   Vector3,
-  Color4
+  Color4,
+  Camera
 } from '@babylonjs/core';
 import type { 
   PointCloudData, 
@@ -15,67 +16,21 @@ import type {
  */
 export class PointMesh {
   private scene: Scene;
+  private meshes: Map<string, PointsCloudSystem> = new Map();
+  private performanceStats = {
+    totalPointsRendered: 0,
+    lastRenderTime: 0,
+    averageRenderTime: 0
+  };
 
   constructor(scene: Scene) {
     this.scene = scene;
   }
 
-  /**
-   * Convert coordinates from robotics (X=forward, Y=left, Z=up) to Babylon.js (X=right, Y=up, Z=forward)
-   */
-  private convertRoboticsToBabylonJS(point: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
-    const converted = {
-      x: -point.y,  // left -> right
-      y: point.z,   // up -> up  
-      z: point.x    // forward -> forward
-    };
-    
-    // Debug: Log coordinate conversion for first few points
-    if (Math.random() < 0.001) { // Log ~0.1% of points
-      console.log('PointMesh: Converting point:', point, '->', converted);
-    }
-    
-    return converted;
-  }
+
 
   /**
-   * Fit camera to point cloud bounds
-   */
-  private fitCameraToPointCloud(mesh: any): void {
-    if (!this.scene || !mesh) return;
-
-    // Find the camera
-    const camera = this.scene.activeCamera;
-    if (!camera || camera.getClassName() !== 'ArcRotateCamera') return;
-
-    const arcCamera = camera as any; // ArcRotateCamera
-    
-    // Get the bounding box
-    const boundingInfo = mesh.getBoundingInfo();
-    const boundingBox = boundingInfo.boundingBox;
-    
-    // Calculate center and size
-    const center = boundingBox.center;
-    const size = boundingBox.maximum.subtract(boundingBox.minimum);
-    const maxSize = Math.max(size.x, size.y, size.z);
-    
-    console.log('PointMesh: Fitting camera to point cloud');
-    console.log('PointMesh: Center:', center);
-    console.log('PointMesh: Size:', size);
-    console.log('PointMesh: Max size:', maxSize);
-    
-    // Set camera target to center of point cloud
-    arcCamera.setTarget(center);
-    
-    // Set camera radius to fit the point cloud (correct API)
-    const radius = maxSize * 2; // Add some padding
-    arcCamera.radius = radius;
-    
-    console.log('PointMesh: Camera fitted - target:', arcCamera.getTarget(), 'radius:', arcCamera.radius);
-  }
-
-  /**
-   * Create a point cloud mesh using PointsCloudSystem
+   * Create a point cloud mesh using PointsCloudSystem with performance optimizations
    */
   createPointCloudMesh(id: string, pointCloudData: PointCloudData, options: RenderOptions): any {
     if (!this.scene) {
@@ -86,78 +41,146 @@ export class PointMesh {
       return null;
     }
     
-    // Debug: Log point cloud info
-    console.log(`PointMesh: Creating mesh ${id} with ${pointCloudData.points.length} points`);
-    console.log('PointMesh: Bounds:', pointCloudData.metadata.bounds);
-    console.log('PointMesh: First few points:', pointCloudData.points.slice(0, 3).map(p => p.position));
+    const startTime = performance.now();
     
-    // Create PointsCloudSystem
+    // Remove existing mesh if it exists
+    this.removeMesh(id);
+    
+    // Create PointsCloudSystem with optimized capacity
     const pcs = new PointsCloudSystem(`pointCloud_${id}`, 1, this.scene);
+    this.meshes.set(id, pcs);
     
-    // Add points to the system
-    pointCloudData.points.forEach((point) => {
-      pcs.addPoints(1, (particle: { position: Vector3; color: Color4; }) => {
-        // Convert coordinates from robotics to Babylon.js
-        const convertedPoint = this.convertRoboticsToBabylonJS(point.position);
+    // Apply level-of-detail based on point count
+    const pointCount = this.calculateLODPointCount(pointCloudData.points.length, options);
+    const pointsToRender = this.selectLODPoints(pointCloudData.points, pointCount);
+    
+    // Pre-allocate arrays for better performance
+    const positions = new Float32Array(pointsToRender.length * 3);
+    const colors = new Float32Array(pointsToRender.length * 4);
+    
+    // Process points in batches for better memory management
+    const batchSize = 1000;
+    for (let batchStart = 0; batchStart < pointsToRender.length; batchStart += batchSize) {
+      const batchEnd = Math.min(batchStart + batchSize, pointsToRender.length);
+      
+      for (let i = batchStart; i < batchEnd; i++) {
+        const point = pointsToRender[i];
+        const arrayIndex = i * 3;
+        const colorIndex = i * 4;
         
-        particle.position = new Vector3(convertedPoint.x, convertedPoint.y, convertedPoint.z);
+        // Convert coordinates from robotics (X=forward, Y=left, Z=up) to Babylon.js (X=right, Y=up, Z=forward)
+        positions[arrayIndex] = -point.position.y;     // left -> right
+        positions[arrayIndex + 1] = point.position.z;  // up -> up  
+        positions[arrayIndex + 2] = point.position.x;  // forward -> forward
         
-        // Color based on mode
-        let color = { r: 1, g: 1, b: 1, a: 1 }; // Default white
-        
-        if (options.colorMode === 'original' && point.color) {
-          color = { r: point.color.r, g: point.color.g, b: point.color.b, a: 1 };
-        } else if (options.colorMode === 'intensity' && point.intensity !== undefined) {
-          const intensity = point.intensity;
-          color = { r: intensity, g: intensity, b: intensity, a: 1 };
-        } else if (options.colorMode === 'height') {
-          const normalizedHeight = (point.position.y - pointCloudData.metadata.bounds.min.y) / 
-                                  (pointCloudData.metadata.bounds.max.y - pointCloudData.metadata.bounds.min.y);
-          color = { r: normalizedHeight, g: normalizedHeight, b: normalizedHeight, a: 1 };
-        }
-        
-        particle.color = new Color4(color.r, color.g, color.b, color.a);
-      });
+        // Use simple white color for all points - no expensive calculations
+        colors[colorIndex] = 1;     // R
+        colors[colorIndex + 1] = 1; // G
+        colors[colorIndex + 2] = 1; // B
+        colors[colorIndex + 3] = 1; // A
+      }
+    }
+    
+    // Add points using the pre-allocated arrays - much more efficient
+    pcs.addPoints(pointsToRender.length, (particle: { position: Vector3; color: Color4; }, index: number) => {
+      const arrayIndex = index * 3;
+      const colorIndex = index * 4;
+      
+      // Reuse Vector3 and Color4 objects to reduce garbage collection
+      particle.position.set(
+        positions[arrayIndex],
+        positions[arrayIndex + 1],
+        positions[arrayIndex + 2]
+      );
+      
+      particle.color.set(
+        colors[colorIndex],
+        colors[colorIndex + 1],
+        colors[colorIndex + 2],
+        colors[colorIndex + 3]
+      );
     });
     
-    // Try to make the system visible immediately
+    // Make the system visible immediately
     pcs.setParticles();
-
-    // Build the mesh asynchronously but immediately
-    pcs.buildMeshAsync().then(() => {
-      console.log(`PointMesh: Mesh built for ${id}`);
-      
-      // Set point size and rendering mode
-      if (pcs.mesh && pcs.mesh.material) {
-        pcs.mesh.material.pointSize = options.pointSize;
-        pcs.mesh.material.fillMode = 2; // BABYLON.Material.PointFillMode
-        console.log(`PointMesh: Set point size to ${options.pointSize}`);
-      }
-      
-      // CRITICAL: Set isUnIndexed to true for proper point cloud rendering
-      if (pcs.mesh) {
-        pcs.mesh.isUnIndexed = true;
-        
-        // Force the mesh to be visible immediately
-        pcs.mesh.setEnabled(true);
-        
-        console.log(`PointMesh: Mesh enabled for ${id}, position:`, pcs.mesh.position);
-        console.log(`PointMesh: Mesh bounding box:`, pcs.mesh.getBoundingInfo().boundingBox);
-        
-        // Try to fit camera to the point cloud (only for first batch)
-        this.fitCameraToPointCloud(pcs.mesh);
-      }
-    }).catch((error) => {
-      console.error(`PointMesh: Error building mesh for ${id}:`, error);
-    });
-
+    
+    // Build the mesh asynchronously but don't wait for it - this allows batches to process immediately
+    pcs.buildMeshAsync();
+    
+    // Update performance stats
+    const renderTime = performance.now() - startTime;
+    this.performanceStats.lastRenderTime = renderTime;
+    this.performanceStats.totalPointsRendered += pointsToRender.length;
+    this.performanceStats.averageRenderTime = 
+      (this.performanceStats.averageRenderTime + renderTime) / 2;
+    
+    // Log mesh creation
+    console.log(`Created mesh: ${id}`);
+    
     return pcs;
+  }
+
+  /**
+   * Calculate level-of-detail point count based on total points and performance settings
+   */
+  private calculateLODPointCount(totalPoints: number, options: RenderOptions): number {
+    // Base LOD thresholds
+    const maxPoints = 50000; // Maximum points to render for performance
+    const minPoints = 1000;  // Minimum points to maintain visual quality
+    
+    if (totalPoints <= maxPoints) {
+      return totalPoints;
+    }
+    
+    // Scale down based on point size (smaller points = can handle more)
+    const scaleFactor = Math.max(0.1, 2.0 / options.pointSize);
+    const scaledMaxPoints = Math.floor(maxPoints * scaleFactor);
+    
+    return Math.max(minPoints, Math.min(scaledMaxPoints, totalPoints));
+  }
+
+  /**
+   * Select points for level-of-detail rendering
+   */
+  private selectLODPoints(points: any[], targetCount: number): any[] {
+    if (points.length <= targetCount) {
+      return points;
+    }
+    
+    // Simple uniform sampling for now - could be improved with spatial sampling
+    const step = Math.floor(points.length / targetCount);
+    const selectedPoints: any[] = [];
+    
+    for (let i = 0; i < points.length; i += step) {
+      selectedPoints.push(points[i]);
+      if (selectedPoints.length >= targetCount) {
+        break;
+      }
+    }
+    
+    return selectedPoints;
+  }
+
+  /**
+   * Remove a mesh by ID
+   */
+  removeMesh(id: string): void {
+    const mesh = this.meshes.get(id);
+    if (mesh) {
+      console.log(`Removed mesh: ${id}`);
+      mesh.dispose();
+      this.meshes.delete(id);
+    }
   }
 
   /**
    * Dispose of the PointMesh
    */
   dispose(): void {
-    // No need to track meshes - they're managed by Babylon.js scene
+    // Dispose of all tracked meshes
+    for (const [id, mesh] of this.meshes) {
+      mesh.dispose();
+    }
+    this.meshes.clear();
   }
 }
