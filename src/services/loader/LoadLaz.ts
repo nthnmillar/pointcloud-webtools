@@ -11,8 +11,6 @@ export class LoadLaz {
   private worker: Worker | null = null;
   private isProcessing = false;
   private serviceManager: ServiceManager;
-  private accumulatedPoints: PointCloudPoint[] = [];
-  private globalBounds: any = null;
   private currentFileId: string | null = null;
   private batchCount: number = 0;
   private headerData: any = null;
@@ -30,8 +28,6 @@ export class LoadLaz {
   }
 
   private resetAccumulator(): void {
-    this.accumulatedPoints = [];
-    this.globalBounds = null;
     this.currentFileId = null;
     this.batchCount = 0;
     this.headerData = null;
@@ -143,7 +139,7 @@ export class LoadLaz {
           case 'PROCESSING_COMPLETE':
             this.worker!.removeEventListener('message', handleMessage);
             // All batch meshes are now visible, forming the complete point cloud
-            this.createUnifiedPointCloud();
+            console.log(`LoadLaz: All ${this.batchCount} batches loaded successfully`);
             this.resetAccumulator(); // Reset the accumulator after processing completes
             resolve();
             break;
@@ -185,23 +181,7 @@ export class LoadLaz {
     // Create individual batch mesh immediately
     this.createBatchMesh(points, batchData.bounds);
     
-    // Accumulate points for final unified mesh
-    this.accumulatedPoints.push(...points);
     this.batchCount++;
-    
-    // Update global bounds
-    if (batchData.bounds) {
-      if (!this.globalBounds) {
-        this.globalBounds = batchData.bounds;
-      } else {
-        this.globalBounds.min.x = Math.min(this.globalBounds.min.x, batchData.bounds.min.x);
-        this.globalBounds.min.y = Math.min(this.globalBounds.min.y, batchData.bounds.min.y);
-        this.globalBounds.min.z = Math.min(this.globalBounds.min.z, batchData.bounds.min.z);
-        this.globalBounds.max.x = Math.max(this.globalBounds.max.x, batchData.bounds.max.x);
-        this.globalBounds.max.y = Math.max(this.globalBounds.max.y, batchData.bounds.max.y);
-        this.globalBounds.max.z = Math.max(this.globalBounds.max.z, batchData.bounds.max.z);
-      }
-    }
   }
 
   private createBatchMesh(points: PointCloudPoint[], bounds: any): void {
@@ -228,22 +208,10 @@ export class LoadLaz {
     };
 
     // Create the batch mesh immediately
-    console.log(`LoadLaz: Creating batch mesh ${batchId} with ${batchPoints.length} points`);
-    console.log(`LoadLaz: First few points:`, batchPoints.slice(0, 3).map(p => p.position));
+    console.log(`LoadLaz: Creating batch mesh ${batchId} with ${points.length} points`);
     this.serviceManager.pointService.createPointCloudMesh(batchId, pointCloudData);
   }
 
-  private createUnifiedPointCloud(): void {
-    if (this.accumulatedPoints.length === 0) {
-      return;
-    }
-
-    // Keep all batch meshes visible - they form the complete point cloud together
-    // No need to create a final unified mesh since the batches already show the complete point cloud
-    
-    console.log(`LoadLaz: All ${this.batchCount} batch meshes are now visible, forming the complete point cloud`);
-    console.log(`LoadLaz: Total points across all batches: ${this.accumulatedPoints.length}`);
-  }
 
 
   private async readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {

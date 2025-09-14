@@ -42,11 +42,7 @@ async function processFile(fileBuffer: ArrayBuffer, batchSize: number = 500) {
   const pointBufferPtr = lazPerf._malloc(pointDataRecordLength);
   const pointBuffer = new Uint8Array(pointDataRecordLength);
   
-  let globalBounds = {
-    minX: headerData.MinX || Infinity, maxX: headerData.MaxX || -Infinity,
-    minY: headerData.MinY || Infinity, maxY: headerData.MaxY || -Infinity,
-    minZ: headerData.MinZ || Infinity, maxZ: headerData.MaxZ || -Infinity,
-  };
+  // No need to track global bounds since we're processing in batches
   
   
   try {
@@ -92,14 +88,6 @@ async function processFile(fileBuffer: ArrayBuffer, batchSize: number = 500) {
           batchBounds.maxY = Math.max(batchBounds.maxY, scaledY);
           batchBounds.minZ = Math.min(batchBounds.minZ, scaledZ);
           batchBounds.maxZ = Math.max(batchBounds.maxZ, scaledZ);
-          
-          // Update global bounds
-          globalBounds.minX = Math.min(globalBounds.minX, scaledX);
-          globalBounds.maxX = Math.max(globalBounds.maxX, scaledX);
-          globalBounds.minY = Math.min(globalBounds.minY, scaledY);
-          globalBounds.maxY = Math.max(globalBounds.maxY, scaledY);
-          globalBounds.minZ = Math.min(globalBounds.minZ, scaledZ);
-          globalBounds.maxZ = Math.max(globalBounds.maxZ, scaledZ);
         } catch (pointError) {
           // Continue with next point
         }
@@ -131,36 +119,11 @@ async function processFile(fileBuffer: ArrayBuffer, batchSize: number = 500) {
   }
   
   } catch (error) {
-    // Send a fallback batch with some dummy data so we can see something
+    // Send error message
     self.postMessage({
-      type: 'BATCH_COMPLETE',
+      type: 'ERROR',
       data: {
-        batchId: 'fallback_batch',
-        points: new Float32Array([
-          0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4,
-          5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9
-        ]), // 10 dummy points
-        bounds: {
-          min: { x: 0, y: 0, z: 0 },
-          max: { x: 9, y: 9, z: 9 }
-        },
-        progress: 50,
-        totalBatches: 1,
-        header: headerData
-      }
-    });
-    
-    // Send completion message
-    self.postMessage({
-      type: 'PROCESSING_COMPLETE',
-      data: {
-        pointCount: 10,
-        totalBatches: 1,
-        globalBounds: {
-          min: { x: 0, y: 0, z: 0 },
-          max: { x: 9, y: 9, z: 9 }
-        },
-        header: headerData
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     });
     return;
@@ -171,51 +134,22 @@ async function processFile(fileBuffer: ArrayBuffer, batchSize: number = 500) {
   lazPerf._free(dataPtr);
   lazPerf._free(pointBufferPtr);
   
-  // Send final result with global bounds
+  // Send final result
   self.postMessage({
     type: 'PROCESSING_COMPLETE',
     data: {
       pointCount: pointCount,
       totalBatches: totalBatches,
-      globalBounds: {
-        min: { x: globalBounds.minX, y: globalBounds.minY, z: globalBounds.minZ },
-        max: { x: globalBounds.maxX, y: globalBounds.maxY, z: globalBounds.maxZ }
-      },
       header: headerData
     }
   });
   
   } catch (error) {
-    // Send a fallback batch
+    // Send error message
     self.postMessage({
-      type: 'BATCH_COMPLETE',
+      type: 'ERROR',
       data: {
-        batchId: 'fallback_batch',
-        points: new Float32Array([
-          0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4,
-          5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9
-        ]), // 10 dummy points
-        bounds: {
-          min: { x: 0, y: 0, z: 0 },
-          max: { x: 9, y: 9, z: 9 }
-        },
-        progress: 100,
-        totalBatches: 1,
-        header: {}
-      }
-    });
-    
-    // Send completion message
-    self.postMessage({
-      type: 'PROCESSING_COMPLETE',
-      data: {
-        pointCount: 10,
-        totalBatches: 1,
-        globalBounds: {
-          min: { x: 0, y: 0, z: 0 },
-          max: { x: 9, y: 9, z: 9 }
-        },
-        header: {}
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     });
   }

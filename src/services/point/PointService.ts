@@ -46,10 +46,8 @@ export class PointService extends BaseService {
         this.activePointCloudId = id;
       }
       
-      // Only render if mesh doesn't already exist
-      if (!this.pointMesh?.getPointCloudMesh(id)) {
-        this.renderPointCloud(id, this.getRenderOptions());
-      }
+      // Render the point cloud
+      this.renderPointCloud(id, this.getRenderOptions());
       
       this.emit('loaded', { id, metadata: data.metadata });
     } catch (error) {
@@ -154,10 +152,7 @@ export class PointService extends BaseService {
     if (this.pointClouds.has(id)) {
       this.pointClouds.delete(id);
       
-      // Remove mesh if it exists
-      if (this.pointMesh) {
-        this.pointMesh.removePointCloudMesh(id);
-      }
+      // Mesh cleanup is handled by Babylon.js scene
       
       if (this._activePointCloudId === id) {
         this._activePointCloudId = this.pointClouds.size > 0 ? 
@@ -172,12 +167,7 @@ export class PointService extends BaseService {
    * Clear all point clouds
    */
   clearAllPointClouds(): void {
-    // Remove all meshes
-    if (this.pointMesh) {
-      for (const id of this.pointClouds.keys()) {
-        this.pointMesh.removePointCloudMesh(id);
-      }
-    }
+    // Mesh cleanup is handled by Babylon.js scene
     
     // Clear the point clouds map
     this.pointClouds.clear();
@@ -219,12 +209,7 @@ export class PointService extends BaseService {
       return;
     }
 
-    // Check if mesh already exists
-    const existingMesh = this.pointMesh.getPointCloudMesh(id);
-    if (existingMesh) {
-      return;
-    }
-
+    // Create the mesh directly
     this.pointMesh.createPointCloudMesh(id, pointCloud, options);
     this.emit('pointCloudRendered', { id, pointCount: pointCloud.points.length });
   }
@@ -246,16 +231,9 @@ export class PointService extends BaseService {
    * Update render options for a point cloud (updates existing mesh)
    */
   updateRenderOptions(id: string, options: Partial<RenderOptions>): void {
-    if (this.pointMesh) {
-      // Check if mesh already exists
-      const existingMesh = this.pointMesh.getPointCloudMesh(id);
-      if (existingMesh) {
-        this.pointMesh.updateMeshMaterial(id, options);
-      } else {
-        this.renderPointCloud(id, { ...this.getRenderOptions(), ...options });
-      }
-      this.emit('renderOptionsUpdated', { id, options });
-    }
+    // Re-render with new options
+    this.renderPointCloud(id, { ...this.getRenderOptions(), ...options });
+    this.emit('renderOptionsUpdated', { id, options });
   }
 
   /**

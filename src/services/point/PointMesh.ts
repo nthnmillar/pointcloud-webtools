@@ -15,7 +15,6 @@ import type {
  */
 export class PointMesh {
   private scene: Scene;
-  private pointCloudSystems: Map<string, PointsCloudSystem> = new Map();
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -145,75 +144,20 @@ export class PointMesh {
         console.log(`PointMesh: Mesh enabled for ${id}, position:`, pcs.mesh.position);
         console.log(`PointMesh: Mesh bounding box:`, pcs.mesh.getBoundingInfo().boundingBox);
         
-        // Try to fit camera to the point cloud (only for first mesh)
-        if (this.pointCloudSystems.size === 1) {
-          this.fitCameraToPointCloud(pcs.mesh);
-        }
+        // Try to fit camera to the point cloud (only for first batch)
+        this.fitCameraToPointCloud(pcs.mesh);
       }
     }).catch((error) => {
       console.error(`PointMesh: Error building mesh for ${id}:`, error);
     });
 
-    // Store the system
-    this.pointCloudSystems.set(id, pcs);
-    
-    console.log(`PointMesh: Stored mesh ${id}. Total meshes: ${this.pointCloudSystems.size}`);
-    console.log(`PointMesh: All mesh IDs:`, Array.from(this.pointCloudSystems.keys()));
-
     return pcs;
   }
 
   /**
-   * Get a point cloud system by ID
-   */
-  getPointCloudMesh(id: string): PointsCloudSystem | undefined {
-    return this.pointCloudSystems.get(id);
-  }
-
-  /**
-   * Get all point cloud system IDs
-   */
-  get pointCloudMeshIds(): string[] {
-    return Array.from(this.pointCloudSystems.keys());
-  }
-
-  /**
-   * Update mesh material properties
-   */
-  updateMeshMaterial(id: string, options: Partial<RenderOptions>): void {
-    const pcs = this.pointCloudSystems.get(id);
-    if (!pcs) return;
-    
-    if (options.pointSize !== undefined) {
-      // If mesh is already built, update it directly
-      if (pcs.mesh && pcs.mesh.material) {
-        pcs.mesh.material.pointSize = options.pointSize;
-      }
-    }
-  }
-
-  /**
-   * Remove point cloud mesh
-   */
-  removePointCloudMesh(id: string): void {
-    const pcs = this.pointCloudSystems.get(id);
-    if (pcs) {
-      if (pcs.mesh) {
-        pcs.mesh.dispose();
-      }
-      this.pointCloudSystems.delete(id);
-    }
-  }
-
-  /**
-   * Dispose of all meshes
+   * Dispose of the PointMesh
    */
   dispose(): void {
-    this.pointCloudSystems.forEach(pcs => {
-      if (pcs.mesh) {
-        pcs.mesh.dispose();
-      }
-    });
-    this.pointCloudSystems.clear();
+    // No need to track meshes - they're managed by Babylon.js scene
   }
 }
