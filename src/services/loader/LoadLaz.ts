@@ -16,6 +16,7 @@ export class LoadLaz {
   private headerData: any = null;
   private calculatedCentroid: { x: number; y: number; z: number } | null = null;
   private totalPointsProcessed: number = 0;
+  private currentMessageHandler: ((e: MessageEvent) => void) | null = null;
 
   constructor(serviceManager: ServiceManager) {
     this.serviceManager = serviceManager;
@@ -35,6 +36,26 @@ export class LoadLaz {
     this.headerData = null;
     this.calculatedCentroid = null;
     this.totalPointsProcessed = 0;
+    this.currentMessageHandler = null;
+  }
+
+  /**
+   * Cancel the current loading process
+   */
+  cancelLoading(): void {
+    if (this.isProcessing && this.worker && this.currentMessageHandler) {
+      console.log('Cancelling point cloud loading...');
+      
+      // Remove the message handler to stop processing new batches
+      this.worker.removeEventListener('message', this.currentMessageHandler);
+      this.currentMessageHandler = null;
+      
+      // Reset processing state
+      this.isProcessing = false;
+      this.resetAccumulator();
+      
+      console.log('Point cloud loading cancelled');
+    }
   }
 
   async loadFromFile(
@@ -112,6 +133,7 @@ export class LoadLaz {
 
           case 'PROCESSING_COMPLETE':
             this.worker!.removeEventListener('message', handleMessage);
+            this.currentMessageHandler = null;
             // All batch meshes are now visible, forming the complete point cloud
             this.resetAccumulator(); // Reset the accumulator after processing completes
             resolve();
@@ -119,11 +141,14 @@ export class LoadLaz {
 
           case 'ERROR':
             this.worker!.removeEventListener('message', handleMessage);
+            this.currentMessageHandler = null;
             reject(new Error(data.error));
             break;
         }
       };
 
+      // Store the message handler so it can be removed when cancelled
+      this.currentMessageHandler = handleMessage;
       this.worker!.addEventListener('message', handleMessage);
       this.worker!.postMessage({ type: 'INITIALIZE_FILE', data: { fileBuffer, batchSize } });
     });

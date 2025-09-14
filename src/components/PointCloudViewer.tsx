@@ -201,6 +201,18 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
           <button 
             onClick={() => {
               if (serviceManagerRef.current) {
+                serviceManagerRef.current.cancelLoading();
+                setIsLoading(false);
+              }
+            }} 
+            disabled={!isLoading}
+            style={{ marginLeft: '8px' }}
+          >
+            Cancel Loading
+          </button>
+          <button 
+            onClick={() => {
+              if (serviceManagerRef.current) {
                 serviceManagerRef.current.clearAllPointClouds();
               }
             }} 

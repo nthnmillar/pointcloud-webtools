@@ -209,6 +209,10 @@ export class ServiceManager extends BaseService {
     return this._loaderService.loadFile(file, batchSize);
   }
 
+  cancelLoading(): void {
+    this._loaderService.cancelLoading();
+  }
+
 
   async getFileMetadata(file: File): Promise<any> {
     return this._loaderService.getFileMetadata(file);

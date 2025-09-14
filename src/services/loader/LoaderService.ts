@@ -27,6 +27,10 @@ export class LoaderService extends BaseService {
     return this.loadLaz.processing;
   }
 
+  cancelLoading(): void {
+    this.loadLaz.cancelLoading();
+  }
+
   async loadFile(
     file: File, 
     batchSize: number = 500
