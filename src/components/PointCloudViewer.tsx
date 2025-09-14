@@ -15,6 +15,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   const [pointSize, setPointSize] = useState(2.0);
   const [zoomSensitivity, setZoomSensitivity] = useState(0.005);
   const [panningSensitivity, setPanningSensitivity] = useState(0.05);
+  const [targetEnabled, setTargetEnabled] = useState(true);
 
   // Initialize service manager
   useEffect(() => {
@@ -39,6 +40,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
         // Initialize UI values from service
         setZoomSensitivity(serviceManager.cameraService.zoomSensitivity);
         setPanningSensitivity(serviceManager.cameraService.panningSensitivity);
+        setTargetEnabled(serviceManager.cameraService.targetEnabled);
       });
 
       return () => {
@@ -166,6 +168,13 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
     serviceManagerRef.current.cameraService.panningSensitivity = newPanningSensitivity;
   };
 
+  const handleTargetToggle = (enabled: boolean) => {
+    if (!serviceManagerRef.current) return;
+    
+    setTargetEnabled(enabled);
+    serviceManagerRef.current.cameraService.targetEnabled = enabled;
+  };
+
 
 
   return (
@@ -212,6 +221,17 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
             style={{ width: '120px' }}
           />
           <span style={{ minWidth: '30px', textAlign: 'right' }}>{panningSensitivity.toFixed(2)}</span>
+        </div>
+
+        <div className="control-group">
+          <label>
+            <input
+              type="checkbox"
+              checked={targetEnabled}
+              onChange={(e) => handleTargetToggle(e.target.checked)}
+            />
+            Camera Target
+          </label>
         </div>
 
 
