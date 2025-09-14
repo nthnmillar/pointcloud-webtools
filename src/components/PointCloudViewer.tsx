@@ -163,7 +163,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
             onChange={(e) => handlePointSizeChange(parseFloat(e.target.value))}
             style={{ width: '120px' }}
           />
-          <span style={{ minWidth: '40px', textAlign: 'right' }}>{pointSize.toFixed(1)}</span>
+          <span style={{ minWidth: '20px', textAlign: 'right' }}>{pointSize.toFixed(1)}</span>
         </div>
 
 
@@ -206,7 +206,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
               }
             }} 
             disabled={!isLoading}
-            style={{ marginLeft: '8px' }}
           >
             Cancel Loading
           </button>
@@ -217,7 +216,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
               }
             }} 
             disabled={isLoading}
-            style={{ marginLeft: '8px' }}
           >
             Clear Scene
           </button>
