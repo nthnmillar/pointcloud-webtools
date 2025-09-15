@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
+import { Benchmark } from './Benchmark';
+import { SceneControls } from './SceneControls';
+import { LoadPoints } from './LoadPoints';
 
 interface PointCloudViewerProps {
   className?: string;
@@ -11,11 +14,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [batchSize, setBatchSize] = useState(500);
-  const [pointSize, setPointSize] = useState(2.0);
-  const [zoomSensitivity, setZoomSensitivity] = useState(0.005);
-  const [panningSensitivity, setPanningSensitivity] = useState(0.05);
-  const [targetEnabled, setTargetEnabled] = useState(true);
+  const [serviceManager, setServiceManager] = useState<ServiceManager | null>(null);
 
   // Initialize service manager
   useEffect(() => {
@@ -37,10 +36,9 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
 
       // Initialize the service manager
       serviceManager.initialize(canvasRef.current).then(() => {
-        // Initialize UI values from service
-        setZoomSensitivity(serviceManager.cameraService.zoomSensitivity);
-        setPanningSensitivity(serviceManager.cameraService.panningSensitivity);
-        setTargetEnabled(serviceManager.cameraService.targetEnabled);
+        setServiceManager(serviceManager);
+      }).catch((err) => {
+        console.error('Failed to initialize service manager:', err);
       });
 
       return () => {
@@ -95,201 +93,11 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
   // Helper methods
 
 
-  const loadSampleData = async () => {
-    if (!serviceManagerRef.current) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const sampleData = serviceManagerRef.current.generateSamplePointCloud('sample-1', 5000);
-      await serviceManagerRef.current.loadPointCloud('sample-1', sampleData);
-      
-      // Set the sample data as active and trigger rendering
-      serviceManagerRef.current.activePointCloudId = 'sample-1';
-      serviceManagerRef.current.renderActivePointCloud();
-      
-      setIsLoading(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load sample data');
-      setIsLoading(false);
-    }
-  };
-
-  const handleFileLoad = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    
-    if (!file || !serviceManagerRef.current) {
-      return;
-    }
-
-    try {
-      // Check if file format is supported
-      const extension = '.' + file.name.split('.').pop()?.toLowerCase();
-      if (!serviceManagerRef.current.isSupportedFormat(extension)) {
-        setError(`Unsupported file format: ${extension}. Supported formats: ${serviceManagerRef.current.getSupportedFormats().join(', ')}`);
-        return;
-      }
-      // Load the file - batches will appear in scene as they load
-      await serviceManagerRef.current.loadFile(file, batchSize);
-
-    } catch (err) {
-      console.error('PointCloudViewer: Error loading file:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load file');
-    } finally {
-      // Reset file input
-      event.target.value = '';
-    }
-  };
-
-  // UI event handlers
-  const handlePointSizeChange = (newPointSize: number) => {
-    if (!serviceManagerRef.current) return;
-
-    setPointSize(newPointSize);
-    
-    // Update all point cloud meshes with new point size
-    if (serviceManagerRef.current.pointService.pointMeshInstance) {
-      serviceManagerRef.current.pointService.pointMeshInstance.updateAllPointSizes(newPointSize);
-    }
-  };
-
-  const handleZoomSensitivityChange = (newZoomSensitivity: number) => {
-    if (!serviceManagerRef.current) return;
-    
-    setZoomSensitivity(newZoomSensitivity);
-    serviceManagerRef.current.cameraService.zoomSensitivity = newZoomSensitivity;
-  };
-
-  const handlePanningSensitivityChange = (newPanningSensitivity: number) => {
-    if (!serviceManagerRef.current) return;
-    
-    setPanningSensitivity(newPanningSensitivity);
-    serviceManagerRef.current.cameraService.panningSensitivity = newPanningSensitivity;
-  };
-
-  const handleTargetToggle = (enabled: boolean) => {
-    if (!serviceManagerRef.current) return;
-    
-    setTargetEnabled(enabled);
-    serviceManagerRef.current.cameraService.targetEnabled = enabled;
-  };
 
 
 
   return (
     <div className={`point-cloud-viewer-v2 ${className || ''}`}>
-      <div className="viewer-controls">
-
-        <div className="control-group">
-          <label>Point Size:</label>
-          <input
-            type="range"
-            min="0.1"
-            max="20"
-            step="0.1"
-            value={pointSize}
-            onChange={(e) => handlePointSizeChange(parseFloat(e.target.value))}
-            style={{ width: '120px' }}
-          />
-          <span style={{ minWidth: '20px', textAlign: 'right' }}>{pointSize.toFixed(1)}</span>
-        </div>
-
-        <div className="control-group">
-          <label>Zoom Sensitivity:</label>
-          <input
-            type="range"
-            min="0.001"
-            max="0.1"
-            step="0.001"
-            value={zoomSensitivity}
-            onChange={(e) => handleZoomSensitivityChange(parseFloat(e.target.value))}
-            style={{ width: '120px' }}
-          />
-          <span style={{ minWidth: '30px', textAlign: 'right' }}>{zoomSensitivity.toFixed(3)}</span>
-        </div>
-
-        <div className="control-group">
-          <label>Panning Sensitivity:</label>
-          <input
-            type="range"
-            min="0.01"
-            max="0.5"
-            step="0.01"
-            value={panningSensitivity}
-            onChange={(e) => handlePanningSensitivityChange(parseFloat(e.target.value))}
-            style={{ width: '120px' }}
-          />
-          <span style={{ minWidth: '30px', textAlign: 'right' }}>{panningSensitivity.toFixed(2)}</span>
-        </div>
-
-        <div className="control-group">
-          <label>
-            <input
-              type="checkbox"
-              checked={targetEnabled}
-              onChange={(e) => handleTargetToggle(e.target.checked)}
-            />
-            Camera Target
-          </label>
-        </div>
-
-
-        <div className="control-group">
-          <label>Batch Size:</label>
-          <input
-            type="number"
-            min="100"
-            max="2000"
-            step="100"
-            value={batchSize}
-            onChange={(e) => setBatchSize(parseInt(e.target.value) || 500)}
-            style={{ width: '80px', marginLeft: '8px' }}
-          />
-          <span style={{ marginLeft: '8px' }}>points per batch</span>
-        </div>
-
-        <div className="control-group">
-          <label>
-            Load LAZ File:
-            <input
-              type="file"
-              accept=".laz,.las"
-              onChange={handleFileLoad}
-              disabled={isLoading}
-              style={{ marginLeft: '8px' }}
-            />
-          </label>
-        </div>
-
-        <div className="control-group">
-          <button onClick={loadSampleData} disabled={isLoading}>
-            {isLoading ? 'Loading...' : 'Load Sample Data'}
-          </button>
-          <button 
-            onClick={() => {
-              if (serviceManagerRef.current) {
-                serviceManagerRef.current.cancelLoading();
-                setIsLoading(false);
-              }
-            }} 
-            disabled={!isLoading}
-          >
-            Cancel Loading
-          </button>
-          <button 
-            onClick={() => {
-              if (serviceManagerRef.current) {
-                serviceManagerRef.current.clearAllPointClouds();
-              }
-            }} 
-            disabled={isLoading}
-          >
-            Clear Scene
-          </button>
-        </div>
-
-      </div>
 
 
       <div className="viewer-canvas-container">
@@ -306,6 +114,20 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
           style={{ width: '100%', height: '100%' }}
         />
       </div>
+
+      <SceneControls 
+        serviceManager={serviceManager}
+        isLoading={isLoading}
+        onLoadingChange={setIsLoading}
+        onErrorChange={setError}
+      />
+      <LoadPoints 
+        serviceManager={serviceManager}
+        isLoading={isLoading}
+        onLoadingChange={setIsLoading}
+        onErrorChange={setError}
+      />
+      <Benchmark />
     </div>
   );
 };

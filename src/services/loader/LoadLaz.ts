@@ -44,7 +44,6 @@ export class LoadLaz {
    */
   cancelLoading(): void {
     if (this.isProcessing && this.worker && this.currentMessageHandler) {
-      console.log('Cancelling point cloud loading...');
       
       // Remove the message handler to stop processing new batches
       this.worker.removeEventListener('message', this.currentMessageHandler);
@@ -54,7 +53,6 @@ export class LoadLaz {
       this.isProcessing = false;
       this.resetAccumulator();
       
-      console.log('Point cloud loading cancelled');
     }
   }
 
@@ -119,7 +117,6 @@ export class LoadLaz {
         switch (type) {
           case 'FILE_INITIALIZED':
             // File is initialized, log total points
-            console.log(`Total points in file: ${data.pointCount}`);
             // Start processing batches
             this.processNextBatch();
             break;

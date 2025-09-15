@@ -2,8 +2,7 @@ import {
   Scene,
   PointsCloudSystem,
   Vector3,
-  Color4,
-  Camera
+  Color4
 } from '@babylonjs/core';
 import type { 
   PointCloudData, 
@@ -120,7 +119,6 @@ export class PointMesh {
       (this.performanceStats.averageRenderTime + renderTime) / 2;
     
     // Log mesh creation
-    console.log(`Created mesh: ${id}`);
     
     return pcs;
   }
@@ -173,7 +171,6 @@ export class PointMesh {
     const mesh = this.meshes.get(id);
     if (mesh && mesh.mesh && mesh.mesh.material) {
       mesh.mesh.material.pointSize = pointSize;
-      console.log(`Updated point size for ${id}: ${pointSize}`);
     }
   }
 
@@ -186,7 +183,6 @@ export class PointMesh {
         mesh.mesh.material.pointSize = pointSize;
       }
     }
-    console.log(`Updated point size for all meshes: ${pointSize}`);
   }
 
   /**
@@ -195,7 +191,6 @@ export class PointMesh {
   removeMesh(id: string): void {
     const mesh = this.meshes.get(id);
     if (mesh) {
-      console.log(`Removed mesh: ${id}`);
       mesh.dispose();
       this.meshes.delete(id);
     }

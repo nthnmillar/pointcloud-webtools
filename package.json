@@ -16,6 +16,7 @@
     "babylonjs-gltf2interface": "^8.26.0",
     "las-header": "^0.0.4",
     "laz-perf": "^0.0.7",
+    "pcl.js": "^1.16.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "rxjs": "^7.8.2"

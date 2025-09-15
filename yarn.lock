@@ -1380,6 +1380,13 @@ path-key@^3.1.0:
   resolved "https://registry.yarnpkg.com/path-key/-/path-key-3.1.1.tgz#581f6ade658cbba65a0d3380de7753295054f375"
   integrity sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==
 
+pcl.js@^1.16.0:
+  version "1.16.0"
+  resolved "https://registry.yarnpkg.com/pcl.js/-/pcl.js-1.16.0.tgz#b496a728afe5c5936e6b1be2c7a737bfc827d302"
+  integrity sha512-/Us4by9meeEqG4EkB2T2S0VqpWdxREPqsgVhRmt4jdiXf5wrMkbR650II3hjjxkhmnIzVa6JfhWPITz1Fy1kyg==
+  dependencies:
+    three ">=0.123.0 <1.0.0"
+
 picocolors@^1.0.0, picocolors@^1.1.1:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/picocolors/-/picocolors-1.1.1.tgz#3d321af3eab939b083c8f929a1d12cda81c26b6b"
@@ -1533,6 +1540,11 @@ supports-color@^7.1.0:
   integrity sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==
   dependencies:
     has-flag "^4.0.0"
+
+"three@>=0.123.0 <1.0.0":
+  version "0.180.0"
+  resolved "https://registry.yarnpkg.com/three/-/three-0.180.0.tgz#b930cabfb524f6d36bf63e874b4d866888b50487"
+  integrity sha512-o+qycAMZrh+TsE01GqWUxUIKR1AL0S8pq7zDkYOQw8GqfX8b8VoCKYUoHbhiX5j+7hr8XsuHDVU6+gkQJQKg9w==
 
 tinyglobby@^0.2.14:
   version "0.2.15"
