@@ -3,6 +3,7 @@ import { ServiceManager } from '../services/ServiceManager';
 import { Benchmark } from './Benchmark';
 import { SceneControls } from './SceneControls';
 import { LoadPoints } from './LoadPoints';
+import { Tools } from './Tools';
 
 interface PointCloudViewerProps {
   className?: string;
@@ -128,6 +129,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
         onErrorChange={setError}
       />
       <Benchmark />
+      <Tools />
     </div>
   );
 };

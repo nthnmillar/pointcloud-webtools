@@ -506,6 +506,220 @@
   }
 }
 
+/* Tools Panel */
+.tools-toggle {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  z-index: 300;
+}
+
+.tools-toggle-btn {
+  background: rgba(97, 218, 251, 0.8);
+  color: #000;
+  border: 1px solid rgba(97, 218, 251, 0.5);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(5px);
+}
+
+.tools-toggle-btn:hover {
+  background: rgba(97, 218, 251, 1);
+  transform: translateY(-1px);
+}
+
+.tools-panel {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  width: 600px;
+  max-height: 80vh;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  border-radius: 8px;
+  padding: 1rem;
+  z-index: 300;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  overflow-y: auto;
+}
+
+.tools-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tools-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.tools-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.tools-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tools-content {
+  width: 100%;
+}
+
+.tools-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tools-table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.tools-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  align-items: center;
+}
+
+.tools-table-row:last-child {
+  border-bottom: none;
+}
+
+.tool-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.tool-description {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.3;
+}
+
+.tools-wasm-btn,
+.tools-be-btn {
+  background: rgba(97, 218, 251, 0.8);
+  color: #000;
+  border: 1px solid rgba(97, 218, 251, 0.5);
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(5px);
+  width: 100%;
+}
+
+.tools-wasm-btn:hover,
+.tools-be-btn:hover {
+  background: rgba(97, 218, 251, 1);
+  transform: translateY(-1px);
+}
+
+.tools-be-btn {
+  background: rgba(255, 165, 0, 0.8);
+  border-color: rgba(255, 165, 0, 0.5);
+}
+
+.tools-be-btn:hover {
+  background: rgba(255, 165, 0, 1);
+}
+
+.tool-control {
+  width: 100%;
+  padding: 0.25rem 0;
+}
+
+.tool-slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.tool-slider {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.tool-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: rgba(97, 218, 251, 0.8);
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.2s;
+}
+
+.tool-slider::-webkit-slider-thumb:hover {
+  background: rgba(97, 218, 251, 1);
+  transform: scale(1.1);
+}
+
+.tool-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: rgba(97, 218, 251, 0.8);
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.2s;
+}
+
+.tool-slider::-moz-range-thumb:hover {
+  background: rgba(97, 218, 251, 1);
+  transform: scale(1.1);
+}
+
+.tool-value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(97, 218, 251, 0.9);
+  text-align: center;
+  min-width: 50px;
+}
+
 /* Load Points Panel */
 .load-points-toggle {
   position: absolute;

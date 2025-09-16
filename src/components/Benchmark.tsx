@@ -15,7 +15,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className }) => {
           onClick={() => setIsVisible(!isVisible)}
           className="benchmark-toggle-btn"
         >
-          {isVisible ? 'Hide' : 'Show'} Benchmark
+          {isVisible ? 'Hide' : 'Benchmark'}
         </button>
       </div>
 
