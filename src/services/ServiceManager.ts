@@ -4,6 +4,7 @@ import { SceneService } from './scene/SceneService';
 import { RenderService } from './render/RenderService';
 import { LoaderService } from './loader/LoaderService';
 import { CameraService } from './camera/CameraService';
+import { ToolsService } from './tools/ToolsService';
 import type { 
   PointCloudData, 
   RenderOptions 
@@ -17,6 +18,7 @@ export class ServiceManager extends BaseService {
   private _sceneService: SceneService;
   private _renderService: RenderService;
   private _loaderService: LoaderService;
+  private _toolsService: ToolsService;
 
   constructor() {
     super();
@@ -26,6 +28,7 @@ export class ServiceManager extends BaseService {
     this._sceneService = new SceneService();
     this._renderService = new RenderService();
     this._loaderService = new LoaderService(this);
+    this._toolsService = new ToolsService();
 
     // Set up service communication
     this.setupServiceCommunication();
@@ -62,6 +65,7 @@ export class ServiceManager extends BaseService {
     this._sceneService.dispose();
     this._renderService.dispose();
     this._loaderService.dispose();
+    this._toolsService.dispose();
     
     this.removeAllObservers();
   }
@@ -131,6 +135,27 @@ export class ServiceManager extends BaseService {
 
     this._loaderService.on('loadingError', (data: any) => {
       this.emit('fileLoadingError', data);
+    });
+
+    // Tools service events
+    this._toolsService.on('processingStarted', (data: any) => {
+      this.emit('toolsProcessingStarted', data);
+    });
+
+    this._toolsService.on('processingCompleted', (data: any) => {
+      this.emit('toolsProcessingCompleted', data);
+    });
+
+    this._toolsService.on('processingError', (data: any) => {
+      this.emit('toolsProcessingError', data);
+    });
+
+    this._toolsService.on('processingFinished', (data: any) => {
+      this.emit('toolsProcessingFinished', data);
+    });
+
+    this._toolsService.on('voxelSizeChanged', (data: any) => {
+      this.emit('voxelSizeChanged', data);
     });
   }
 
@@ -242,5 +267,9 @@ export class ServiceManager extends BaseService {
   // Service Access Methods (for advanced usage)
   get loaderService(): LoaderService {
     return this._loaderService;
+  }
+
+  get toolsService(): ToolsService {
+    return this._toolsService;
   }
 }

@@ -129,7 +129,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
         onErrorChange={setError}
       />
       <Benchmark />
-      <Tools />
+      <Tools serviceManager={serviceManager} />
     </div>
   );
 };

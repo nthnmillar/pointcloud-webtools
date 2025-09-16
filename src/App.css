@@ -649,6 +649,19 @@
   transform: translateY(-1px);
 }
 
+.tools-wasm-btn:disabled,
+.tools-be-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.tools-wasm-btn:disabled:hover,
+.tools-be-btn:disabled:hover {
+  background: rgba(97, 218, 251, 0.8);
+  transform: none;
+}
+
 .tools-be-btn {
   background: rgba(255, 165, 0, 0.8);
   border-color: rgba(255, 165, 0, 0.5);
