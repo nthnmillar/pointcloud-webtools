@@ -9,15 +9,15 @@ interface SceneControlsProps {
   onErrorChange: (error: string | null) => void;
 }
 
-export const SceneControls: React.FC<SceneControlsProps> = ({ 
+export const SceneControls: React.FC<SceneControlsProps> = ({
   className,
   serviceManager,
   isLoading,
   onLoadingChange,
-  onErrorChange
+  onErrorChange,
 }) => {
   const [isVisible, setIsVisible] = useState(false);
-  
+
   // Internal state for controls
   const [pointSize, setPointSize] = useState(2.0);
   const [zoomSensitivity, setZoomSensitivity] = useState(0.005);
@@ -36,42 +36,43 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
   // Event handlers
   const handlePointSizeChange = (newPointSize: number) => {
     if (!serviceManager) return;
-    
+
     setPointSize(newPointSize);
-    
+
     // Update all point cloud meshes with new point size
     if (serviceManager.pointService.pointMeshInstance) {
-      serviceManager.pointService.pointMeshInstance.updateAllPointSizes(newPointSize);
+      serviceManager.pointService.pointMeshInstance.updateAllPointSizes(
+        newPointSize
+      );
     }
   };
 
   const handleZoomSensitivityChange = (newZoomSensitivity: number) => {
     if (!serviceManager) return;
-    
+
     setZoomSensitivity(newZoomSensitivity);
     serviceManager.cameraService.zoomSensitivity = newZoomSensitivity;
   };
 
   const handlePanningSensitivityChange = (newPanningSensitivity: number) => {
     if (!serviceManager) return;
-    
+
     setPanningSensitivity(newPanningSensitivity);
     serviceManager.cameraService.panningSensitivity = newPanningSensitivity;
   };
 
   const handleTargetToggle = (enabled: boolean) => {
     if (!serviceManager) return;
-    
+
     setTargetEnabled(enabled);
     serviceManager.cameraService.targetEnabled = enabled;
   };
-
 
   return (
     <>
       {/* Toggle Button */}
       <div className="scene-controls-toggle">
-        <button 
+        <button
           onClick={() => setIsVisible(!isVisible)}
           className="scene-controls-toggle-btn"
         >
@@ -84,14 +85,14 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
         <div className={`scene-controls-panel ${className || ''}`}>
           <div className="scene-controls-header">
             <h3>Scene Controls</h3>
-            <button 
+            <button
               onClick={() => setIsVisible(false)}
               className="scene-controls-close"
             >
               ×
             </button>
           </div>
-          
+
           <div className="scene-controls-content">
             <div className="control-group">
               <label>Point Size:</label>
@@ -101,10 +102,14 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
                 max="20"
                 step="0.1"
                 value={pointSize}
-                onChange={(e) => handlePointSizeChange(parseFloat(e.target.value))}
+                onChange={e =>
+                  handlePointSizeChange(parseFloat(e.target.value))
+                }
                 style={{ width: '120px' }}
               />
-              <span style={{ minWidth: '20px', textAlign: 'right' }}>{pointSize.toFixed(1)}</span>
+              <span style={{ minWidth: '20px', textAlign: 'right' }}>
+                {pointSize.toFixed(1)}
+              </span>
             </div>
 
             <div className="control-group">
@@ -115,10 +120,14 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
                 max="0.1"
                 step="0.001"
                 value={zoomSensitivity}
-                onChange={(e) => handleZoomSensitivityChange(parseFloat(e.target.value))}
+                onChange={e =>
+                  handleZoomSensitivityChange(parseFloat(e.target.value))
+                }
                 style={{ width: '120px' }}
               />
-              <span style={{ minWidth: '30px', textAlign: 'right' }}>{zoomSensitivity.toFixed(3)}</span>
+              <span style={{ minWidth: '30px', textAlign: 'right' }}>
+                {zoomSensitivity.toFixed(3)}
+              </span>
             </div>
 
             <div className="control-group">
@@ -129,10 +138,14 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
                 max="0.5"
                 step="0.01"
                 value={panningSensitivity}
-                onChange={(e) => handlePanningSensitivityChange(parseFloat(e.target.value))}
+                onChange={e =>
+                  handlePanningSensitivityChange(parseFloat(e.target.value))
+                }
                 style={{ width: '120px' }}
               />
-              <span style={{ minWidth: '30px', textAlign: 'right' }}>{panningSensitivity.toFixed(2)}</span>
+              <span style={{ minWidth: '30px', textAlign: 'right' }}>
+                {panningSensitivity.toFixed(2)}
+              </span>
             </div>
 
             <div className="control-group">
@@ -140,12 +153,11 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
                 <input
                   type="checkbox"
                   checked={targetEnabled}
-                  onChange={(e) => handleTargetToggle(e.target.checked)}
+                  onChange={e => handleTargetToggle(e.target.checked)}
                 />
                 Camera Target
               </label>
             </div>
-
           </div>
         </div>
       )}

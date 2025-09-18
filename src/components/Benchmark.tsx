@@ -11,7 +11,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className }) => {
     <>
       {/* Toggle Button */}
       <div className="benchmark-toggle">
-        <button 
+        <button
           onClick={() => setIsVisible(!isVisible)}
           className="benchmark-toggle-btn"
         >
@@ -24,14 +24,14 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className }) => {
         <div className={`benchmark-panel ${className || ''}`}>
           <div className="benchmark-header">
             <h3>Performance Benchmark</h3>
-            <button 
+            <button
               onClick={() => setIsVisible(false)}
               className="benchmark-close"
             >
               ×
             </button>
           </div>
-          
+
           <div className="benchmark-content">
             {/* WASM Column */}
             <div className="benchmark-column">

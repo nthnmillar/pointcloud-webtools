@@ -4,7 +4,7 @@ import {
   HemisphericLight,
   Vector3,
   Color3,
-  Color4
+  Color4,
 } from '@babylonjs/core';
 import { BaseService } from '../BaseService';
 import { CameraService } from '../camera/CameraService';
@@ -25,14 +25,14 @@ export class SceneService extends BaseService {
   async initialize(canvas: HTMLCanvasElement): Promise<void> {
     this._engine = new Engine(canvas, true);
     this._scene = new Scene(this._engine);
-    
+
     this.setupScene();
     this.setupLighting();
     this.startRenderLoop();
-    
+
     // Initialize camera service with the scene
     await this._cameraService.initialize(this._scene, canvas);
-    
+
     this.isInitialized = true;
     this.emit('initialized');
   }
@@ -53,7 +53,7 @@ export class SceneService extends BaseService {
    */
   private setupScene(): void {
     if (!this._scene) return;
-    
+
     this._scene.clearColor = new Color4(0.1, 0.1, 0.1, 1.0);
     this._scene.ambientColor = new Color3(0.3, 0.3, 0.3);
   }
@@ -63,8 +63,12 @@ export class SceneService extends BaseService {
    */
   private setupLighting(): void {
     if (!this._scene) return;
-    
-    const light = new HemisphericLight('light', new Vector3(0, 1, 0), this._scene);
+
+    const light = new HemisphericLight(
+      'light',
+      new Vector3(0, 1, 0),
+      this._scene
+    );
     light.intensity = 0.7;
   }
 
@@ -73,7 +77,7 @@ export class SceneService extends BaseService {
    */
   private startRenderLoop(): void {
     if (!this._engine || !this._scene) return;
-    
+
     this._engine.runRenderLoop(() => {
       this._scene?.render();
     });
@@ -87,9 +91,18 @@ export class SceneService extends BaseService {
   /**
    * Update scene background
    */
-  updateBackgroundColor(backgroundColor: { r: number; g: number; b: number }): void {
+  updateBackgroundColor(backgroundColor: {
+    r: number;
+    g: number;
+    b: number;
+  }): void {
     if (this._scene) {
-      this._scene.clearColor = new Color4(backgroundColor.r, backgroundColor.g, backgroundColor.b, 1.0);
+      this._scene.clearColor = new Color4(
+        backgroundColor.r,
+        backgroundColor.g,
+        backgroundColor.b,
+        1.0
+      );
     }
   }
 

@@ -14,7 +14,6 @@ export class ToolsService extends BaseService {
     this.isInitialized = true;
   }
 
-
   // Generic tool access
   get voxelDownsampling(): VoxelDownsampling {
     return this._voxelDownsampling;

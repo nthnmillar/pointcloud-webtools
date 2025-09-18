@@ -82,7 +82,7 @@ export interface FilterOptions {
   };
 }
 
-export type PointCloudEventType = 
+export type PointCloudEventType =
   | 'loaded'
   | 'loading'
   | 'error'

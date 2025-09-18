@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# WebAssembly compiled files
+public/wasm/*.wasm
+public/wasm/*.js
+src/wasm/*.wasm
+src/wasm/*.js

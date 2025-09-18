@@ -1,11 +1,11 @@
 import { BaseService } from '../BaseService';
 import { PointMesh } from './PointMesh';
-import type { 
-  PointCloudData, 
-  PointCloudMetadata, 
-  PointCloudPoint, 
+import type {
+  PointCloudData,
+  PointCloudMetadata,
+  PointCloudPoint,
   Point3D,
-  RenderOptions 
+  RenderOptions,
 } from './PointCloud';
 
 /**
@@ -38,22 +38,25 @@ export class PointService extends BaseService {
    */
   async loadPointCloud(id: string, data: PointCloudData): Promise<void> {
     this.emit('loading', { id });
-    
+
     try {
       this.validatePointCloudData(data);
-      
+
       this.pointClouds.set(id, data);
-      
+
       if (!this.activePointCloudId) {
         this.activePointCloudId = id;
       }
-      
+
       // Render the point cloud
       this.renderPointCloud(id, this.getRenderOptions());
-      
+
       this.emit('loaded', { id, metadata: data.metadata });
     } catch (error) {
-      this.emit('error', { id, error: error instanceof Error ? error.message : 'Unknown error' });
+      this.emit('error', {
+        id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       throw error;
     }
   }
@@ -61,33 +64,56 @@ export class PointService extends BaseService {
   /**
    * Generate sample point cloud data
    */
-  generateSamplePointCloud(id: string, pointCount: number = 1000): PointCloudData {
+  generateSamplePointCloud(
+    id: string,
+    pointCount: number = 1000
+  ): PointCloudData {
     const points: PointCloudPoint[] = [];
-    
+
     // Generate some visible test points in a smaller, more visible area
     for (let i = 0; i < pointCount; i++) {
       points.push({
         position: {
           x: (Math.random() - 0.5) * 20, // Smaller range for better visibility
           y: (Math.random() - 0.5) * 20,
-          z: (Math.random() - 0.5) * 20
+          z: (Math.random() - 0.5) * 20,
         },
         color: {
           r: Math.random(),
           g: Math.random(),
-          b: Math.random()
+          b: Math.random(),
         },
         intensity: Math.random(),
-        classification: Math.floor(Math.random() * 10)
+        classification: Math.floor(Math.random() * 10),
       });
     }
 
     // Add some guaranteed visible points at known positions
     points.push(
-      { position: { x: 0, y: 0, z: 0 }, color: { r: 1, g: 0, b: 0 }, intensity: 1, classification: 0 },
-      { position: { x: 5, y: 0, z: 0 }, color: { r: 0, g: 1, b: 0 }, intensity: 1, classification: 1 },
-      { position: { x: 0, y: 5, z: 0 }, color: { r: 0, g: 0, b: 1 }, intensity: 1, classification: 2 },
-      { position: { x: 0, y: 0, z: 5 }, color: { r: 1, g: 1, b: 0 }, intensity: 1, classification: 3 }
+      {
+        position: { x: 0, y: 0, z: 0 },
+        color: { r: 1, g: 0, b: 0 },
+        intensity: 1,
+        classification: 0,
+      },
+      {
+        position: { x: 5, y: 0, z: 0 },
+        color: { r: 0, g: 1, b: 0 },
+        intensity: 1,
+        classification: 1,
+      },
+      {
+        position: { x: 0, y: 5, z: 0 },
+        color: { r: 0, g: 0, b: 1 },
+        intensity: 1,
+        classification: 2,
+      },
+      {
+        position: { x: 0, y: 0, z: 5 },
+        color: { r: 1, g: 1, b: 0 },
+        intensity: 1,
+        classification: 3,
+      }
     );
 
     const metadata: PointCloudMetadata = {
@@ -100,7 +126,7 @@ export class PointService extends BaseService {
       hasClassification: true,
       coordinateSystem: 'local',
       units: 'meters',
-      created: new Date()
+      created: new Date(),
     };
 
     return { points, metadata };
@@ -127,7 +153,7 @@ export class PointService extends BaseService {
     if (!this.pointClouds.has(id)) {
       throw new Error(`Point cloud with ID ${id} not found`);
     }
-    
+
     this._activePointCloudId = id;
     this.emit('selectionChanged', { activeId: id });
   }
@@ -160,17 +186,19 @@ export class PointService extends BaseService {
   removePointCloud(id: string): void {
     if (this.pointClouds.has(id)) {
       this.pointClouds.delete(id);
-      
+
       // Clean up the mesh
       if (this.pointMesh) {
         this.pointMesh.removeMesh(id);
       }
-      
+
       if (this._activePointCloudId === id) {
-        this._activePointCloudId = this.pointClouds.size > 0 ? 
-          Array.from(this.pointClouds.keys())[0] : null;
+        this._activePointCloudId =
+          this.pointClouds.size > 0
+            ? Array.from(this.pointClouds.keys())[0]
+            : null;
       }
-      
+
       this.emit('removed', { id });
     }
   }
@@ -185,11 +213,11 @@ export class PointService extends BaseService {
       // Recreate the pointMesh for future use
       this.pointMesh = new PointMesh(this.scene);
     }
-    
+
     // Clear the point clouds map
     this.pointClouds.clear();
     this._activePointCloudId = null;
-    
+
     this.emit('cleared', {});
   }
 
@@ -199,18 +227,18 @@ export class PointService extends BaseService {
   createPointCloudMesh(id: string, data: PointCloudData): void {
     try {
       console.log(`Creating point cloud: ${id}`);
-      
+
       this.validatePointCloudData(data);
-      
+
       // Store the point cloud data
       this.pointClouds.set(id, data);
-      
+
       // Point cloud created
-      
+
       if (!this.activePointCloudId) {
         this.activePointCloudId = id;
       }
-      
+
       // Create the mesh directly - don't call renderPointCloud to avoid duplication
       if (this.pointMesh) {
         this.pointMesh.createPointCloudMesh(id, data, this.getRenderOptions());
@@ -225,7 +253,7 @@ export class PointService extends BaseService {
    */
   renderPointCloud(id: string, options: RenderOptions): void {
     console.log(`Rendering: ${id}`);
-    
+
     const pointCloud = this.pointClouds.get(id);
     if (!pointCloud || !this.pointMesh) {
       return;
@@ -244,7 +272,7 @@ export class PointService extends BaseService {
       colorMode: 'original',
       showBoundingBox: false,
       showAxes: true,
-      backgroundColor: { r: 0.1, g: 0.1, b: 0.1 }
+      backgroundColor: { r: 0.1, g: 0.1, b: 0.1 },
     };
   }
 
@@ -256,26 +284,32 @@ export class PointService extends BaseService {
     if (options.pointSize !== undefined && this.pointMesh) {
       this.pointMesh.updatePointSize(id, options.pointSize);
     }
-    
+
     // Re-render with new options if other properties changed
     if (Object.keys(options).some(key => key !== 'pointSize')) {
       this.renderPointCloud(id, { ...this.getRenderOptions(), ...options });
     }
-    
+
     this.emit('renderOptionsUpdated', { id, options });
   }
 
   /**
    * Calculate bounding box for points
    */
-  private calculateBounds(points: PointCloudPoint[]): { min: Point3D; max: Point3D } {
+  public calculateBounds(points: PointCloudPoint[]): {
+    min: Point3D;
+    max: Point3D;
+  } {
     if (points.length === 0) {
       return { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } };
     }
 
-    let minX = points[0].position.x, maxX = points[0].position.x;
-    let minY = points[0].position.y, maxY = points[0].position.y;
-    let minZ = points[0].position.z, maxZ = points[0].position.z;
+    let minX = points[0].position.x,
+      maxX = points[0].position.x;
+    let minY = points[0].position.y,
+      maxY = points[0].position.y;
+    let minZ = points[0].position.z,
+      maxZ = points[0].position.z;
 
     for (const point of points) {
       minX = Math.min(minX, point.position.x);
@@ -288,7 +322,7 @@ export class PointService extends BaseService {
 
     return {
       min: { x: minX, y: minY, z: minZ },
-      max: { x: maxX, y: maxY, z: maxZ }
+      max: { x: maxX, y: maxY, z: maxZ },
     };
   }
 
@@ -311,11 +345,15 @@ export class PointService extends BaseService {
     // Validate each point
     for (let i = 0; i < data.points.length; i++) {
       const point = data.points[i];
-      if (!point.position || 
-          typeof point.position.x !== 'number' ||
-          typeof point.position.y !== 'number' ||
-          typeof point.position.z !== 'number') {
-        throw new Error(`Invalid point at index ${i}: position must have x, y, z numbers`);
+      if (
+        !point.position ||
+        typeof point.position.x !== 'number' ||
+        typeof point.position.y !== 'number' ||
+        typeof point.position.z !== 'number'
+      ) {
+        throw new Error(
+          `Invalid point at index ${i}: position must have x, y, z numbers`
+        );
       }
     }
   }

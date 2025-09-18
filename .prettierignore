@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+yarn.lock
+package-lock.json
+
+# Build outputs
+dist/
+build/
+public/*.wasm
+public/*.js
+
+# Generated files
+*.d.ts
+!src/**/*.d.ts
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db

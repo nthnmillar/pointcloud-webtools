@@ -9,13 +9,17 @@ interface PointCloudViewerProps {
   className?: string;
 }
 
-export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className }) => {
+export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
+  className,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const serviceManagerRef = useRef<ServiceManager | null>(null);
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [serviceManager, setServiceManager] = useState<ServiceManager | null>(null);
+  const [serviceManager, setServiceManager] = useState<ServiceManager | null>(
+    null
+  );
 
   // Initialize service manager
   useEffect(() => {
@@ -36,18 +40,23 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
       serviceManager.on('fileLoadingError', handleFileLoadingError);
 
       // Initialize the service manager
-      serviceManager.initialize(canvasRef.current).then(() => {
-        setServiceManager(serviceManager);
-      }).catch((err) => {
-        console.error('Failed to initialize service manager:', err);
-      });
+      serviceManager
+        .initialize(canvasRef.current)
+        .then(() => {
+          setServiceManager(serviceManager);
+        })
+        .catch(err => {
+          console.error('Failed to initialize service manager:', err);
+        });
 
       return () => {
         // Cleanup
         serviceManager.dispose();
       };
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initialize viewer');
+      setError(
+        err instanceof Error ? err.message : 'Failed to initialize viewer'
+      );
     }
   }, []);
 
@@ -71,7 +80,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
     setError(data.error || 'Unknown error occurred');
   };
 
-
   const handlePointCloudRendered = (_data: any) => {
     // Point cloud rendered
   };
@@ -93,22 +101,11 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
 
   // Helper methods
 
-
-
-
-
   return (
     <div className={`point-cloud-viewer-v2 ${className || ''}`}>
-
-
       <div className="viewer-canvas-container">
-        {error && (
-          <div className="error-message">
-            Error: {error}
-          </div>
-        )}
-        
-        
+        {error && <div className="error-message">Error: {error}</div>}
+
         <canvas
           ref={canvasRef}
           className="viewer-canvas"
@@ -116,13 +113,13 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({ className })
         />
       </div>
 
-      <SceneControls 
+      <SceneControls
         serviceManager={serviceManager}
         isLoading={isLoading}
         onLoadingChange={setIsLoading}
         onErrorChange={setError}
       />
-      <LoadPoints 
+      <LoadPoints
         serviceManager={serviceManager}
         isLoading={isLoading}
         onLoadingChange={setIsLoading}

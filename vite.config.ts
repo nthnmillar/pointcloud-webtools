@@ -1,22 +1,22 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import fullReload from 'vite-plugin-full-reload'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import fullReload from 'vite-plugin-full-reload';
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     fullReload(['src/services/**/*.ts', 'src/services/**/*.tsx'], {
-      delay: 200
-    })
+      delay: 200,
+    }),
   ],
   optimizeDeps: {
-    include: ['laz-perf']
+    include: ['laz-perf'],
   },
   server: {
     hmr: {
       port: 5173,
-      host: 'localhost'
-    }
-  }
-})
+      host: 'localhost',
+    },
+  },
+});

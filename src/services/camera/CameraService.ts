@@ -5,7 +5,7 @@ import {
   MeshBuilder,
   StandardMaterial,
   Color3,
-  Mesh
+  Mesh,
 } from '@babylonjs/core';
 import { BaseService } from '../BaseService';
 
@@ -16,7 +16,7 @@ export class CameraService extends BaseService {
   private _camera: ArcRotateCamera | null = null;
   private _scene: Scene | null = null;
   private _targetSphere: Mesh | null = null;
-  
+
   // Camera control properties
   private _zoomSensitivity: number = 0.005;
   private _panningSensitivity: number = 0.05;
@@ -27,7 +27,7 @@ export class CameraService extends BaseService {
   async initialize(scene: Scene, canvas: HTMLCanvasElement): Promise<void> {
     this._scene = scene;
     this.setupCamera(canvas);
-    
+
     this.isInitialized = true;
     this.emit('initialized');
   }
@@ -47,7 +47,7 @@ export class CameraService extends BaseService {
    */
   private setupCamera(canvas: HTMLCanvasElement): void {
     if (!this._scene) return;
-    
+
     this._camera = new ArcRotateCamera(
       'camera',
       -Math.PI / 2,
@@ -56,16 +56,16 @@ export class CameraService extends BaseService {
       Vector3.Zero(),
       this._scene
     );
-    
+
     this._camera.attachControl(canvas, true);
     this._camera.setTarget(Vector3.Zero());
-    
+
     // Create target sphere
     this.createTargetSphere();
-    
+
     // Set initial camera control sensitivities
     this.updateCameraControls();
-    
+
     // Add event listener to update target sphere when camera moves
     this._camera.onViewMatrixChangedObservable.add(() => {
       this.updateTargetSphere();
@@ -77,10 +77,14 @@ export class CameraService extends BaseService {
    */
   private createTargetSphere(): void {
     if (!this._scene) return;
-    
+
     // Create a small sphere to show camera target
-    this._targetSphere = MeshBuilder.CreateSphere('targetSphere', { diameter: 0.5 }, this._scene);
-    
+    this._targetSphere = MeshBuilder.CreateSphere(
+      'targetSphere',
+      { diameter: 0.5 },
+      this._scene
+    );
+
     // Create material for the sphere
     const material = new StandardMaterial('targetMaterial', this._scene);
     material.diffuseColor = new Color3(1, 0, 0); // Red color
@@ -89,10 +93,10 @@ export class CameraService extends BaseService {
     material.specularPower = 0; // No specular power
     material.disableLighting = true; // Disable lighting for flat appearance
     this._targetSphere.material = material;
-    
+
     // Position at camera target
     this._targetSphere.position = Vector3.Zero();
-    
+
     // Initially hidden
     this._targetSphere.setEnabled(this._targetEnabled);
   }
@@ -102,12 +106,13 @@ export class CameraService extends BaseService {
    */
   private updateCameraControls(): void {
     if (!this._camera) return;
-    
+
     // Update wheel precision for zoom sensitivity (invert so higher slider = more sensitive)
     this._camera.wheelPrecision = this._wheelPrecision / this._zoomSensitivity;
-    
+
     // Update panning sensibility (invert so higher slider = more sensitive)
-    this._camera.panningSensibility = this._panningSensibility / this._panningSensitivity;
+    this._camera.panningSensibility =
+      this._panningSensibility / this._panningSensitivity;
   }
 
   /**
@@ -115,7 +120,7 @@ export class CameraService extends BaseService {
    */
   private updateTargetSphere(): void {
     if (!this._camera || !this._targetSphere) return;
-    
+
     // Update sphere position to match camera target
     this._targetSphere.position = this._camera.getTarget();
   }
@@ -164,7 +169,7 @@ export class CameraService extends BaseService {
    */
   resetCamera(): void {
     if (!this._camera) return;
-    
+
     this._camera.setTarget(Vector3.Zero());
     this._camera.alpha = -Math.PI / 2;
     this._camera.beta = Math.PI / 2.5;
@@ -199,12 +204,12 @@ export class CameraService extends BaseService {
    */
   set targetEnabled(enabled: boolean) {
     this._targetEnabled = enabled;
-    
+
     // Show/hide the target sphere
     if (this._targetSphere) {
       this._targetSphere.setEnabled(enabled);
     }
-    
+
     this.emit('targetEnabledChanged', { enabled: this._targetEnabled });
   }
 

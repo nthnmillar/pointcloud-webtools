@@ -31,12 +31,11 @@ export class LoaderService extends BaseService {
     this.loadLaz.cancelLoading();
   }
 
-  async loadFile(
-    file: File, 
-    batchSize: number = 500
-  ): Promise<void> {
-    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-    
+  async loadFile(file: File, batchSize: number = 500): Promise<void> {
+    const fileExtension = file.name
+      .toLowerCase()
+      .substring(file.name.lastIndexOf('.'));
+
     if (!['.laz', '.las'].includes(fileExtension)) {
       throw new Error(`Unsupported file format: ${fileExtension}`);
     }
@@ -78,7 +77,7 @@ export class LoaderService extends BaseService {
       name: file.name,
       size: file.size,
       type: file.type,
-      lastModified: file.lastModified
+      lastModified: file.lastModified,
     };
   }
 

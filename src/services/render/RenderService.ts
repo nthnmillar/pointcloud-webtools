@@ -40,9 +40,12 @@ export class RenderService extends BaseService {
   /**
    * Render the active point cloud (called by ServiceManager)
    */
-  renderActivePointCloud(pointService: { activePointCloudId: string | null; renderPointCloud(id: string, options: RenderOptions): void }): void {
+  renderActivePointCloud(pointService: {
+    activePointCloudId: string | null;
+    renderPointCloud(id: string, options: RenderOptions): void;
+  }): void {
     const activeId = pointService.activePointCloudId;
-    
+
     if (activeId) {
       pointService.renderPointCloud(activeId, this._renderOptions);
     }
@@ -66,7 +69,7 @@ export class RenderService extends BaseService {
       colorMode: 'original',
       showBoundingBox: false,
       showAxes: true,
-      backgroundColor: { r: 0.1, g: 0.1, b: 0.1 }
+      backgroundColor: { r: 0.1, g: 0.1, b: 0.1 },
     };
   }
 }

@@ -9,15 +9,15 @@ interface LoadPointsProps {
   onErrorChange: (error: string | null) => void;
 }
 
-export const LoadPoints: React.FC<LoadPointsProps> = ({ 
+export const LoadPoints: React.FC<LoadPointsProps> = ({
   className,
   serviceManager,
   isLoading,
   onLoadingChange,
-  onErrorChange
+  onErrorChange,
 }) => {
   const [isVisible, setIsVisible] = useState(true);
-  
+
   // Loading-related state
   const [batchSize, setBatchSize] = useState(500);
   const [supportedFormats, setSupportedFormats] = useState<string[]>([]);
@@ -38,24 +38,28 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
 
     try {
       onErrorChange(null);
-      
-      const sampleData = serviceManager.generateSamplePointCloud('sample-1', 5000);
-      
+
+      const sampleData = serviceManager.generateSamplePointCloud(
+        'sample-1',
+        5000
+      );
+
       await serviceManager.loadPointCloud('sample-1', sampleData);
-      
+
       // Set the sample data as active and trigger rendering
       serviceManager.activePointCloudId = 'sample-1';
       serviceManager.renderActivePointCloud();
-      
     } catch (err) {
       console.error('Error loading sample data:', err);
-      onErrorChange(err instanceof Error ? err.message : 'Failed to load sample data');
+      onErrorChange(
+        err instanceof Error ? err.message : 'Failed to load sample data'
+      );
     }
   };
 
   const handleFileLoad = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    
+
     if (!file || !serviceManager) {
       return;
     }
@@ -64,12 +68,13 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       // Check if file format is supported
       const extension = '.' + file.name.split('.').pop()?.toLowerCase();
       if (!serviceManager.isSupportedFormat(extension)) {
-        onErrorChange(`Unsupported file format: ${extension}. Supported formats: ${supportedFormats.join(', ')}`);
+        onErrorChange(
+          `Unsupported file format: ${extension}. Supported formats: ${supportedFormats.join(', ')}`
+        );
         return;
       }
       // Load the file - batches will appear in scene as they load
       await serviceManager.loadFile(file, batchSize);
-
     } catch (err) {
       console.error('LoadPoints: Error loading file:', err);
       onErrorChange(err instanceof Error ? err.message : 'Failed to load file');
@@ -96,7 +101,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
     <>
       {/* Toggle Button */}
       <div className="load-points-toggle">
-        <button 
+        <button
           onClick={() => setIsVisible(!isVisible)}
           className="load-points-toggle-btn"
         >
@@ -109,14 +114,14 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
         <div className={`load-points-panel ${className || ''}`}>
           <div className="load-points-header">
             <h3>Load Points</h3>
-            <button 
+            <button
               onClick={() => setIsVisible(false)}
               className="load-points-close"
             >
               ×
             </button>
           </div>
-          
+
           <div className="load-points-content">
             <div className="control-group">
               <label>Batch Size:</label>
@@ -126,7 +131,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
                 max="2000"
                 step="100"
                 value={batchSize}
-                onChange={(e) => setBatchSize(parseInt(e.target.value) || 500)}
+                onChange={e => setBatchSize(parseInt(e.target.value) || 500)}
                 style={{ width: '80px', marginLeft: '8px' }}
               />
               <span style={{ marginLeft: '8px' }}>points per batch</span>
@@ -146,29 +151,22 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
             </div>
 
             <div className="control-group">
-              <button 
-                onClick={loadSampleData}
-                disabled={isLoading}
-              >
+              <button onClick={loadSampleData} disabled={isLoading}>
                 {isLoading ? 'Loading...' : 'Load Sample Data'}
               </button>
-              <button 
-                onClick={handleCancelLoading}
-                disabled={!isLoading}
-              >
+              <button onClick={handleCancelLoading} disabled={!isLoading}>
                 Cancel Loading
               </button>
-              <button 
-                onClick={handleClearScene}
-                disabled={isLoading}
-              >
+              <button onClick={handleClearScene} disabled={isLoading}>
                 Clear Scene
               </button>
             </div>
 
             <div className="control-group">
               <label>Supported Formats:</label>
-              <span style={{ marginLeft: '8px', fontSize: '0.9em', color: '#ccc' }}>
+              <span
+                style={{ marginLeft: '8px', fontSize: '0.9em', color: '#ccc' }}
+              >
                 {supportedFormats.join(', ')}
               </span>
             </div>

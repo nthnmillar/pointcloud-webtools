@@ -5,10 +5,7 @@ import { RenderService } from './render/RenderService';
 import { LoaderService } from './loader/LoaderService';
 import { CameraService } from './camera/CameraService';
 import { ToolsService } from './tools/ToolsService';
-import type { 
-  PointCloudData, 
-  RenderOptions 
-} from './point/PointCloud';
+import type { PointCloudData, RenderOptions } from './point/PointCloud';
 
 /**
  * Service Manager - Coordinates all services and manages their lifecycle
@@ -22,7 +19,7 @@ export class ServiceManager extends BaseService {
 
   constructor() {
     super();
-    
+
     // Initialize services
     this._pointService = new PointService();
     this._sceneService = new SceneService();
@@ -35,15 +32,14 @@ export class ServiceManager extends BaseService {
   }
 
   async initialize(canvas: HTMLCanvasElement): Promise<void> {
-
     try {
       // Initialize services
       await Promise.all([
         this._sceneService.initialize(canvas),
         this._renderService.initialize(),
-        this._loaderService.initialize()
+        this._loaderService.initialize(),
       ]);
-      
+
       // Initialize point service with the scene
       const scene = this._sceneService.scene;
       if (!scene) {
@@ -54,7 +50,12 @@ export class ServiceManager extends BaseService {
       this.isInitialized = true;
       this.emit('initialized');
     } catch (error) {
-      this.emit('error', { error: error instanceof Error ? error.message : 'Failed to initialize services' });
+      this.emit('error', {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to initialize services',
+      });
       throw error;
     }
   }
@@ -66,7 +67,7 @@ export class ServiceManager extends BaseService {
     this._renderService.dispose();
     this._loaderService.dispose();
     this._toolsService.dispose();
-    
+
     this.removeAllObservers();
   }
 
@@ -75,31 +76,31 @@ export class ServiceManager extends BaseService {
    */
   private setupServiceCommunication(): void {
     // Point service events
-    this._pointService.on('loaded', (data) => {
+    this._pointService.on('loaded', data => {
       this.emit('pointCloudLoaded', data);
       this.renderActivePointCloud();
     });
 
-    this._pointService.on('loading', (data) => {
+    this._pointService.on('loading', data => {
       this.emit('pointCloudLoading', data);
     });
 
-    this._pointService.on('error', (data) => {
+    this._pointService.on('error', data => {
       this.emit('pointCloudError', data);
     });
 
-    this._pointService.on('selectionChanged', (data) => {
+    this._pointService.on('selectionChanged', data => {
       this.emit('selectionChanged', data);
       this.renderActivePointCloud();
     });
 
-    this._pointService.on('removed', (data) => {
+    this._pointService.on('removed', data => {
       this.emit('pointCloudRemoved', data);
     });
 
     // Point cloud rendering handled directly
 
-    this._pointService.on('renderOptionsUpdated', (data) => {
+    this._pointService.on('renderOptionsUpdated', data => {
       this.emit('renderOptionsUpdated', data);
     });
 
@@ -108,7 +109,7 @@ export class ServiceManager extends BaseService {
       this.renderActivePointCloud();
     });
 
-    this._renderService.on('renderOptionsChanged', (data) => {
+    this._renderService.on('renderOptionsChanged', data => {
       this.emit('renderOptionsChanged', data);
     });
 
@@ -164,7 +165,10 @@ export class ServiceManager extends BaseService {
     return this._pointService.loadPointCloud(id, data);
   }
 
-  generateSamplePointCloud(id: string, pointCount: number = 1000): PointCloudData {
+  generateSamplePointCloud(
+    id: string,
+    pointCount: number = 1000
+  ): PointCloudData {
     return this._pointService.generateSamplePointCloud(id, pointCount);
   }
 
@@ -191,7 +195,6 @@ export class ServiceManager extends BaseService {
   removePointCloud(id: string): void {
     this._pointService.removePointCloud(id);
   }
-
 
   /**
    * Render the active point cloud
@@ -231,10 +234,7 @@ export class ServiceManager extends BaseService {
   }
 
   // Loader Service Methods
-  async loadFile(
-    file: File, 
-    batchSize: number = 500
-  ): Promise<void> {
+  async loadFile(file: File, batchSize: number = 500): Promise<void> {
     // Loading file
     return this._loaderService.loadFile(file, batchSize);
   }
@@ -242,7 +242,6 @@ export class ServiceManager extends BaseService {
   cancelLoading(): void {
     this._loaderService.cancelLoading();
   }
-
 
   async getFileMetadata(file: File): Promise<any> {
     return this._loaderService.getFileMetadata(file);
