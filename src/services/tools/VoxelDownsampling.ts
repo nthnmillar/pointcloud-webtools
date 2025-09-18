@@ -1,6 +1,7 @@
 import { BaseService } from '../BaseService';
 import { ToolsService } from './ToolsService';
 import type {
+  Point3D,
   VoxelModule as VoxelModuleType,
 } from '../../wasm/VoxelModule.d.ts';
 
@@ -31,41 +32,26 @@ export class VoxelDownsampling extends BaseService {
 
   async initialize(): Promise<void> {
     try {
-      console.log('=== VoxelDownsampling.initialize() called ===');
-
       // Load WASM module using fetch and eval
-      console.log('Loading WASM module...');
-
-      // Load the JavaScript file
-      console.log('Fetching /wasm/voxel_downsampling.js...');
       const response = await fetch('/wasm/voxel_downsampling.js');
-      console.log('Fetch response:', response.status, response.ok);
-
       const jsCode = await response.text();
-      console.log('JavaScript code length:', jsCode.length);
 
       // Create a module function
-      console.log('Creating module function...');
       const moduleFunction = new Function('module', 'exports', jsCode);
 
       // Create module object
       const module = { exports: {} };
-      console.log('Executing module function...');
       moduleFunction(module, module.exports);
-      console.log('Module exports:', module.exports);
 
       // Get the VoxelModule function
       const VoxelModule = (module.exports as { default?: (options?: { locateFile?: (path: string) => string }) => Promise<VoxelModuleType> }).default || module.exports as (options?: { locateFile?: (path: string) => string }) => Promise<VoxelModuleType>;
-      console.log('VoxelModule function:', typeof VoxelModule, VoxelModule);
 
       if (typeof VoxelModule !== 'function') {
         throw new Error('VoxelModule is not a function: ' + typeof VoxelModule);
       }
 
-      console.log('Calling VoxelModule with options...');
       this._voxelModule = await VoxelModule({
         locateFile: (path: string) => {
-          console.log('locateFile called with:', path);
           if (path.endsWith('.wasm')) {
             return '/wasm/voxel_downsampling.wasm';
           }
@@ -73,13 +59,8 @@ export class VoxelDownsampling extends BaseService {
         },
       });
 
-      console.log('WASM module initialized successfully:', this._voxelModule);
       this.isInitialized = true;
-      console.log('=== VoxelDownsampling.initialize() completed ===');
     } catch (error) {
-      console.error('=== VoxelDownsampling.initialize() FAILED ===');
-      console.error('Error details:', error);
-      console.error('Error stack:', error.stack);
       throw error;
     }
   }
@@ -126,7 +107,6 @@ export class VoxelDownsampling extends BaseService {
 
       // Check if module is loaded, if not try to initialize
       if (!this._voxelModule) {
-        console.log('WASM module not loaded, attempting to initialize...');
         await this.initialize();
         if (!this._voxelModule) {
           throw new Error(
@@ -140,41 +120,18 @@ export class VoxelDownsampling extends BaseService {
       }
 
       // Pass Float32Array directly like LAZ loader does
-      console.log('Passing Float32Array directly to WASM...');
-      console.log('Input data length:', params.pointCloudData.length);
-      console.log('Expected points:', params.pointCloudData.length / 3);
-      console.log('Voxel size:', params.voxelSize);
-
-      // Call WASM function with Float32Array directly
-      console.log('Calling WASM voxelDownsample...');
       const downsampledPoints = this._voxelModule.voxelDownsample(
         params.pointCloudData,
         params.voxelSize
       );
-      console.log('WASM returned:', downsampledPoints);
-      console.log('WASM returned type:', typeof downsampledPoints);
-      console.log(
-        'WASM returned length:',
-        downsampledPoints?.length || 'no length property'
-      );
 
       // Convert Emscripten vector back to Float32Array
-      console.log('Converting WASM result back to Float32Array...');
-      console.log('WASM result details:', {
-        hasSize: typeof downsampledPoints.size === 'function',
-        hasGet: typeof downsampledPoints.get === 'function',
-        hasAt: typeof downsampledPoints.at === 'function',
-        keys: Object.keys(downsampledPoints),
-      });
-
       let resultLength = 0;
       if (typeof downsampledPoints.size === 'function') {
         resultLength = downsampledPoints.size();
       } else if (downsampledPoints.length) {
         resultLength = downsampledPoints.length;
       }
-
-      console.log('Result length:', resultLength);
 
       const downsampledFloat32 = new Float32Array(resultLength * 3);
 
@@ -187,7 +144,6 @@ export class VoxelDownsampling extends BaseService {
         } else if (downsampledPoints[i]) {
           point = downsampledPoints[i];
         } else {
-          console.error('Cannot access point at index', i);
           continue;
         }
 
@@ -195,16 +151,8 @@ export class VoxelDownsampling extends BaseService {
           downsampledFloat32[i * 3] = point.x;
           downsampledFloat32[i * 3 + 1] = point.y;
           downsampledFloat32[i * 3 + 2] = point.z;
-        } else {
-          console.error('Invalid point at index', i, point);
         }
       }
-
-      console.log(
-        'Converted to Float32Array:',
-        downsampledFloat32.length,
-        'values'
-      );
 
       const processingTime = performance.now() - startTime;
 
