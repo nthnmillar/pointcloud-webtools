@@ -55,7 +55,7 @@ export class VoxelDownsampling extends BaseService {
       console.log('Module exports:', module.exports);
 
       // Get the VoxelModule function
-      const VoxelModule = (module.exports as { default?: VoxelModuleType }).default || module.exports as VoxelModuleType;
+      const VoxelModule = (module.exports as { default?: (options?: { locateFile?: (path: string) => string }) => Promise<VoxelModuleType> }).default || module.exports as (options?: { locateFile?: (path: string) => string }) => Promise<VoxelModuleType>;
       console.log('VoxelModule function:', typeof VoxelModule, VoxelModule);
 
       if (typeof VoxelModule !== 'function') {
