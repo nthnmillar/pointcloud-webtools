@@ -109,6 +109,13 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
 
       if (result.success) {
         console.log('WASM voxel downsampling completed:', result);
+        console.log('Result downsampledPoints:', result.downsampledPoints);
+        console.log('Result downsampledPoints length:', result.downsampledPoints?.length);
+
+        if (!result.downsampledPoints || result.downsampledPoints.length === 0) {
+          console.error('WASM result has no downsampled points!');
+          return;
+        }
 
         // Convert Float32Array back to PointCloudPoint array
         const downsampledPoints = [];
@@ -158,13 +165,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
           downsampledId,
           downsampledPointCloud
         );
-
-        // Make downsampled points larger and more visible
-        setTimeout(() => {
-          serviceManager.pointService?.updateRenderOptions(downsampledId, {
-            pointSize: 5.0,
-          });
-        }, 100);
 
         console.log(
           `Added downsampled point cloud: ${downsampledId} with ${downsampledPoints.length} points`
