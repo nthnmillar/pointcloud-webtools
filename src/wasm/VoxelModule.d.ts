@@ -5,7 +5,7 @@ export interface Point3D {
 }
 
 export interface VoxelModule {
-  voxelDownsample(inputPoints: Point3D[], voxelSize: number): Point3D[];
+  voxelDownsample(inputPoints: Float32Array, voxelSize: number): any;
 }
 
 declare function VoxelModule(options?: {

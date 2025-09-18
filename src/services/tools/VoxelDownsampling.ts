@@ -1,7 +1,6 @@
 import { BaseService } from '../BaseService';
 import { ToolsService } from './ToolsService';
 import type {
-  Point3D,
   VoxelModule as VoxelModuleType,
 } from '../../wasm/VoxelModule.d.ts';
 
