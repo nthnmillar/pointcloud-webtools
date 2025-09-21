@@ -54,6 +54,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
     setVoxelSize(newSize);
     if (serviceManager?.toolsService) {
       serviceManager.toolsService.voxelDownsampling.setVoxelSize(newSize);
+      
+      // Update voxel debug visualization if it's currently visible
+      if (showVoxelDebug) {
+        serviceManager.toolsService.voxelDownsampling.updateVoxelDebug(newSize);
+      }
     }
   };
 

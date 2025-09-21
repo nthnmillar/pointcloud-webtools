@@ -24,9 +24,13 @@ export class VoxelDownsampleDebug {
   private _voxelDebugGroup: TransformNode | null = null;
   private _isVisible = false;
   private _scene: Scene | null = null;
+  private _currentPointClouds: any[] = [];
+  private _currentGlobalBounds: any = null;
+  private _serviceManager: any = null;
 
-  constructor(scene: Scene) {
+  constructor(scene: Scene, serviceManager?: any) {
     this._scene = scene;
+    this._serviceManager = serviceManager;
   }
 
   /**
@@ -40,6 +44,10 @@ export class VoxelDownsampleDebug {
 
     // Hide existing debug first
     this.hideVoxelDebug();
+
+    // Store current data for future updates
+    this._currentPointClouds = options.pointClouds || [];
+    this._currentGlobalBounds = options.globalBounds;
 
     // Create voxel wireframes
     this.createVoxelWireframes(options);
@@ -216,11 +224,91 @@ export class VoxelDownsampleDebug {
    * Update voxel debug with new options
    */
   public updateVoxelDebug(options: VoxelDownsampleDebugOptions): void {
-    if (this._isVisible) {
-      this.hideVoxelDebug();
+    if (!this._isVisible) {
+      // If not visible, do a full recreation
       this.showVoxelDebug(options);
+      return;
     }
+
+    // For any changes, recreate to ensure accuracy
+    // Voxel size changes require complete recreation anyway
+    this.hideVoxelDebug();
+    this.showVoxelDebug(options);
   }
+
+  /**
+   * Show voxel debug with voxel size (handles data gathering internally)
+   */
+  public showVoxelDebugWithSize(voxelSize: number): void {
+    if (!this._serviceManager?.pointService) {
+      console.error('Point service not available for voxel debug');
+      return;
+    }
+
+    // Get all point clouds to calculate global bounds
+    const allPointCloudIds = this._serviceManager.pointService.pointCloudIds;
+    
+    if (allPointCloudIds.length === 0) {
+      console.error('No point clouds found for voxel debug');
+      return;
+    }
+
+    let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
+    let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
+    const pointClouds = [];
+
+    for (const pointCloudId of allPointCloudIds) {
+      const pointCloud = this._serviceManager.pointService.getPointCloud(pointCloudId);
+      if (pointCloud && pointCloud.points) {
+        const debugPoints = pointCloud.points.map((p: any) => ({ 
+          position: { x: p.position.x, y: p.position.y, z: p.position.z } 
+        }));
+        pointClouds.push({ points: debugPoints });
+
+        for (const point of pointCloud.points) {
+          globalMinX = Math.min(globalMinX, point.position.x);
+          globalMinY = Math.min(globalMinY, point.position.y);
+          globalMinZ = Math.min(globalMinZ, point.position.z);
+          globalMaxX = Math.max(globalMaxX, point.position.x);
+          globalMaxY = Math.max(globalMaxY, point.position.y);
+          globalMaxZ = Math.max(globalMaxZ, point.position.z);
+        }
+      }
+    }
+
+    const debugOptions: VoxelDownsampleDebugOptions = {
+      voxelSize,
+      globalBounds: {
+        minX: globalMinX,
+        minY: globalMinY,
+        minZ: globalMinZ,
+        maxX: globalMaxX,
+        maxY: globalMaxY,
+        maxZ: globalMaxZ
+      },
+      pointClouds
+    };
+
+    this.showVoxelDebug(debugOptions);
+  }
+
+  /**
+   * Update voxel debug with new voxel size (simpler interface)
+   */
+  public updateVoxelSize(voxelSize: number): void {
+    if (!this._isVisible || !this._currentGlobalBounds) {
+      return; // Don't update if not visible or no data
+    }
+
+    const options: VoxelDownsampleDebugOptions = {
+      voxelSize,
+      globalBounds: this._currentGlobalBounds,
+      pointClouds: this._currentPointClouds
+    };
+
+    this.updateVoxelDebug(options);
+  }
+
 
   /**
    * Dispose of the voxel debug resources

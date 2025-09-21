@@ -5,7 +5,6 @@ import type {
   VoxelModule as VoxelModuleType,
 } from '../../../wasm/VoxelModule.d.ts';
 import { VoxelDownsampleDebug } from './VoxelDownsampleDebug';
-import type { VoxelDownsampleDebugOptions } from './VoxelDownsampleDebug';
 import { VoxelDownsampleService } from './VoxelDownsampleService';
 
 export interface VoxelDownsampleParams {
@@ -432,7 +431,7 @@ export class VoxelDownsampling extends BaseService {
       return false;
     }
 
-    this._voxelDebug = new VoxelDownsampleDebug(this._serviceManager.sceneService.scene);
+    this._voxelDebug = new VoxelDownsampleDebug(this._serviceManager.sceneService.scene, this._serviceManager);
     return true;
   }
 
@@ -443,65 +442,24 @@ export class VoxelDownsampling extends BaseService {
       return;
     }
 
-    if (!this._serviceManager?.pointService) {
-      console.error('Point service not available for voxel debug');
-      return;
-    }
-
-    // Get all point clouds to calculate global bounds
-    const allPointCloudIds = this._serviceManager.pointService.pointCloudIds;
-    
-    if (allPointCloudIds.length === 0) {
-      console.error('No point clouds found for voxel debug');
-      return;
-    }
-
-    let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
-    let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
-
-    for (const pointCloudId of allPointCloudIds) {
-      const pointCloud = this._serviceManager.pointService.getPointCloud(pointCloudId);
-      if (pointCloud && pointCloud.points) {
-        for (const point of pointCloud.points) {
-          globalMinX = Math.min(globalMinX, point.position.x);
-          globalMinY = Math.min(globalMinY, point.position.y);
-          globalMinZ = Math.min(globalMinZ, point.position.z);
-          globalMaxX = Math.max(globalMaxX, point.position.x);
-          globalMaxY = Math.max(globalMaxY, point.position.y);
-          globalMaxZ = Math.max(globalMaxZ, point.position.z);
-        }
-      }
-    }
-
-    // Collect point cloud data for voxel debug
-    const pointClouds = [];
-    for (const pointCloudId of allPointCloudIds) {
-      const pointCloud = this._serviceManager.pointService.getPointCloud(pointCloudId);
-      if (pointCloud && pointCloud.points) {
-        pointClouds.push(pointCloud);
-      }
-    }
-
-    const debugOptions: VoxelDownsampleDebugOptions = {
-      voxelSize,
-      globalBounds: {
-        minX: globalMinX,
-        minY: globalMinY,
-        minZ: globalMinZ,
-        maxX: globalMaxX,
-        maxY: globalMaxY,
-        maxZ: globalMaxZ
-      },
-      pointClouds
-    };
-
-    this._voxelDebug!.showVoxelDebug(debugOptions);
+    // Let the debug class handle everything internally
+    this._voxelDebug!.showVoxelDebugWithSize(voxelSize);
   }
 
   hideVoxelDebug(): void {
     if (this._voxelDebug) {
       this._voxelDebug.hideVoxelDebug();
     }
+  }
+
+  updateVoxelDebug(voxelSize: number): void {
+    if (!this._voxelDebug) {
+      console.warn('VoxelDebug not initialized, cannot update');
+      return;
+    }
+
+    // Let the debug class handle the update directly with stored data
+    this._voxelDebug.updateVoxelSize(voxelSize);
   }
 
 
