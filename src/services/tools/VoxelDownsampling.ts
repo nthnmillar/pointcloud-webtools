@@ -89,8 +89,8 @@ export class VoxelDownsampling extends BaseService {
 
   // Setters
   setVoxelSize(size: number): void {
-    if (size < 0.01 || size > 1.0) {
-      throw new Error('Voxel size must be between 0.01 and 1.0 meters');
+    if (size < 0.01 || size > 2.0) {
+      throw new Error('Voxel size must be between 0.01 and 2.0 meters');
     }
     this._currentVoxelSize = size;
     this.emit('voxelSizeChanged', { voxelSize: size });
@@ -133,12 +133,6 @@ export class VoxelDownsampling extends BaseService {
       }
 
 
-      // Debug: Log the parameters being passed to WASM
-      console.log('WASM Input parameters:', {
-        pointCount: params.pointCloudData.length / 3,
-        voxelSize: params.voxelSize,
-        globalBounds: params.globalBounds
-      });
 
       // Ensure we have valid bounds values
       const minX = params.globalBounds?.minX ?? 0;
@@ -150,8 +144,6 @@ export class VoxelDownsampling extends BaseService {
         console.error('Invalid bounds values:', { minX, minY, minZ });
         throw new Error('Invalid global bounds - non-finite values detected');
       }
-
-      console.log('Using bounds:', { minX, minY, minZ });
 
       // Pass Float32Array directly like LAZ loader does
       // C++ function only needs min bounds, not max bounds
@@ -193,6 +185,7 @@ export class VoxelDownsampling extends BaseService {
       }
 
       const processingTime = performance.now() - startTime;
+
 
 
       const result: VoxelDownsampleResult = {

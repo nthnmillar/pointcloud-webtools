@@ -69,6 +69,7 @@ export class PointService extends BaseService {
     pointCount: number = 1000
   ): PointCloudData {
     const points: PointCloudPoint[] = [];
+    console.log('* Generating sample point cloud:', id, pointCount);
 
     // Generate some visible test points in a smaller, more visible area
     for (let i = 0; i < pointCount; i++) {

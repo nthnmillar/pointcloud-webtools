@@ -104,6 +104,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
             globalMaxY = Math.max(globalMaxY, point.position.y);
             globalMaxZ = Math.max(globalMaxZ, point.position.z);
           }
+          
         }
       }
 
@@ -148,6 +149,27 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
         }
       });
       
+      // Debug: Check if we have sample data and log its characteristics
+      const hasSampleData = allPointCloudIds.includes('sample-1');
+      if (hasSampleData) {
+        const dataSpanX = Math.max(...xValues) - Math.min(...xValues);
+        const dataSpanY = Math.max(...yValues) - Math.min(...yValues);
+        const dataSpanZ = Math.max(...zValues) - Math.min(...zValues);
+        const expectedVoxels = Math.ceil(dataSpanX / voxelSize) * 
+                              Math.ceil(dataSpanY / voxelSize) * 
+                              Math.ceil(dataSpanZ / voxelSize);
+        const pointsPerVoxel = (allPositions.length / 3) / expectedVoxels;
+        
+        console.log('Sample data detected in processing:', {
+          totalPoints: allPositions.length / 3,
+          voxelSize,
+          dataSpan: { x: dataSpanX, y: dataSpanY, z: dataSpanZ },
+          expectedVoxels,
+          pointsPerVoxel: pointsPerVoxel.toFixed(2),
+          voxelSizeAppropriate: pointsPerVoxel > 1 ? 'YES' : 'NO (too small)'
+        });
+      }
+      
       // Suggest appropriate voxel size for large datasets
       const dataSpan = Math.max(
         Math.max(...xValues) - Math.min(...xValues),
@@ -156,17 +178,27 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       );
       const suggestedVoxelSize = dataSpan / 100; // 1% of data span
       console.log('Global data span:', dataSpan, 'Suggested voxel size:', suggestedVoxelSize);
+      
+      // Auto-adjust voxel size only if it's extremely inappropriate for the data scale
+      let effectiveVoxelSize = voxelSize;
+      if (hasSampleData && voxelSize > dataSpan / 2) {
+        // Only auto-adjust if voxel size is more than 50% of data span (clearly too large)
+        effectiveVoxelSize = dataSpan / 10; // 10% of data span for sample data
+        console.log(`Auto-adjusting voxel size from ${voxelSize} to ${effectiveVoxelSize} for sample data (was too large)`);
+      } else if (hasSampleData) {
+        console.log(`Using user-specified voxel size ${voxelSize} for sample data`);
+      }
       console.log('Current voxel size:', voxelSize, 'vs suggested:', suggestedVoxelSize);
 
       const pointCloudData = new Float32Array(allPositions);
       console.log('Converted to Float32Array:', pointCloudData.length);
 
-      console.log('Calling voxelDownsampleWasm with voxelSize:', voxelSize);
+      console.log('Calling voxelDownsampleWasm with voxelSize:', effectiveVoxelSize);
       
       const result =
         await serviceManager.toolsService.voxelDownsampling.voxelDownsampleWasm(
           {
-            voxelSize,
+            voxelSize: effectiveVoxelSize,
             pointCloudData,
             globalBounds: {
               minX: globalMinX,
@@ -184,6 +216,15 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
         console.log('Result downsampledPoints:', result.downsampledPoints);
         console.log('Result downsampledPoints length:', result.downsampledPoints?.length);
         console.log('Reduction ratio:', result.downsampledCount, '/', result.originalCount, '=', (result.downsampledCount! / result.originalCount!).toFixed(3));
+        
+        if (hasSampleData) {
+          console.log('Sample data downsampling result:', {
+            originalCount: result.originalCount,
+            downsampledCount: result.downsampledCount,
+            reductionRatio: (result.downsampledCount! / result.originalCount!).toFixed(3),
+            voxelSize: effectiveVoxelSize
+          });
+        }
 
         if (!result.downsampledPoints || result.downsampledPoints.length === 0) {
           console.error('WASM result has no downsampled points!');
@@ -195,30 +236,34 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
         // since PointMesh will apply the coordinate transformation during rendering
         const downsampledPoints = [];
         for (let i = 0; i < result.downsampledPoints!.length; i += 3) {
-          downsampledPoints.push({
-            position: {
-              x: result.downsampledPoints![i],
-              y: result.downsampledPoints![i + 1],
-              z: result.downsampledPoints![i + 2],
-            },
-            color: { r: 1, g: 0, b: 0 }, // Red color for downsampled points
-            intensity: 1,
-            classification: 0,
-          });
+             downsampledPoints.push({
+               position: {
+                 x: result.downsampledPoints![i],
+                 y: result.downsampledPoints![i + 1],
+                 z: result.downsampledPoints![i + 2],
+               },
+               color: { r: 0, g: 1, b: 0 }, // Green color for downsampled points (easier to see)
+               intensity: 1,
+               classification: 0,
+             });
         }
 
         console.log(
           'Downsampled points sample:',
-          downsampledPoints.slice(0, 3)
+          Array.isArray(downsampledPoints) ? downsampledPoints.slice(0, 3) : 'Not an array'
         );
-        console.log('Downsampled points bounds:', {
-          minX: Math.min(...downsampledPoints.map(p => p.position.x)),
-          maxX: Math.max(...downsampledPoints.map(p => p.position.x)),
-          minY: Math.min(...downsampledPoints.map(p => p.position.y)),
-          maxY: Math.max(...downsampledPoints.map(p => p.position.y)),
-          minZ: Math.min(...downsampledPoints.map(p => p.position.z)),
-          maxZ: Math.max(...downsampledPoints.map(p => p.position.z)),
-        });
+        if (Array.isArray(downsampledPoints)) {
+          console.log('Downsampled points bounds:', {
+            minX: Math.min(...downsampledPoints.map(p => p.position.x)),
+            maxX: Math.max(...downsampledPoints.map(p => p.position.x)),
+            minY: Math.min(...downsampledPoints.map(p => p.position.y)),
+            maxY: Math.max(...downsampledPoints.map(p => p.position.y)),
+            minZ: Math.min(...downsampledPoints.map(p => p.position.z)),
+            maxZ: Math.max(...downsampledPoints.map(p => p.position.z)),
+          });
+        } else {
+          console.log('Downsampled points bounds: Cannot calculate - not an array');
+        }
 
         // Create new point cloud with downsampled data
         const downsampledPointCloud = {
@@ -241,9 +286,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
             hasColor: true,
             hasIntensity: true,
             hasClassification: true,
-            originalCount: allPositions.length / 3,
-            downsampledCount: downsampledPoints.length,
-            voxelSize: voxelSize,
+                 originalCount: allPositions.length / 3,
+                 downsampledCount: downsampledPoints.length,
+                 voxelSize: effectiveVoxelSize,
             processingTime: result.processingTime,
           },
         };
@@ -377,7 +422,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                           <input
                             type="range"
                             min="0.01"
-                            max="1.0"
+                            max="2.0"
                             step="0.01"
                             value={voxelSize}
                             onChange={e =>

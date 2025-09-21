@@ -107,9 +107,9 @@ export class VoxelDebug {
       for (const pointCloud of options.pointClouds) {
         if (pointCloud.points) {
           for (const point of pointCloud.points) {
-            const voxelX = Math.floor((point.position.x - minX) / voxelSize);
-            const voxelY = Math.floor((point.position.y - minY) / voxelSize);
-            const voxelZ = Math.floor((point.position.z - minZ) / voxelSize);
+            const voxelX = Math.trunc((point.position.x - minX) / voxelSize);
+            const voxelY = Math.trunc((point.position.y - minY) / voxelSize);
+            const voxelZ = Math.trunc((point.position.z - minZ) / voxelSize);
             occupiedVoxels.add(`${voxelX},${voxelY},${voxelZ}`);
           }
         }
