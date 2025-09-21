@@ -254,10 +254,11 @@ export class PointService extends BaseService {
    * Render a point cloud
    */
   renderPointCloud(id: string, options: RenderOptions): void {
-    Log.DebugClass(this, 'Rendering point cloud', { id });
+    Log.InfoClass(this, 'Rendering point cloud', { id, hasPointCloud: !!this.pointClouds.get(id), hasPointMesh: !!this.pointMesh, scene: !!this.scene });
 
     const pointCloud = this.pointClouds.get(id);
     if (!pointCloud || !this.pointMesh) {
+      Log.WarnClass(this, 'Cannot render point cloud - missing data or mesh', { id, hasPointCloud: !!pointCloud, hasPointMesh: !!this.pointMesh });
       return;
     }
 

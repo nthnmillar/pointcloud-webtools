@@ -16,6 +16,7 @@ export class SceneService extends BaseService {
   private _engine: Engine | null = null;
   private _scene: Scene | null = null;
   private _cameraService: CameraService;
+  private _isWebGLReady: boolean = false;
 
   constructor() {
     super();
@@ -32,6 +33,9 @@ export class SceneService extends BaseService {
 
     // Initialize camera service with the scene
     await this._cameraService.initialize(this._scene, canvas);
+
+    // Mark WebGL as ready since engine and scene are created
+    this._isWebGLReady = true;
 
     this.isInitialized = true;
     this.emit('initialized');
@@ -88,6 +92,7 @@ export class SceneService extends BaseService {
     });
   }
 
+
   /**
    * Update scene background
    */
@@ -132,5 +137,12 @@ export class SceneService extends BaseService {
    */
   get camera() {
     return this._cameraService.camera;
+  }
+
+  /**
+   * Check if WebGL is ready
+   */
+  get isWebGLReady(): boolean {
+    return this._isWebGLReady;
   }
 }

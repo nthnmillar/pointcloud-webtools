@@ -272,4 +272,11 @@ export class ServiceManager extends BaseService {
   get toolsService(): ToolsService {
     return this._toolsService;
   }
+
+  /**
+   * Check if WebGL is ready
+   */
+  get isWebGLReady(): boolean {
+    return this._sceneService.isWebGLReady;
+  }
 }

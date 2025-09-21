@@ -1,5 +1,6 @@
 import { Scene, PointsCloudSystem, Vector3, Color4 } from '@babylonjs/core';
 import type { PointCloudData, RenderOptions } from './PointCloud';
+import { Log } from '../../utils/Log';
 
 /**
  * PointMesh - Handles point cloud mesh creation and management using PointsCloudSystem
@@ -26,11 +27,15 @@ export class PointMesh {
     pointCloudData: PointCloudData,
     options: RenderOptions
   ): any {
+    Log.Debug('PointMesh', 'Creating point cloud mesh', { id, hasScene: !!this.scene, pointCount: pointCloudData.points?.length || 0 });
+    
     if (!this.scene) {
+      Log.Error('PointMesh', 'No scene available');
       return null;
     }
 
     if (!pointCloudData.points || pointCloudData.points.length === 0) {
+      Log.Error('PointMesh', 'No points data available');
       return null;
     }
 
@@ -85,38 +90,53 @@ export class PointMesh {
     }
 
     // Add points using the pre-allocated arrays - much more efficient
-    pcs.addPoints(
-      pointsToRender.length,
-      (particle: { position: Vector3; color: Color4 }, index: number) => {
-        const arrayIndex = index * 3;
-        const colorIndex = index * 4;
+    try {
+      pcs.addPoints(
+        pointsToRender.length,
+        (particle: { position: Vector3; color: Color4 }, index: number) => {
+          const arrayIndex = index * 3;
+          const colorIndex = index * 4;
 
-        // Reuse Vector3 and Color4 objects to reduce garbage collection
-        particle.position.set(
-          positions[arrayIndex],
-          positions[arrayIndex + 1],
-          positions[arrayIndex + 2]
-        );
+          // Reuse Vector3 and Color4 objects to reduce garbage collection
+          particle.position.set(
+            positions[arrayIndex],
+            positions[arrayIndex + 1],
+            positions[arrayIndex + 2]
+          );
 
-        particle.color.set(
-          colors[colorIndex],
-          colors[colorIndex + 1],
-          colors[colorIndex + 2],
-          colors[colorIndex + 3]
-        );
-      }
-    );
+          particle.color.set(
+            colors[colorIndex],
+            colors[colorIndex + 1],
+            colors[colorIndex + 2],
+            colors[colorIndex + 3]
+          );
+        }
+      );
+      Log.Debug('PointMesh', 'Points added successfully', { id, pointCount: pointsToRender.length });
+    } catch (error) {
+      Log.Error('PointMesh', 'Failed to add points', { id, error: error instanceof Error ? error.message : 'Unknown error' });
+      return null;
+    }
 
     // Make the system visible immediately
     pcs.setParticles();
+    Log.Debug('PointMesh', 'Particles set', { id, particleCount: pcs.nbParticles });
 
     // Build the mesh asynchronously but don't wait for it - this allows batches to process immediately
-    pcs.buildMeshAsync().then(() => {
-      // Set point size after mesh is built
-      if (pcs.mesh && pcs.mesh.material) {
-        pcs.mesh.material.pointSize = options.pointSize;
-      }
-    });
+    try {
+      pcs.buildMeshAsync().then(() => {
+        Log.Debug('PointMesh', 'Mesh built successfully', { id, hasMesh: !!pcs.mesh });
+        // Set point size after mesh is built
+        if (pcs.mesh && pcs.mesh.material) {
+          pcs.mesh.material.pointSize = options.pointSize;
+          Log.Debug('PointMesh', 'Point size set', { pointSize: options.pointSize });
+        }
+      }).catch((error) => {
+        Log.Error('PointMesh', 'Failed to build mesh', { id, error: error instanceof Error ? error.message : 'Unknown error', stack: error instanceof Error ? error.stack : undefined });
+      });
+    } catch (error) {
+      Log.Error('PointMesh', 'Error calling buildMeshAsync', { id, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
 
     // Update performance stats
     const renderTime = performance.now() - startTime;

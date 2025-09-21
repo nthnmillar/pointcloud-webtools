@@ -64,6 +64,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
   // Event handlers
   const handleInitialized = () => {
     // Service manager initialized
+    Log.Info('PointCloudViewer', 'Service manager initialized');
   };
 
   const handlePointCloudLoaded = (_data: any) => {

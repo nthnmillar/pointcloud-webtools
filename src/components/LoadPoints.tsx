@@ -58,6 +58,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       return;
     }
 
+
     try {
       onErrorChange(null);
 
