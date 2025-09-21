@@ -6,6 +6,7 @@ import type {
 } from '../../wasm/VoxelModule.d.ts';
 import { VoxelDebug } from './VoxelDebug';
 import type { VoxelDebugOptions } from './VoxelDebug';
+import { VoxelWorkerService } from './VoxelWorkerService';
 
 export interface VoxelDownsampleParams {
   voxelSize: number;
@@ -36,46 +37,66 @@ export class VoxelDownsampling extends BaseService {
   private _serviceManager?: ServiceManager;
   private _voxelModule?: VoxelModuleType;
   private _voxelDebug?: VoxelDebug;
+  private _workerService: VoxelWorkerService;
 
   constructor(toolsService?: ToolsService, serviceManager?: ServiceManager) {
     super();
     this._toolsService = toolsService;
     this._serviceManager = serviceManager;
+    this._workerService = new VoxelWorkerService();
   }
 
   async initialize(): Promise<void> {
     try {
-      // Load WASM module using fetch and eval
-      const response = await fetch('/wasm/voxel_downsampling.js');
-      const jsCode = await response.text();
-
-      // Create a module function
-      const moduleFunction = new Function('module', 'exports', jsCode);
-
-      // Create module object
-      const module = { exports: {} };
-      moduleFunction(module, module.exports);
-
-      // Get the VoxelModule function
-      const VoxelModule = (module.exports as { default?: (options?: { locateFile?: (path: string) => string }) => Promise<VoxelModuleType> }).default || module.exports as (options?: { locateFile?: (path: string) => string }) => Promise<VoxelModuleType>;
-
-      if (typeof VoxelModule !== 'function') {
-        throw new Error('VoxelModule is not a function: ' + typeof VoxelModule);
+      // Initialize the direct WASM module first (required)
+      await this.initializeDirectWasm();
+      console.log('VoxelDownsampling: Direct WASM module initialized successfully');
+      
+      // Try to initialize the worker (optional)
+      try {
+        await this._workerService.initialize();
+        console.log('VoxelDownsampling: Worker service initialized successfully');
+      } catch (workerError) {
+        console.warn('VoxelDownsampling: Worker service failed to initialize, continuing without worker:', workerError);
+        // Continue without worker - the direct WASM implementation will be used
       }
-
-      this._voxelModule = await VoxelModule({
-        locateFile: (path: string) => {
-          if (path.endsWith('.wasm')) {
-            return '/wasm/voxel_downsampling.wasm';
-          }
-          return path;
-        },
-      });
-
+      
       this.isInitialized = true;
     } catch (error) {
+      console.error('VoxelDownsampling: Failed to initialize:', error);
       throw error;
     }
+  }
+
+  private async initializeDirectWasm(): Promise<void> {
+    // Load WASM module using fetch and eval
+    const response = await fetch('/wasm/voxel_downsampling.js');
+    const jsCode = await response.text();
+
+    // Create a module function
+    const moduleFunction = new Function('module', 'exports', jsCode);
+
+    // Create module object
+    const module = { exports: {} };
+    moduleFunction(module, module.exports);
+
+    // Get the VoxelModule function
+    const VoxelModule = (module.exports as { default?: (options?: { locateFile?: (path: string) => string }) => Promise<VoxelModuleType> }).default || module.exports as (options?: { locateFile?: (path: string) => string }) => Promise<VoxelModuleType>;
+
+    if (typeof VoxelModule !== 'function') {
+      throw new Error('VoxelModule is not a function: ' + typeof VoxelModule);
+    }
+
+    this._voxelModule = await VoxelModule({
+      locateFile: (path: string) => {
+        if (path.endsWith('.wasm')) {
+          return '/wasm/voxel_downsampling.wasm';
+        }
+        return path;
+      },
+    });
+
+    console.log('VoxelDownsampling: Direct WASM module loaded successfully');
   }
 
   // Getters
@@ -95,6 +116,51 @@ export class VoxelDownsampling extends BaseService {
     this._currentVoxelSize = size;
     this.emit('voxelSizeChanged', { voxelSize: size });
     this._toolsService?.forwardEvent('voxelSizeChanged', { voxelSize: size });
+  }
+
+  // Worker-based batch processing
+  async voxelDownsampleBatchWasm(batchData: {
+    batchId: string;
+    points: Float32Array;
+    voxelSize: number;
+    globalBounds: {
+      minX: number;
+      minY: number;
+      minZ: number;
+      maxX: number;
+      maxY: number;
+      maxZ: number;
+    };
+  }): Promise<VoxelDownsampleResult> {
+    // If worker is not ready, fall back to direct WASM processing
+    if (!this._workerService.ready) {
+      console.warn('VoxelDownsampling: Worker not ready, falling back to direct WASM processing');
+      return this.voxelDownsampleWasm({
+        pointCloudData: batchData.points,
+        voxelSize: batchData.voxelSize,
+        globalBounds: batchData.globalBounds
+      });
+    }
+
+    try {
+      const result = await this._workerService.processBatch(batchData);
+      
+      return {
+        success: result.success,
+        downsampledPoints: result.downsampledPoints,
+        originalCount: result.originalCount,
+        downsampledCount: result.downsampledCount,
+        processingTime: result.processingTime,
+        error: result.error
+      };
+    } catch (error) {
+      console.warn('VoxelDownsampling: Worker processing failed, falling back to direct WASM:', error);
+      return this.voxelDownsampleWasm({
+        pointCloudData: batchData.points,
+        voxelSize: batchData.voxelSize,
+        globalBounds: batchData.globalBounds
+      });
+    }
   }
 
   // WASM Voxel Downsampling
@@ -392,6 +458,9 @@ export class VoxelDownsampling extends BaseService {
     this.hideVoxelDebug();
     if (this._voxelDebug) {
       this._voxelDebug.dispose();
+    }
+    if (this._workerService) {
+      this._workerService.dispose();
     }
     this.removeAllObservers();
   }

@@ -4,6 +4,7 @@ import type { ServiceManager } from '../ServiceManager';
 
 export class ToolsService extends BaseService {
   private _voxelDownsampling: VoxelDownsampling;
+  private _serviceManager?: ServiceManager;
 
   constructor(serviceManager?: ServiceManager) {
     super();

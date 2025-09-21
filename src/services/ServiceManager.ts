@@ -38,6 +38,7 @@ export class ServiceManager extends BaseService {
         this._sceneService.initialize(canvas),
         this._renderService.initialize(),
         this._loaderService.initialize(),
+        this._toolsService.initialize(),
       ]);
 
       // Initialize point service with the scene

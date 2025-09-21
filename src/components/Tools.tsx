@@ -171,11 +171,12 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
         const batchPointCloudData = new Float32Array(batchPositions);
         totalOriginalPoints += batchPositions.length / 3;
 
-        // Process this batch with WASM
-        const batchResult = await serviceManager.toolsService.voxelDownsampling.voxelDownsampleWasm(
+        // Process this batch with WASM worker
+        const batchResult = await serviceManager.toolsService.voxelDownsampling.voxelDownsampleBatchWasm(
           {
+            batchId: pointCloudId,
+            points: batchPointCloudData,
             voxelSize: effectiveVoxelSize,
-            pointCloudData: batchPointCloudData,
             globalBounds: {
               minX: globalMinX,
               minY: globalMinY,
