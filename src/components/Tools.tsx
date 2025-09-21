@@ -264,7 +264,12 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
 
           console.log(`Added downsampled batch ${batchCount}: ${downsampledPoints.length} points`);
         } else {
-          console.error(`Batch ${pointCloudId} processing failed:`, batchResult.error);
+          // Check if it's a cancellation (expected) or actual error
+          if (batchResult.error === 'Processing was cancelled') {
+            console.log(`Batch ${pointCloudId} processing cancelled`);
+          } else {
+            console.error(`Batch ${pointCloudId} processing failed:`, batchResult.error);
+          }
         }
       }
 
