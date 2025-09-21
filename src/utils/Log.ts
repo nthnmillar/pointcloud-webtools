@@ -17,7 +17,7 @@ export interface LogEntry {
   level: LogLevel;
   tag: string;
   message: string;
-  data?: any;
+  data?: unknown;
 }
 
 export class LogClass {
@@ -78,7 +78,7 @@ export class LogClass {
   /**
    * Internal method to add log entry
    */
-  private addLog(level: LogLevel, tag: string, message: string, data?: any): void {
+  private addLog(level: LogLevel, tag: string, message: string, data?: unknown): void {
     // Only log if level is above current threshold
     if (level < this.currentLevel) {
       return;
@@ -101,7 +101,7 @@ export class LogClass {
     }
 
     // Also output to console in development
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       const timestamp = logEntry.timestamp.toISOString();
       const levelName = LogLevel[level];
       const prefix = `[${timestamp}] [${levelName}] [${tag}]`;
@@ -126,35 +126,35 @@ export class LogClass {
   /**
    * Log debug message
    */
-  public Debug(tag: string, message: string, data?: any): void {
+  public Debug(tag: string, message: string, data?: unknown): void {
     this.addLog(LogLevel.DEBUG, tag, message, data);
   }
 
   /**
    * Log info message
    */
-  public Info(tag: string, message: string, data?: any): void {
+  public Info(tag: string, message: string, data?: unknown): void {
     this.addLog(LogLevel.INFO, tag, message, data);
   }
 
   /**
    * Log warning message
    */
-  public Warn(tag: string, message: string, data?: any): void {
+  public Warn(tag: string, message: string, data?: unknown): void {
     this.addLog(LogLevel.WARN, tag, message, data);
   }
 
   /**
    * Log error message
    */
-  public Error(tag: string, message: string, data?: any): void {
+  public Error(tag: string, message: string, data?: unknown): void {
     this.addLog(LogLevel.ERROR, tag, message, data);
   }
 
   /**
    * Log with automatic tag detection (for classes)
    */
-  public log(instance: any, level: LogLevel, message: string, data?: any): void {
+  public log(instance: object, level: LogLevel, message: string, data?: unknown): void {
     const tag = instance.constructor?.name || 'Unknown';
     this.addLog(level, tag, message, data);
   }
@@ -162,19 +162,19 @@ export class LogClass {
   /**
    * Convenience methods for classes
    */
-  public DebugClass(instance: any, message: string, data?: any): void {
+  public DebugClass(instance: object, message: string, data?: unknown): void {
     this.log(instance, LogLevel.DEBUG, message, data);
   }
 
-  public InfoClass(instance: any, message: string, data?: any): void {
+  public InfoClass(instance: object, message: string, data?: unknown): void {
     this.log(instance, LogLevel.INFO, message, data);
   }
 
-  public WarnClass(instance: any, message: string, data?: any): void {
+  public WarnClass(instance: object, message: string, data?: unknown): void {
     this.log(instance, LogLevel.WARN, message, data);
   }
 
-  public ErrorClass(instance: any, message: string, data?: any): void {
+  public ErrorClass(instance: object, message: string, data?: unknown): void {
     this.log(instance, LogLevel.ERROR, message, data);
   }
 }
