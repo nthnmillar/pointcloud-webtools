@@ -1,12 +1,15 @@
 import { BaseService } from '../BaseService';
 import { VoxelDownsampling } from './VoxelDownsampling';
+import type { ServiceManager } from '../ServiceManager';
 
 export class ToolsService extends BaseService {
   private _voxelDownsampling: VoxelDownsampling;
+  private _serviceManager?: ServiceManager;
 
-  constructor() {
+  constructor(serviceManager?: ServiceManager) {
     super();
-    this._voxelDownsampling = new VoxelDownsampling(this);
+    this._serviceManager = serviceManager;
+    this._voxelDownsampling = new VoxelDownsampling(this, serviceManager);
   }
 
   async initialize(): Promise<void> {

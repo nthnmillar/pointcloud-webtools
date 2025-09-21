@@ -10,6 +10,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [voxelSize, setVoxelSize] = useState(0.1);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showVoxelDebug, setShowVoxelDebug] = useState(false);
 
   // Initialize voxel size from service
   useEffect(() => {
@@ -46,64 +47,135 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
     }
   };
 
+  // Handle voxel debug visualization
+  const handleVoxelDebugToggle = () => {
+    const newShowDebug = !showVoxelDebug;
+    setShowVoxelDebug(newShowDebug);
+    
+    if (serviceManager?.toolsService) {
+      if (newShowDebug) {
+        // Show voxel debug grid
+        serviceManager.toolsService.voxelDownsampling.showVoxelDebug(voxelSize);
+      } else {
+        // Hide voxel debug grid
+        serviceManager.toolsService.voxelDownsampling.hideVoxelDebug();
+      }
+    }
+  };
+
   // WASM Processing Functions
   const handleWasmVoxelDownsampling = async () => {
+    console.log('=== Starting WASM Voxel Downsampling ===');
     if (!serviceManager?.toolsService) {
       console.error('Tools service not available');
       return;
     }
 
     try {
-      // Get current point cloud data
-      const activePointCloud = serviceManager.activePointCloud;
-      console.log('Active point cloud:', activePointCloud);
-      console.log(
-        'Active point cloud keys:',
-        Object.keys(activePointCloud || {})
-      );
-
-      if (!activePointCloud) {
-        console.error('No active point cloud to process');
-        console.log(
-          'Available point clouds:',
-          serviceManager.pointService?.pointClouds
-        );
+      // Get all point cloud IDs
+      const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
+      console.log('Found point cloud IDs:', allPointCloudIds);
+      
+      if (allPointCloudIds.length === 0) {
+        console.error('No point clouds found in scene');
         return;
       }
 
-      // Extract positions from the point cloud data
-      console.log('Point cloud structure:', {
-        id: activePointCloud.id,
-        pointsCount: activePointCloud.points?.length,
-        metadata: activePointCloud.metadata,
+      console.log('Processing all point clouds:', allPointCloudIds);
+
+      // Store original point clouds before processing
+      const originalPointClouds = new Map();
+      let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
+      let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
+      
+      for (const pointCloudId of allPointCloudIds) {
+        const pointCloud = serviceManager.pointService?.getPointCloud(pointCloudId);
+        console.log(`Checking point cloud ${pointCloudId}:`, pointCloud ? 'found' : 'not found', pointCloud?.points?.length || 0, 'points');
+        
+        if (pointCloud && pointCloud.points) {
+          originalPointClouds.set(pointCloudId, pointCloud);
+          
+          // Calculate global bounding box
+          for (const point of pointCloud.points) {
+            globalMinX = Math.min(globalMinX, point.position.x);
+            globalMinY = Math.min(globalMinY, point.position.y);
+            globalMinZ = Math.min(globalMinZ, point.position.z);
+            globalMaxX = Math.max(globalMaxX, point.position.x);
+            globalMaxY = Math.max(globalMaxY, point.position.y);
+            globalMaxZ = Math.max(globalMaxZ, point.position.z);
+          }
+        }
+      }
+
+      // Collect ALL points from all point clouds into a single array FIRST
+      const allPositions: number[] = [];
+      for (const [pointCloudId, pointCloud] of originalPointClouds) {
+        console.log('Collecting points from:', pointCloudId, 'points:', pointCloud.points?.length);
+        if (pointCloud.points && pointCloud.points.length > 0) {
+          for (const point of pointCloud.points) {
+            allPositions.push(point.position.x, point.position.y, point.position.z);
+          }
+        }
+      }
+
+
+      console.log('Global bounding box:', {
+        min: [globalMinX, globalMinY, globalMinZ],
+        max: [globalMaxX, globalMaxY, globalMaxZ],
+        size: [globalMaxX - globalMinX, globalMaxY - globalMinY, globalMaxZ - globalMinZ]
       });
 
-      if (!activePointCloud.points || activePointCloud.points.length === 0) {
-        console.error('No points found in point cloud');
-        return;
-      }
-
-      // Extract positions from points array
-      const positions: number[] = [];
-      for (const point of activePointCloud.points) {
-        positions.push(point.position.x, point.position.y, point.position.z);
-      }
-
-      console.log('Extracted positions:', positions.length);
-      console.log('First few positions:', positions.slice(0, 9)); // First 3 points (9 values)
-
-      const pointCloudData = new Float32Array(positions);
-      console.log('Converted to Float32Array:', pointCloudData.length);
-
-      // Clear the scene before processing
-      console.log('Clearing scene before downsampling...');
+      // Clear the scene after collecting all the data
       serviceManager.pointService?.clearAllPointClouds();
 
+      console.log('Total positions collected:', allPositions.length);
+      console.log('First few positions:', allPositions.slice(0, 9)); // First 3 points (9 values)
+
+      // Debug: Check data scale for ALL points
+      const xValues = allPositions.filter((_, i) => i % 3 === 0);
+      const yValues = allPositions.filter((_, i) => i % 3 === 1);
+      const zValues = allPositions.filter((_, i) => i % 3 === 2);
+      
+      console.log('Global data scale analysis:', {
+        xRange: [Math.min(...xValues), Math.max(...xValues)],
+        yRange: [Math.min(...yValues), Math.max(...yValues)],
+        zRange: [Math.min(...zValues), Math.max(...zValues)],
+        currentVoxelSize: voxelSize,
+        dataSpan: {
+          x: Math.max(...xValues) - Math.min(...xValues),
+          y: Math.max(...yValues) - Math.min(...yValues),
+          z: Math.max(...zValues) - Math.min(...zValues)
+        }
+      });
+      
+      // Suggest appropriate voxel size for large datasets
+      const dataSpan = Math.max(
+        Math.max(...xValues) - Math.min(...xValues),
+        Math.max(...yValues) - Math.min(...yValues),
+        Math.max(...zValues) - Math.min(...zValues)
+      );
+      const suggestedVoxelSize = dataSpan / 100; // 1% of data span
+      console.log('Global data span:', dataSpan, 'Suggested voxel size:', suggestedVoxelSize);
+      console.log('Current voxel size:', voxelSize, 'vs suggested:', suggestedVoxelSize);
+
+      const pointCloudData = new Float32Array(allPositions);
+      console.log('Converted to Float32Array:', pointCloudData.length);
+
+      console.log('Calling voxelDownsampleWasm with voxelSize:', voxelSize);
+      
       const result =
         await serviceManager.toolsService.voxelDownsampling.voxelDownsampleWasm(
           {
             voxelSize,
             pointCloudData,
+            globalBounds: {
+              minX: globalMinX,
+              minY: globalMinY,
+              minZ: globalMinZ,
+              maxX: globalMaxX,
+              maxY: globalMaxY,
+              maxZ: globalMaxZ,
+            }
           }
         );
 
@@ -111,6 +183,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
         console.log('WASM voxel downsampling completed:', result);
         console.log('Result downsampledPoints:', result.downsampledPoints);
         console.log('Result downsampledPoints length:', result.downsampledPoints?.length);
+        console.log('Reduction ratio:', result.downsampledCount, '/', result.originalCount, '=', (result.downsampledCount! / result.originalCount!).toFixed(3));
 
         if (!result.downsampledPoints || result.downsampledPoints.length === 0) {
           console.error('WASM result has no downsampled points!');
@@ -118,6 +191,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
         }
 
         // Convert Float32Array back to PointCloudPoint array
+        // The downsampled points are in robotics coordinates, so we keep them as-is
+        // since PointMesh will apply the coordinate transformation during rendering
         const downsampledPoints = [];
         for (let i = 0; i < result.downsampledPoints!.length; i += 3) {
           downsampledPoints.push({
@@ -149,19 +224,33 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
         const downsampledPointCloud = {
           points: downsampledPoints,
           metadata: {
-            ...activePointCloud.metadata,
-            name: `${activePointCloud.metadata.name} (Downsampled)`,
+            name: 'Downsampled Point Cloud',
             totalPoints: downsampledPoints.length,
-            bounds:
-              serviceManager.pointService?.calculateBounds?.(
-                downsampledPoints
-              ) || activePointCloud.metadata.bounds,
+            bounds: {
+              min: {
+                x: Math.min(...downsampledPoints.map(p => p.position.x)),
+                y: Math.min(...downsampledPoints.map(p => p.position.y)),
+                z: Math.min(...downsampledPoints.map(p => p.position.z))
+              },
+              max: {
+                x: Math.max(...downsampledPoints.map(p => p.position.x)),
+                y: Math.max(...downsampledPoints.map(p => p.position.y)),
+                z: Math.max(...downsampledPoints.map(p => p.position.z))
+              }
+            },
+            hasColor: true,
+            hasIntensity: true,
+            hasClassification: true,
+            originalCount: allPositions.length / 3,
+            downsampledCount: downsampledPoints.length,
+            voxelSize: voxelSize,
+            processingTime: result.processingTime,
           },
         };
 
-        // Add the downsampled point cloud to the scene
-        const downsampledId = `${activePointCloud.id || 'sample-1'}_downsampled`;
-        serviceManager.pointService?.createPointCloudMesh(
+        // Create new point cloud with downsampled data
+        const downsampledId = 'downsampled_point_cloud';
+        await serviceManager.pointService?.loadPointCloud(
           downsampledId,
           downsampledPointCloud
         );
@@ -172,9 +261,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       } else {
         console.error('WASM voxel downsampling failed:', result.error);
       }
-    } catch (error) {
-      console.error('WASM voxel downsampling error:', error);
-    }
+     } catch (error) {
+       console.error('WASM voxel downsampling error:', error);
+     }
   };
 
   const handleBeVoxelDownsampling = async () => {
@@ -299,6 +388,16 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                           <div className="tool-value">
                             {voxelSize.toFixed(2)}m
                           </div>
+                        </div>
+                        <div className="tool-debug-toggle">
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={showVoxelDebug}
+                              onChange={handleVoxelDebugToggle}
+                            />
+                            Show Voxel Grid
+                          </label>
                         </div>
                       </div>
                     )}

@@ -25,7 +25,7 @@ export class ServiceManager extends BaseService {
     this._sceneService = new SceneService();
     this._renderService = new RenderService();
     this._loaderService = new LoaderService(this);
-    this._toolsService = new ToolsService();
+    this._toolsService = new ToolsService(this);
 
     // Set up service communication
     this.setupServiceCommunication();

@@ -13,7 +13,10 @@ struct Point3D {
 // Voxel downsampling function that accepts Float32Array
 std::vector<Point3D> voxelDownsample(
     const emscripten::val& inputPoints, 
-    float voxelSize
+    float voxelSize,
+    float globalMinX = 0.0f,
+    float globalMinY = 0.0f,
+    float globalMinZ = 0.0f
 ) {
     // Convert JavaScript Float32Array to C++ vector
     std::vector<Point3D> points;
@@ -39,18 +42,42 @@ std::vector<Point3D> voxelDownsample(
         return points;
     }
 
-    // TODO: Implement your voxel downsampling algorithm here
-    // 
-    // Basic approach:
-    // 1. Create a 3D grid based on voxelSize
-    // 2. Group points by voxel coordinates
-    // 3. For each voxel, keep one representative point (e.g., average)
-    // 4. Return the downsampled points
+    // Real voxel downsampling - group points by 3D voxel and average
+    std::unordered_map<std::string, std::vector<Point3D>> voxelMap;
     
-    // Placeholder implementation - just return every 10th point
+    // Group points by voxel coordinates
+    for (const auto& point : points) {
+        // Calculate voxel coordinates using global bounds
+        int voxelX = static_cast<int>((point.x - globalMinX) / voxelSize);
+        int voxelY = static_cast<int>((point.y - globalMinY) / voxelSize);
+        int voxelZ = static_cast<int>((point.z - globalMinZ) / voxelSize);
+        
+        // Create voxel key
+        std::string voxelKey = std::to_string(voxelX) + "," + 
+                              std::to_string(voxelY) + "," + 
+                              std::to_string(voxelZ);
+        
+        voxelMap[voxelKey].push_back(point);
+    }
+    
+    // Average points within each voxel
     std::vector<Point3D> result;
-    for (size_t i = 0; i < points.size(); i += 10) {
-        result.push_back(points[i]);
+    for (const auto& [voxelKey, voxelPoints] : voxelMap) {
+        if (voxelPoints.empty()) continue;
+        
+        // Calculate average point for this voxel
+        float avgX = 0, avgY = 0, avgZ = 0;
+        for (const auto& point : voxelPoints) {
+            avgX += point.x;
+            avgY += point.y;
+            avgZ += point.z;
+        }
+        
+        avgX /= voxelPoints.size();
+        avgY /= voxelPoints.size();
+        avgZ /= voxelPoints.size();
+        
+        result.push_back({avgX, avgY, avgZ});
     }
     
     return result;
