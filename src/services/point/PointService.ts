@@ -7,6 +7,7 @@ import type {
   Point3D,
   RenderOptions,
 } from './PointCloud';
+import { Log } from '../../utils/Log';
 
 /**
  * Point Service - Handles point cloud data operations
@@ -69,7 +70,7 @@ export class PointService extends BaseService {
     pointCount: number = 1000
   ): PointCloudData {
     const points: PointCloudPoint[] = [];
-    console.log('* Generating sample point cloud:', id, pointCount);
+    Log.InfoClass(this, 'Generating sample point cloud', { id, pointCount });
 
     // Generate some visible test points in a smaller, more visible area
     for (let i = 0; i < pointCount; i++) {
@@ -227,7 +228,7 @@ export class PointService extends BaseService {
    */
   createPointCloudMesh(id: string, data: PointCloudData): void {
     try {
-      console.log(`Creating point cloud: ${id}`);
+      Log.InfoClass(this, 'Creating point cloud', { id });
 
       this.validatePointCloudData(data);
 
@@ -253,7 +254,7 @@ export class PointService extends BaseService {
    * Render a point cloud
    */
   renderPointCloud(id: string, options: RenderOptions): void {
-    console.log(`Rendering: ${id}`);
+    Log.DebugClass(this, 'Rendering point cloud', { id });
 
     const pointCloud = this.pointClouds.get(id);
     if (!pointCloud || !this.pointMesh) {

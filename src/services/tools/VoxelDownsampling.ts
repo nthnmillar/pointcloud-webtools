@@ -7,6 +7,7 @@ import type {
 import { VoxelDownsampleDebug } from './VoxelDownsampling/VoxelDownsampleDebug';
 import type { VoxelDownsampleDebugOptions } from './VoxelDownsampling/VoxelDownsampleDebug';
 import { VoxelDownsampleService } from './VoxelDownsampling/VoxelDownsampleService';
+import { Log } from '../../utils/Log';
 
 export interface VoxelDownsampleParams {
   voxelSize: number;
@@ -50,20 +51,20 @@ export class VoxelDownsampling extends BaseService {
     try {
       // Initialize the direct WASM module first (required)
       await this.initializeDirectWasm();
-      console.log('VoxelDownsampling: Direct WASM module initialized successfully');
+      Log.InfoClass(this, 'Direct WASM module initialized successfully');
       
       // Try to initialize the worker (optional)
       try {
         await this._workerService.initialize();
-        console.log('VoxelDownsampling: Worker service initialized successfully');
+        Log.InfoClass(this, 'Worker service initialized successfully');
       } catch (workerError) {
-        console.warn('VoxelDownsampling: Worker service failed to initialize, continuing without worker:', workerError);
+        Log.WarnClass(this, 'Worker service failed to initialize, continuing without worker', workerError);
         // Continue without worker - the direct WASM implementation will be used
       }
       
       this.isInitialized = true;
     } catch (error) {
-      console.error('VoxelDownsampling: Failed to initialize:', error);
+      Log.ErrorClass(this, 'Failed to initialize', error);
       throw error;
     }
   }
@@ -96,7 +97,7 @@ export class VoxelDownsampling extends BaseService {
       },
     });
 
-    console.log('VoxelDownsampling: Direct WASM module loaded successfully');
+    Log.InfoClass(this, 'Direct WASM module loaded successfully');
   }
 
   // Getters
@@ -134,7 +135,7 @@ export class VoxelDownsampling extends BaseService {
   }): Promise<VoxelDownsampleResult> {
     // If worker is not ready, fall back to direct WASM processing
     if (!this._workerService.ready) {
-      console.warn('VoxelDownsampling: Worker not ready, falling back to direct WASM processing');
+      Log.WarnClass(this, 'Worker not ready, falling back to direct WASM processing');
       return this.voxelDownsampleWasm({
         pointCloudData: batchData.points,
         voxelSize: batchData.voxelSize,
@@ -154,7 +155,7 @@ export class VoxelDownsampling extends BaseService {
         error: result.error
       };
     } catch (error) {
-      console.warn('VoxelDownsampling: Worker processing failed, falling back to direct WASM:', error);
+      Log.WarnClass(this, 'Worker processing failed, falling back to direct WASM', error);
       return this.voxelDownsampleWasm({
         pointCloudData: batchData.points,
         voxelSize: batchData.voxelSize,
@@ -207,7 +208,7 @@ export class VoxelDownsampling extends BaseService {
 
       // Validate bounds are finite numbers
       if (!isFinite(minX) || !isFinite(minY) || !isFinite(minZ)) {
-        console.error('Invalid bounds values:', { minX, minY, minZ });
+        Log.ErrorClass(this, 'Invalid bounds values', { minX, minY, minZ });
         throw new Error('Invalid global bounds - non-finite values detected');
       }
 
@@ -375,7 +376,7 @@ export class VoxelDownsampling extends BaseService {
     }
 
     if (!this._serviceManager?.sceneService?.scene) {
-      console.error('Scene not available for voxel debug initialization');
+      Log.ErrorClass(this, 'Scene not available for voxel debug initialization');
       return false;
     }
 
@@ -386,12 +387,12 @@ export class VoxelDownsampling extends BaseService {
   // Voxel Debug Visualization
   showVoxelDebug(voxelSize: number): void {
     if (!this.initializeVoxelDebug()) {
-      console.error('Failed to initialize VoxelDebug');
+      Log.ErrorClass(this, 'Failed to initialize VoxelDebug');
       return;
     }
 
     if (!this._serviceManager?.pointService) {
-      console.error('Point service not available for voxel debug');
+      Log.ErrorClass(this, 'Point service not available for voxel debug');
       return;
     }
 
@@ -399,7 +400,7 @@ export class VoxelDownsampling extends BaseService {
     const allPointCloudIds = this._serviceManager.pointService.pointCloudIds;
     
     if (allPointCloudIds.length === 0) {
-      console.error('No point clouds found for voxel debug');
+      Log.ErrorClass(this, 'No point clouds found for voxel debug');
       return;
     }
 

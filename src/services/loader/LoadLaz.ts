@@ -1,5 +1,6 @@
 import type { PointCloudData, PointCloudPoint } from '../point/PointCloud';
 import { ServiceManager } from '../ServiceManager';
+import { Log } from '../../utils/Log';
 
 export interface LazLoadingProgress {
   stage: 'initializing' | 'processing' | 'complete' | 'error';
@@ -203,9 +204,7 @@ export class LoadLaz {
         };
       }
       this.calculatedCentroid = centroid;
-      console.log(
-        `Point cloud centroid: (${centroid.x.toFixed(2)}, ${centroid.y.toFixed(2)}, ${centroid.z.toFixed(2)})`
-      );
+      Log.Info('LoadLaz', `Point cloud centroid: (${centroid.x.toFixed(2)}, ${centroid.y.toFixed(2)}, ${centroid.z.toFixed(2)})`);
     } else if (this.calculatedCentroid) {
       centroid = this.calculatedCentroid;
     }
@@ -229,9 +228,7 @@ export class LoadLaz {
     // Create individual batch mesh with unique ID
     const batchId = `${this.currentFileId}_batch_${this.batchCount + 1}`;
     this.totalPointsProcessed += pointCount;
-    console.log(
-      `Creating batch: ${batchId} (${pointCount} points, ${this.totalPointsProcessed} total processed)`
-    );
+    Log.Info('LoadLaz', `Creating batch: ${batchId} (${pointCount} points, ${this.totalPointsProcessed} total processed)`);
 
     const pointCloudData: PointCloudData = {
       points: pointCloudPoints,

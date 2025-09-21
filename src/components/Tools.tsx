@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
+import { Log } from '../utils/Log';
 
 interface ToolsProps {
   serviceManager: ServiceManager | null;
@@ -27,8 +28,10 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
     if (!serviceManager?.pointService) return;
 
     const handlePointCloudsCleared = () => {
-      // Reset voxel debug state when point clouds are cleared
+      // Reset voxel debug state and processing state when point clouds are cleared
       setShowVoxelDebug(false);
+      setIsProcessing(false);
+      setIsCancelled(false);
     };
 
     serviceManager.pointService.on('cleared', handlePointCloudsCleared);
@@ -97,30 +100,30 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
   // Handle cancellation
   const handleCancelProcessing = () => {
     if (serviceManager?.toolsService && isProcessing) {
-      console.log('Cancelling voxel downsampling processing...');
+      Log.Info('Tools', 'Cancelling voxel downsampling processing...');
       serviceManager.toolsService.voxelDownsampling.cancelProcessing();
     }
   };
 
   // WASM Processing Functions
   const handleWasmVoxelDownsampling = async () => {
-    console.log('=== Starting WASM Voxel Downsampling ===');
+    Log.Info('Tools', '=== Starting WASM Voxel Downsampling ===');
     if (!serviceManager?.toolsService) {
-      console.error('Tools service not available');
+      Log.Error('Tools', 'Tools service not available');
       return;
     }
 
     try {
       // Get all point cloud IDs
       const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
-      console.log('Found point cloud IDs:', allPointCloudIds);
+      Log.Debug('Tools', 'Found point cloud IDs', allPointCloudIds);
       
       if (allPointCloudIds.length === 0) {
-        console.error('No point clouds found in scene');
+        Log.Error('Tools', 'No point clouds found in scene');
         return;
       }
 
-      console.log('Processing all point clouds:', allPointCloudIds);
+      Log.Info('Tools', 'Processing all point clouds', allPointCloudIds);
 
       // Store original point clouds before processing
       const originalPointClouds = new Map();
@@ -129,10 +132,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       
       for (const pointCloudId of allPointCloudIds) {
         const pointCloud = serviceManager.pointService?.getPointCloud(pointCloudId);
-        console.log(`Checking point cloud ${pointCloudId}:`, pointCloud ? 'found' : 'not found', pointCloud?.points?.length || 0, 'points');
+        Log.Debug('Tools', `Checking point cloud ${pointCloudId}:`, pointCloud ? 'found' : 'not found', pointCloud?.points?.length || 0, 'points');
         
-        if (pointCloud && pointCloud.points) {
+        if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
           originalPointClouds.set(pointCloudId, pointCloud);
+          Log.Debug('Tools', `Added point cloud ${pointCloudId} to processing queue with ${pointCloud.points.length} points`);
           
           // Calculate global bounding box
           for (const point of pointCloud.points) {
@@ -143,22 +147,30 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
             globalMaxY = Math.max(globalMaxY, point.position.y);
             globalMaxZ = Math.max(globalMaxZ, point.position.z);
           }
-          
+        } else {
+          Log.Warn('Tools', `Skipping point cloud ${pointCloudId} - no valid points data`);
         }
       }
 
       // Process each point cloud batch individually for memory efficiency
       // This prevents loading all points into memory at once for large datasets
 
-      if (!isFinite(globalMinX) || !isFinite(globalMaxX) || 
-          !isFinite(globalMinY) || !isFinite(globalMaxY) || 
-          !isFinite(globalMinZ) || !isFinite(globalMaxZ)) {
-        console.error('Invalid global bounds - no points found or bounds calculation failed');
-        console.error('Bounds values:', { globalMinX, globalMinY, globalMinZ, globalMaxX, globalMaxY, globalMaxZ });
+      Log.Info('Tools', `Found ${originalPointClouds.size} valid point clouds to process`);
+      
+      if (originalPointClouds.size === 0) {
+        Log.Error('Tools', 'No valid point clouds found for processing');
         return;
       }
 
-      console.log('Global bounding box:', {
+      if (!isFinite(globalMinX) || !isFinite(globalMaxX) || 
+          !isFinite(globalMinY) || !isFinite(globalMaxY) || 
+          !isFinite(globalMinZ) || !isFinite(globalMaxZ)) {
+        Log.Error('Tools', 'Invalid global bounds - no points found or bounds calculation failed');
+        Log.Error('Tools', 'Bounds values', { globalMinX, globalMinY, globalMinZ, globalMaxX, globalMaxY, globalMaxZ });
+        return;
+      }
+
+      Log.Debug('Tools', 'Global bounding box', {
         min: [globalMinX, globalMinY, globalMinZ],
         max: [globalMaxX, globalMaxY, globalMaxZ],
         size: [globalMaxX - globalMinX, globalMaxY - globalMinY, globalMaxZ - globalMinZ]
@@ -174,7 +186,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
         globalMaxZ - globalMinZ
       );
       const suggestedVoxelSize = dataSpan / 100; // 1% of data span
-      console.log('Global data span:', dataSpan, 'Suggested voxel size:', suggestedVoxelSize);
+      Log.Debug('Tools', 'Global data span', { dataSpan, suggestedVoxelSize });
       
       // Auto-adjust voxel size only if it's extremely inappropriate for the data scale
       let effectiveVoxelSize = voxelSize;
@@ -182,11 +194,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       if (hasSampleData && voxelSize > dataSpan / 2) {
         // Only auto-adjust if voxel size is more than 50% of data span (clearly too large)
         effectiveVoxelSize = dataSpan / 10; // 10% of data span for sample data
-        console.log(`Auto-adjusting voxel size from ${voxelSize} to ${effectiveVoxelSize} for sample data (was too large)`);
+        Log.Info('Tools', `Auto-adjusting voxel size from ${voxelSize} to ${effectiveVoxelSize} for sample data (was too large)`);
       } else if (hasSampleData) {
-        console.log(`Using user-specified voxel size ${voxelSize} for sample data`);
+        Log.Info('Tools', `Using user-specified voxel size ${voxelSize} for sample data`);
       }
-      console.log('Current voxel size:', voxelSize, 'vs suggested:', suggestedVoxelSize);
+      Log.Debug('Tools', 'Current voxel size vs suggested', { voxelSize, suggestedVoxelSize });
 
       // Process each point cloud batch individually and add to scene immediately
       // This works like the LAZ loader - showing results as they're processed
@@ -197,14 +209,14 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       for (const [pointCloudId, pointCloud] of originalPointClouds) {
         // Check for cancellation before processing each batch
         if (isCancelled) {
-          console.log('Voxel downsampling cancelled during batch processing');
+          Log.Info('Tools', 'Voxel downsampling cancelled during batch processing');
           break;
         }
         if (!pointCloud.points || pointCloud.points.length === 0) {
           continue;
         }
 
-        console.log(`Processing batch: ${pointCloudId} with ${pointCloud.points.length} points`);
+        Log.Debug('Tools', `Processing batch: ${pointCloudId} with ${pointCloud.points.length} points`);
 
         // Convert points to Float32Array for this batch
         const batchPositions: number[] = [];
@@ -283,24 +295,24 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
           const batchId = `downsampled_batch_${batchCount}`;
           await serviceManager.pointService?.loadPointCloud(batchId, batchPointCloud);
 
-          console.log(`Added downsampled batch ${batchCount}: ${downsampledPoints.length} points`);
+          Log.Debug('Tools', `Added downsampled batch ${batchCount}: ${downsampledPoints.length} points`);
         } else {
           // Check if it's a cancellation (expected) or actual error
           if (batchResult.error === 'Processing was cancelled') {
-            console.log(`Batch ${pointCloudId} processing cancelled`);
+            Log.Info('Tools', `Batch ${pointCloudId} processing cancelled`);
           } else {
-            console.error(`Batch ${pointCloudId} processing failed:`, batchResult.error);
+            Log.Error('Tools', `Batch ${pointCloudId} processing failed`, batchResult.error);
           }
         }
       }
 
-      console.log(`Incremental processing complete: ${totalOriginalPoints} original → ${totalDownsampledPoints} downsampled points in ${batchCount} batches`);
+      Log.Info('Tools', `Incremental processing complete: ${totalOriginalPoints} original → ${totalDownsampledPoints} downsampled points in ${batchCount} batches`);
 
       // Reset processing state when all batches are complete
       serviceManager.toolsService.voxelDownsampling.resetProcessingState();
 
      } catch (error) {
-       console.error('WASM voxel downsampling error:', error);
+       Log.Error('Tools', 'WASM voxel downsampling error', error);
        // Reset processing state on error too
        serviceManager.toolsService.voxelDownsampling.resetProcessingState();
      }
@@ -308,7 +320,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
 
   const handleBeVoxelDownsampling = async () => {
     if (!serviceManager?.toolsService) {
-      console.error('Tools service not available');
+      Log.Error('Tools', 'Tools service not available');
       return;
     }
 
@@ -316,13 +328,13 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       // Get current point cloud data
       const activePointCloud = serviceManager.activePointCloud;
       if (!activePointCloud) {
-        console.error('No active point cloud to process');
+        Log.Error('Tools', 'No active point cloud to process');
         return;
       }
 
       // Extract positions from the point cloud data
       if (!activePointCloud.points || activePointCloud.points.length === 0) {
-        console.error('No points found in point cloud');
+        Log.Error('Tools', 'No points found in point cloud');
         return;
       }
 
@@ -343,14 +355,14 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
         );
 
       if (result.success) {
-        console.log('BE voxel downsampling completed:', result);
+        Log.Info('Tools', 'BE voxel downsampling completed', result);
         // TODO: Update the point cloud with downsampled data
         // serviceManager.pointService.updatePointCloud(activePointCloud.id, result.downsampledPoints);
       } else {
-        console.error('BE voxel downsampling failed:', result.error);
+        Log.Error('Tools', 'BE voxel downsampling failed', result.error);
       }
     } catch (error) {
-      console.error('BE voxel downsampling error:', error);
+      Log.Error('Tools', 'BE voxel downsampling error', error);
     }
   };
 

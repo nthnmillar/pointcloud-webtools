@@ -1,10 +1,30 @@
 // Web Worker for Voxel Downsampling processing
+
+// Simple logging function for worker context
+const WorkerLog = {
+  info: (message: string, data?: any) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[VoxelDownsampleWorker] ${message}`, data || '');
+    }
+  },
+  error: (message: string, data?: any) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`[VoxelDownsampleWorker] ${message}`, data || '');
+    }
+  },
+  warn: (message: string, data?: any) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(`[VoxelDownsampleWorker] ${message}`, data || '');
+    }
+  }
+};
+
 let voxelModule: any = null;
 
 // Initialize WASM module
 async function initialize() {
   try {
-    console.log('VoxelDownsampleWorker: Starting initialization...');
+    WorkerLog.info('Starting initialization...');
     
     // Add a timeout to prevent hanging
     const initPromise = initializeWasmModule();
@@ -14,7 +34,7 @@ async function initialize() {
     
     await Promise.race([initPromise, timeoutPromise]);
     
-    console.log('VoxelDownsampleWorker: WASM module initialized successfully');
+    WorkerLog.info('WASM module initialized successfully');
     
     // Send initialization complete
     self.postMessage({
@@ -22,8 +42,8 @@ async function initialize() {
       data: { success: true }
     });
   } catch (error) {
-    console.error('VoxelDownsampleWorker: Failed to initialize WASM module:', error);
-    console.error('VoxelDownsampleWorker: Error details:', error);
+    WorkerLog.error('Failed to initialize WASM module', error);
+    WorkerLog.error('Error details', error);
     self.postMessage({
       type: 'ERROR',
       data: {
@@ -34,7 +54,7 @@ async function initialize() {
 }
 
 async function initializeWasmModule() {
-  console.log('VoxelDownsampleWorker: Loading WASM JS code...');
+  WorkerLog.info('Loading WASM JS code...');
   
   // Load WASM module using fetch and eval (similar to VoxelDownsampling.ts)
   const response = await fetch('/wasm/voxel_downsampling.js');
@@ -43,7 +63,7 @@ async function initializeWasmModule() {
   }
   
   const jsCode = await response.text();
-  console.log('VoxelDownsampleWorker: WASM JS code loaded, length:', jsCode.length);
+  WorkerLog.info('WASM JS code loaded', { length: jsCode.length });
 
   // Create a module function
   const moduleFunction = new Function('module', 'exports', jsCode);
@@ -59,16 +79,16 @@ async function initializeWasmModule() {
     throw new Error('VoxelModule is not a function: ' + typeof VoxelModule);
   }
 
-  console.log('VoxelDownsampleWorker: VoxelModule function obtained');
+  WorkerLog.info('VoxelModule function obtained');
   
   voxelModule = await VoxelModule({
     locateFile: (path: string) => {
-      console.log('VoxelDownsampleWorker: locateFile called with path:', path);
+      WorkerLog.info('locateFile called with path', { path });
       return path.endsWith('.wasm') ? '/wasm/voxel_downsampling.wasm' : path;
     },
   });
   
-  console.log('VoxelDownsampleWorker: VoxelModule instance created');
+  WorkerLog.info('VoxelModule instance created');
 }
 
 // Process a single batch of points
@@ -146,7 +166,7 @@ async function processBatch(batchData: {
     });
 
   } catch (error) {
-    console.error('VoxelDownsampleWorker: Batch processing failed:', error);
+    WorkerLog.error('Batch processing failed', error);
     self.postMessage({
       type: 'BATCH_ERROR',
       data: {
@@ -161,26 +181,26 @@ async function processBatch(batchData: {
 // Message handler
 self.onmessage = async function (e) {
   const { type, data } = e.data;
-  console.log('VoxelDownsampleWorker: Received message:', type, data);
+  WorkerLog.info('Received message', { type, data });
 
   try {
     switch (type) {
       case 'INITIALIZE':
-        console.log('VoxelDownsampleWorker: Starting initialization...');
+        WorkerLog.info('Starting initialization...');
         await initialize();
         break;
 
       case 'PROCESS_BATCH':
-        console.log('VoxelDownsampleWorker: Processing batch...');
+        WorkerLog.info('Processing batch...');
         await processBatch(data);
         break;
 
       default:
-        console.warn('VoxelDownsampleWorker: Unknown message type:', type);
+        WorkerLog.warn('Unknown message type', { type });
     }
   } catch (error) {
-    console.error('VoxelDownsampleWorker: Error handling message:', error);
-    console.error('VoxelDownsampleWorker: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    WorkerLog.error('Error handling message', error);
+    WorkerLog.error('Error stack', error instanceof Error ? error.stack : 'No stack trace');
     self.postMessage({
       type: 'ERROR',
       data: {

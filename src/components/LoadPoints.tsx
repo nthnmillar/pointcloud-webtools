@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
+import { Log } from '../utils/Log';
 
 interface LoadPointsProps {
   className?: string;
@@ -53,7 +54,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
   // Event handlers
   const loadSampleData = async () => {
     if (!serviceManager) {
-      console.error('Service manager not initialized');
+      Log.Error('LoadPoints', 'Service manager not initialized');
       return;
     }
 
@@ -71,7 +72,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       serviceManager.activePointCloudId = 'sample-1';
       serviceManager.renderActivePointCloud();
     } catch (err) {
-      console.error('Error loading sample data:', err);
+      Log.Error('LoadPoints', 'Error loading sample data', err);
       onErrorChange(
         err instanceof Error ? err.message : 'Failed to load sample data'
       );
@@ -97,7 +98,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       // Load the file - batches will appear in scene as they load
       await serviceManager.loadFile(file, batchSize);
     } catch (err) {
-      console.error('LoadPoints: Error loading file:', err);
+      Log.Error('LoadPoints', 'Error loading file', err);
       onErrorChange(err instanceof Error ? err.message : 'Failed to load file');
     } finally {
       // Reset file input
@@ -113,7 +114,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       
       // Cancel voxel downsampling if it's running
       if (isVoxelProcessing && serviceManager.toolsService) {
-        console.log('Cancelling voxel downsampling from LoadPoints...');
+        Log.Info('LoadPoints', 'Cancelling voxel downsampling from LoadPoints...');
         serviceManager.toolsService.voxelDownsampling.cancelProcessing();
       }
     }
@@ -123,9 +124,10 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
     if (serviceManager) {
       serviceManager.clearAllPointClouds();
       
-      // Also hide voxel debug when clearing the scene
+      // Also hide voxel debug and reset processing state when clearing the scene
       if (serviceManager.toolsService?.voxelDownsampling) {
         serviceManager.toolsService.voxelDownsampling.hideVoxelDebug();
+        serviceManager.toolsService.voxelDownsampling.resetProcessingState();
       }
     }
   };

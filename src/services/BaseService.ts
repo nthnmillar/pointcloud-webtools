@@ -2,6 +2,8 @@
  * Base Service class with event system
  * All services should extend this class
  */
+import { Log } from '../utils/Log';
+
 export abstract class BaseService {
   private listeners: Map<string, ((data: any) => void)[]> = new Map();
   protected isInitialized: boolean = false;
@@ -60,7 +62,7 @@ export abstract class BaseService {
         try {
           callback(data);
         } catch (error) {
-          console.error(`Error in event listener for ${eventType}:`, error);
+          Log.Error('BaseService', `Error in event listener for ${eventType}`, error);
         }
       });
     }

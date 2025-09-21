@@ -1,4 +1,5 @@
 import { Scene, StandardMaterial, Color3, MeshBuilder, Vector3, TransformNode } from '@babylonjs/core';
+import { Log } from '../../../utils/Log';
 
 export interface VoxelDownsampleDebugOptions {
   voxelSize: number;
@@ -38,7 +39,7 @@ export class VoxelDownsampleDebug {
    */
   public showVoxelDebug(options: VoxelDownsampleDebugOptions): void {
     if (!this._scene) {
-      console.error('Scene not available for voxel debug');
+      Log.ErrorClass(this, 'Scene not available for voxel debug');
       return;
     }
 
@@ -62,7 +63,7 @@ export class VoxelDownsampleDebug {
     if (this._voxelDebugGroup) {
       this._voxelDebugGroup.dispose();
       this._voxelDebugGroup = null;
-      console.log('Voxel debug group removed');
+      Log.InfoClass(this, 'Voxel debug group removed');
     }
     this._isVisible = false;
   }
@@ -79,7 +80,7 @@ export class VoxelDownsampleDebug {
    */
   private createVoxelWireframes(options: VoxelDownsampleDebugOptions): void {
     if (!this._scene) {
-      console.error('Scene not available in createVoxelWireframes');
+      Log.ErrorClass(this, 'Scene not available in createVoxelWireframes');
       return;
     }
 
@@ -241,7 +242,7 @@ export class VoxelDownsampleDebug {
    */
   public showVoxelDebugWithSize(voxelSize: number): void {
     if (!this._serviceManager?.pointService) {
-      console.error('Point service not available for voxel debug');
+      Log.ErrorClass(this, 'Point service not available for voxel debug');
       return;
     }
 
@@ -249,7 +250,7 @@ export class VoxelDownsampleDebug {
     const allPointCloudIds = this._serviceManager.pointService.pointCloudIds;
     
     if (allPointCloudIds.length === 0) {
-      console.error('No point clouds found for voxel debug');
+      Log.ErrorClass(this, 'No point clouds found for voxel debug');
       return;
     }
 

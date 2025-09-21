@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
+import { Log } from '../utils/Log';
 import { Benchmark } from './Benchmark';
 import { SceneControls } from './SceneControls';
 import { LoadPoints } from './LoadPoints';
@@ -46,7 +47,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
           setServiceManager(serviceManager);
         })
         .catch(err => {
-          console.error('Failed to initialize service manager:', err);
+          Log.Error('PointCloudViewer', 'Failed to initialize service manager', err);
         });
 
       return () => {
