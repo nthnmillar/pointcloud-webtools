@@ -4,7 +4,8 @@ import type { ServiceManager } from '../ServiceManager';
 import type {
   VoxelModule as VoxelModuleType,
 } from '../../wasm/VoxelModule.d.ts';
-import { StandardMaterial, Color3, MeshBuilder, Vector3, TransformNode } from '@babylonjs/core';
+import { VoxelDebug } from './VoxelDebug';
+import type { VoxelDebugOptions } from './VoxelDebug';
 
 export interface VoxelDownsampleParams {
   voxelSize: number;
@@ -34,7 +35,7 @@ export class VoxelDownsampling extends BaseService {
   private _toolsService?: ToolsService;
   private _serviceManager?: ServiceManager;
   private _voxelModule?: VoxelModuleType;
-  private _voxelDebugId?: string;
+  private _voxelDebug?: VoxelDebug;
 
   constructor(toolsService?: ToolsService, serviceManager?: ServiceManager) {
     super();
@@ -257,17 +258,6 @@ export class VoxelDownsampling extends BaseService {
     try {
       const startTime = performance.now();
 
-      // TODO: Replace with actual backend API call
-      // const response = await fetch('/api/voxel-downsample', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     voxelSize: params.voxelSize,
-      //     pointCloudData: Array.from(params.pointCloudData || [])
-      //   })
-      // });
-      // const result = await response.json();
-
       // Simulate processing for now
       await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -319,22 +309,35 @@ export class VoxelDownsampling extends BaseService {
     }
   }
 
+  // Initialize VoxelDebug if not already initialized
+  private initializeVoxelDebug(): boolean {
+    if (this._voxelDebug) {
+      return true;
+    }
+
+    if (!this._serviceManager?.sceneService?.scene) {
+      console.error('Scene not available for voxel debug initialization');
+      return false;
+    }
+
+    this._voxelDebug = new VoxelDebug(this._serviceManager.sceneService.scene);
+    return true;
+  }
+
   // Voxel Debug Visualization
   showVoxelDebug(voxelSize: number): void {
-    console.log('=== Voxel Debug: Starting ===');
-    console.log('Voxel size:', voxelSize);
-    
+    if (!this.initializeVoxelDebug()) {
+      console.error('Failed to initialize VoxelDebug');
+      return;
+    }
+
     if (!this._serviceManager?.pointService) {
       console.error('Point service not available for voxel debug');
       return;
     }
 
-    // Clear any existing debug grid
-    this.hideVoxelDebug();
-
     // Get all point clouds to calculate global bounds
     const allPointCloudIds = this._serviceManager.pointService.pointCloudIds;
-    console.log('Point cloud IDs:', allPointCloudIds);
     
     if (allPointCloudIds.length === 0) {
       console.error('No point clouds found for voxel debug');
@@ -358,158 +361,45 @@ export class VoxelDownsampling extends BaseService {
       }
     }
 
-    console.log('Global bounds:', {
-      min: [globalMinX, globalMinY, globalMinZ],
-      max: [globalMaxX, globalMaxY, globalMaxZ],
-      size: [globalMaxX - globalMinX, globalMaxY - globalMinY, globalMaxZ - globalMinZ]
-    });
+    // Collect point cloud data for voxel debug
+    const pointClouds = [];
+    for (const pointCloudId of allPointCloudIds) {
+      const pointCloud = this._serviceManager.pointService.getPointCloud(pointCloudId);
+      if (pointCloud && pointCloud.points) {
+        pointClouds.push(pointCloud);
+      }
+    }
 
-    // Create wireframe lines using Babylon.js directly
-    this.createVoxelWireframe(
-      globalMinX, globalMinY, globalMinZ,
-      globalMaxX, globalMaxY, globalMaxZ,
-      voxelSize
-    );
-    
-    console.log('=== Voxel Debug: Complete ===');
+    const debugOptions: VoxelDebugOptions = {
+      voxelSize,
+      globalBounds: {
+        minX: globalMinX,
+        minY: globalMinY,
+        minZ: globalMinZ,
+        maxX: globalMaxX,
+        maxY: globalMaxY,
+        maxZ: globalMaxZ
+      },
+      pointClouds
+    };
+
+    this._voxelDebug!.showVoxelDebug(debugOptions);
   }
 
   hideVoxelDebug(): void {
-    if (this._voxelDebugId && this._serviceManager?.pointService) {
-      this._serviceManager.pointService.removePointCloud(this._voxelDebugId);
-      this._voxelDebugId = undefined;
-    }
-    
-    // Remove voxel debug group and all its children
-    if (this._serviceManager?.sceneService?.scene) {
-      const scene = this._serviceManager.sceneService.scene;
-      const voxelGroup = scene.getTransformNodeByName('voxel_debug_group');
-      if (voxelGroup) {
-        voxelGroup.dispose();
-        console.log('Voxel debug group removed');
-      }
+    if (this._voxelDebug) {
+      this._voxelDebug.hideVoxelDebug();
     }
   }
 
-  private createVoxelWireframe(
-    minX: number, minY: number, minZ: number,
-    maxX: number, maxY: number, maxZ: number,
-    voxelSize: number
-  ): void {
-    if (!this._serviceManager?.sceneService?.scene) {
-      console.error('Scene not available for wireframe creation');
-      return;
-    }
-
-    const scene = this._serviceManager.sceneService.scene;
-    
-    // Calculate number of voxels in each dimension
-    const numVoxelsX = Math.ceil((maxX - minX) / voxelSize);
-    const numVoxelsY = Math.ceil((maxY - minY) / voxelSize);
-    const numVoxelsZ = Math.ceil((maxZ - minZ) / voxelSize);
-
-    console.log('Total voxels possible:', numVoxelsX, 'x', numVoxelsY, 'x', numVoxelsZ, '=', numVoxelsX * numVoxelsY * numVoxelsZ);
-
-    // Only show voxels that actually contain points to avoid freezing
-    // First, find which voxels have points
-    const occupiedVoxels = new Set<string>();
-    
-    // Get all point clouds to find occupied voxels
-    const allPointCloudIds = this._serviceManager?.pointService?.pointCloudIds || [];
-    let pointCount = 0;
-    for (const pointCloudId of allPointCloudIds) {
-      const pointCloud = this._serviceManager?.pointService?.getPointCloud(pointCloudId);
-      if (pointCloud && pointCloud.points) {
-        for (const point of pointCloud.points) {
-          
-          const voxelX = Math.floor((point.position.x - minX) / voxelSize);
-          const voxelY = Math.floor((point.position.y - minY) / voxelSize);
-          const voxelZ = Math.floor((point.position.z - minZ) / voxelSize);
-          occupiedVoxels.add(`${voxelX},${voxelY},${voxelZ}`);
-          pointCount++;
-        }
-      }
-    }
-    
-    console.log('Found', occupiedVoxels.size, 'occupied voxels');
-
-    // Limit to maximum 1000 voxels for performance
-    const maxVoxels = 1000;
-    const voxelArray = Array.from(occupiedVoxels);
-    const voxelsToShow = voxelArray.slice(0, maxVoxels);
-    
-    if (voxelArray.length > maxVoxels) {
-      console.log('Limiting to', maxVoxels, 'voxels for performance');
-    }
-
-    // Create wireframe material
-    const wireframeMaterial = new StandardMaterial('voxelDebugMaterial', scene);
-    wireframeMaterial.diffuseColor = new Color3(0, 0, 1); // Blue
-    wireframeMaterial.emissiveColor = new Color3(0, 0, 0.5);
-    wireframeMaterial.wireframe = true;
-    wireframeMaterial.alpha = 0.9;
-
-    // Create voxel cubes only for occupied voxels
-    let cubeCount = 0;
-    for (const voxelKey of voxelsToShow) {
-      const [x, y, z] = voxelKey.split(',').map(Number);
-      
-      const voxelMinX = minX + x * voxelSize;
-      const voxelMinY = minY + y * voxelSize;
-      const voxelMinZ = minZ + z * voxelSize;
-      const voxelMaxX = Math.min(voxelMinX + voxelSize, maxX);
-      const voxelMaxY = Math.min(voxelMinY + voxelSize, maxY);
-      const voxelMaxZ = Math.min(voxelMinZ + voxelSize, maxZ);
-
-      // Calculate center and size in robotics coordinates
-      const centerX = (voxelMinX + voxelMaxX) / 2;
-      const centerY = (voxelMinY + voxelMaxY) / 2;
-      const centerZ = (voxelMinZ + voxelMaxZ) / 2;
-      const sizeX = voxelMaxX - voxelMinX;
-      const sizeY = voxelMaxY - voxelMinY;
-      const sizeZ = voxelMaxZ - voxelMinZ;
-
-      // Convert from robotics coordinates (X=forward, Y=left, Z=up) to Babylon.js (X=right, Y=up, Z=forward)
-      // Same transformation as in PointMesh.ts
-      const babylonX = -centerY; // left -> right
-      const babylonY = centerZ;  // up -> up
-      const babylonZ = centerX;  // forward -> forward
-
-
-      // Create cube
-      const cube = MeshBuilder.CreateBox(`voxel_${x}_${y}_${z}`, {
-        width: sizeX,
-        height: sizeY,
-        depth: sizeZ
-      }, scene);
-
-      // Position cube in Babylon.js coordinates
-      cube.position = new Vector3(babylonX, babylonY, babylonZ);
-      
-      // Apply wireframe material
-      cube.material = wireframeMaterial;
-      
-      // Add to voxel debug group
-      cube.parent = this.getOrCreateVoxelDebugGroup(scene);
-      
-      cubeCount++;
-    }
-
-    console.log('Created', cubeCount, 'wireframe voxel cubes');
-  }
-
-  private getOrCreateVoxelDebugGroup(scene: any): TransformNode {
-    let group = scene.getTransformNodeByName('voxel_debug_group');
-    if (!group) {
-      group = new TransformNode('voxel_debug_group', scene);
-    }
-    return group;
-  }
 
 
   dispose(): void {
     this._isProcessing = false;
     this.hideVoxelDebug();
+    if (this._voxelDebug) {
+      this._voxelDebug.dispose();
+    }
     this.removeAllObservers();
   }
 }
