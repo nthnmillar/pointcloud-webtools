@@ -1,5 +1,5 @@
 import { BaseService } from '../BaseService';
-import { VoxelDownsampling } from './VoxelDownsampling';
+import { VoxelDownsampling } from './VoxelDownsampling/VoxelDownsampling';
 import type { ServiceManager } from '../ServiceManager';
 
 export class ToolsService extends BaseService {

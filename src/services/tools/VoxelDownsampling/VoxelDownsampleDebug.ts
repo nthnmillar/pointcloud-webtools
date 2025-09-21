@@ -1,6 +1,6 @@
 import { Scene, StandardMaterial, Color3, MeshBuilder, Vector3, TransformNode } from '@babylonjs/core';
 
-export interface VoxelDebugOptions {
+export interface VoxelDownsampleDebugOptions {
   voxelSize: number;
   globalBounds: {
     minX: number;
@@ -20,7 +20,7 @@ export interface VoxelDebugOptions {
   alpha?: number;
 }
 
-export class VoxelDebug {
+export class VoxelDownsampleDebug {
   private _voxelDebugGroup: TransformNode | null = null;
   private _isVisible = false;
   private _scene: Scene | null = null;
@@ -32,7 +32,7 @@ export class VoxelDebug {
   /**
    * Show voxel debug visualization
    */
-  public showVoxelDebug(options: VoxelDebugOptions): void {
+  public showVoxelDebug(options: VoxelDownsampleDebugOptions): void {
     if (!this._scene) {
       console.error('Scene not available for voxel debug');
       return;
@@ -69,7 +69,7 @@ export class VoxelDebug {
   /**
    * Create voxel wireframe cubes for visualization
    */
-  private createVoxelWireframes(options: VoxelDebugOptions): void {
+  private createVoxelWireframes(options: VoxelDownsampleDebugOptions): void {
     if (!this._scene) {
       console.error('Scene not available in createVoxelWireframes');
       return;
@@ -215,7 +215,7 @@ export class VoxelDebug {
   /**
    * Update voxel debug with new options
    */
-  public updateVoxelDebug(options: VoxelDebugOptions): void {
+  public updateVoxelDebug(options: VoxelDownsampleDebugOptions): void {
     if (this._isVisible) {
       this.hideVoxelDebug();
       this.showVoxelDebug(options);

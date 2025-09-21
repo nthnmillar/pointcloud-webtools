@@ -1,12 +1,12 @@
-import { BaseService } from '../BaseService';
-import { ToolsService } from './ToolsService';
-import type { ServiceManager } from '../ServiceManager';
+import { BaseService } from '../../BaseService';
+import { ToolsService } from '../ToolsService';
+import type { ServiceManager } from '../../ServiceManager';
 import type {
   VoxelModule as VoxelModuleType,
-} from '../../wasm/VoxelModule.d.ts';
-import { VoxelDebug } from './VoxelDebug';
-import type { VoxelDebugOptions } from './VoxelDebug';
-import { VoxelWorkerService } from './VoxelWorkerService';
+} from '../../../wasm/VoxelModule.d.ts';
+import { VoxelDownsampleDebug } from './VoxelDownsampleDebug';
+import type { VoxelDownsampleDebugOptions } from './VoxelDownsampleDebug';
+import { VoxelDownsampleService } from './VoxelDownsampleService';
 
 export interface VoxelDownsampleParams {
   voxelSize: number;
@@ -36,14 +36,14 @@ export class VoxelDownsampling extends BaseService {
   private _toolsService?: ToolsService;
   private _serviceManager?: ServiceManager;
   private _voxelModule?: VoxelModuleType;
-  private _voxelDebug?: VoxelDebug;
-  private _workerService: VoxelWorkerService;
+  private _voxelDebug?: VoxelDownsampleDebug;
+  private _workerService: VoxelDownsampleService;
 
   constructor(toolsService?: ToolsService, serviceManager?: ServiceManager) {
     super();
     this._toolsService = toolsService;
     this._serviceManager = serviceManager;
-    this._workerService = new VoxelWorkerService();
+    this._workerService = new VoxelDownsampleService();
   }
 
   async initialize(): Promise<void> {
@@ -379,7 +379,7 @@ export class VoxelDownsampling extends BaseService {
       return false;
     }
 
-    this._voxelDebug = new VoxelDebug(this._serviceManager.sceneService.scene);
+    this._voxelDebug = new VoxelDownsampleDebug(this._serviceManager.sceneService.scene);
     return true;
   }
 
@@ -429,7 +429,7 @@ export class VoxelDownsampling extends BaseService {
       }
     }
 
-    const debugOptions: VoxelDebugOptions = {
+    const debugOptions: VoxelDownsampleDebugOptions = {
       voxelSize,
       globalBounds: {
         minX: globalMinX,

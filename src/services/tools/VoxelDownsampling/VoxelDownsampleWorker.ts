@@ -4,7 +4,7 @@ let voxelModule: any = null;
 // Initialize WASM module
 async function initialize() {
   try {
-    console.log('VoxelWorker: Starting initialization...');
+    console.log('VoxelDownsampleWorker: Starting initialization...');
     
     // Add a timeout to prevent hanging
     const initPromise = initializeWasmModule();
@@ -14,7 +14,7 @@ async function initialize() {
     
     await Promise.race([initPromise, timeoutPromise]);
     
-    console.log('VoxelWorker: WASM module initialized successfully');
+    console.log('VoxelDownsampleWorker: WASM module initialized successfully');
     
     // Send initialization complete
     self.postMessage({
@@ -22,8 +22,8 @@ async function initialize() {
       data: { success: true }
     });
   } catch (error) {
-    console.error('VoxelWorker: Failed to initialize WASM module:', error);
-    console.error('VoxelWorker: Error details:', error);
+    console.error('VoxelDownsampleWorker: Failed to initialize WASM module:', error);
+    console.error('VoxelDownsampleWorker: Error details:', error);
     self.postMessage({
       type: 'ERROR',
       data: {
@@ -34,7 +34,7 @@ async function initialize() {
 }
 
 async function initializeWasmModule() {
-  console.log('VoxelWorker: Loading WASM JS code...');
+  console.log('VoxelDownsampleWorker: Loading WASM JS code...');
   
   // Load WASM module using fetch and eval (similar to VoxelDownsampling.ts)
   const response = await fetch('/wasm/voxel_downsampling.js');
@@ -43,7 +43,7 @@ async function initializeWasmModule() {
   }
   
   const jsCode = await response.text();
-  console.log('VoxelWorker: WASM JS code loaded, length:', jsCode.length);
+  console.log('VoxelDownsampleWorker: WASM JS code loaded, length:', jsCode.length);
 
   // Create a module function
   const moduleFunction = new Function('module', 'exports', jsCode);
@@ -59,16 +59,16 @@ async function initializeWasmModule() {
     throw new Error('VoxelModule is not a function: ' + typeof VoxelModule);
   }
 
-  console.log('VoxelWorker: VoxelModule function obtained');
+  console.log('VoxelDownsampleWorker: VoxelModule function obtained');
   
   voxelModule = await VoxelModule({
     locateFile: (path: string) => {
-      console.log('VoxelWorker: locateFile called with path:', path);
+      console.log('VoxelDownsampleWorker: locateFile called with path:', path);
       return path.endsWith('.wasm') ? '/wasm/voxel_downsampling.wasm' : path;
     },
   });
   
-  console.log('VoxelWorker: VoxelModule instance created');
+  console.log('VoxelDownsampleWorker: VoxelModule instance created');
 }
 
 // Process a single batch of points
@@ -146,7 +146,7 @@ async function processBatch(batchData: {
     });
 
   } catch (error) {
-    console.error('VoxelWorker: Batch processing failed:', error);
+    console.error('VoxelDownsampleWorker: Batch processing failed:', error);
     self.postMessage({
       type: 'BATCH_ERROR',
       data: {
@@ -161,26 +161,26 @@ async function processBatch(batchData: {
 // Message handler
 self.onmessage = async function (e) {
   const { type, data } = e.data;
-  console.log('VoxelWorker: Received message:', type, data);
+  console.log('VoxelDownsampleWorker: Received message:', type, data);
 
   try {
     switch (type) {
       case 'INITIALIZE':
-        console.log('VoxelWorker: Starting initialization...');
+        console.log('VoxelDownsampleWorker: Starting initialization...');
         await initialize();
         break;
 
       case 'PROCESS_BATCH':
-        console.log('VoxelWorker: Processing batch...');
+        console.log('VoxelDownsampleWorker: Processing batch...');
         await processBatch(data);
         break;
 
       default:
-        console.warn('VoxelWorker: Unknown message type:', type);
+        console.warn('VoxelDownsampleWorker: Unknown message type:', type);
     }
   } catch (error) {
-    console.error('VoxelWorker: Error handling message:', error);
-    console.error('VoxelWorker: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('VoxelDownsampleWorker: Error handling message:', error);
+    console.error('VoxelDownsampleWorker: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     self.postMessage({
       type: 'ERROR',
       data: {
@@ -189,4 +189,3 @@ self.onmessage = async function (e) {
     });
   }
 };
-
