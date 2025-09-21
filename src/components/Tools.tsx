@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
 import { Log } from '../utils/Log';
 
@@ -13,6 +13,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
   const [isCancelled, setIsCancelled] = useState(false);
+  
+  // Use ref to track processing state for event handlers
+  const isProcessingRef = useRef(false);
 
   // Initialize voxel size from service
   useEffect(() => {
@@ -28,8 +31,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
     if (!serviceManager?.pointService) return;
 
     const handlePointCloudsCleared = () => {
-      // Reset voxel debug state and processing state when point clouds are cleared
-      setShowVoxelDebug(false);
+      // Only reset voxel debug state if we're not currently processing
+      // This prevents the debug toggle from being turned off during WASM processing
+      if (!isProcessingRef.current) {
+        setShowVoxelDebug(false);
+      }
       setIsProcessing(false);
       setIsCancelled(false);
     };
@@ -49,11 +55,16 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
 
     const handleProcessingStarted = () => {
       setIsProcessing(true);
+      isProcessingRef.current = true;
       setIsCancelled(false);
     };
-    const handleProcessingFinished = () => setIsProcessing(false);
+    const handleProcessingFinished = () => {
+      setIsProcessing(false);
+      isProcessingRef.current = false;
+    };
     const handleProcessingCancelled = () => {
       setIsProcessing(false);
+      isProcessingRef.current = false;
       setIsCancelled(true);
     };
 
@@ -112,6 +123,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       Log.Error('Tools', 'Tools service not available');
       return;
     }
+
+    // Set processing state immediately to prevent debug toggle from being turned off
+    setIsProcessing(true);
+    isProcessingRef.current = true;
+    setIsCancelled(false);
 
     try {
       // Get all point cloud IDs
