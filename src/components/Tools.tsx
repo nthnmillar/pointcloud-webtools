@@ -11,6 +11,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
   const [voxelSize, setVoxelSize] = useState(0.1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
+  const [isCancelled, setIsCancelled] = useState(false);
 
   // Initialize voxel size from service
   useEffect(() => {
@@ -27,15 +28,24 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
 
     const voxelTool = serviceManager.toolsService.voxelDownsampling;
 
-    const handleProcessingStarted = () => setIsProcessing(true);
+    const handleProcessingStarted = () => {
+      setIsProcessing(true);
+      setIsCancelled(false);
+    };
     const handleProcessingFinished = () => setIsProcessing(false);
+    const handleProcessingCancelled = () => {
+      setIsProcessing(false);
+      setIsCancelled(true);
+    };
 
     voxelTool.on('processingStarted', handleProcessingStarted);
     voxelTool.on('processingFinished', handleProcessingFinished);
+    voxelTool.on('processingCancelled', handleProcessingCancelled);
 
     return () => {
       voxelTool.off('processingStarted', handleProcessingStarted);
       voxelTool.off('processingFinished', handleProcessingFinished);
+      voxelTool.off('processingCancelled', handleProcessingCancelled);
     };
   }, [serviceManager]);
 
@@ -60,6 +70,14 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
         // Hide voxel debug grid
         serviceManager.toolsService.voxelDownsampling.hideVoxelDebug();
       }
+    }
+  };
+
+  // Handle cancellation
+  const handleCancelProcessing = () => {
+    if (serviceManager?.toolsService && isProcessing) {
+      console.log('Cancelling voxel downsampling processing...');
+      serviceManager.toolsService.voxelDownsampling.cancelProcessing();
     }
   };
 
@@ -156,6 +174,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       let batchCount = 0;
 
       for (const [pointCloudId, pointCloud] of originalPointClouds) {
+        // Check for cancellation before processing each batch
+        if (isCancelled) {
+          console.log('Voxel downsampling cancelled during batch processing');
+          break;
+        }
         if (!pointCloud.points || pointCloud.points.length === 0) {
           continue;
         }
@@ -247,8 +270,13 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
 
       console.log(`Incremental processing complete: ${totalOriginalPoints} original → ${totalDownsampledPoints} downsampled points in ${batchCount} batches`);
 
+      // Reset processing state when all batches are complete
+      serviceManager.toolsService.voxelDownsampling.resetProcessingState();
+
      } catch (error) {
        console.error('WASM voxel downsampling error:', error);
+       // Reset processing state on error too
+       serviceManager.toolsService.voxelDownsampling.resetProcessingState();
      }
   };
 
@@ -389,19 +417,37 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                     )}
                   </div>
                   <div className="tools-col-3">
-                    <button
-                      className="tools-wasm-btn"
-                      onClick={
-                        tool.name === 'Voxel Downsampling'
-                          ? handleWasmVoxelDownsampling
-                          : undefined
-                      }
-                      disabled={isProcessing}
-                    >
-                      {isProcessing && tool.name === 'Voxel Downsampling'
-                        ? 'Processing...'
-                        : 'WASM'}
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        className="tools-wasm-btn"
+                        onClick={
+                          tool.name === 'Voxel Downsampling'
+                            ? handleWasmVoxelDownsampling
+                            : undefined
+                        }
+                        disabled={isProcessing}
+                      >
+                        {isProcessing && tool.name === 'Voxel Downsampling'
+                          ? 'Processing...'
+                          : 'WASM'}
+                      </button>
+                      {isProcessing && tool.name === 'Voxel Downsampling' && (
+                        <button
+                          className="tools-cancel-btn"
+                          onClick={handleCancelProcessing}
+                          style={{
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="tools-col-4">
                     <button

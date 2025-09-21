@@ -21,6 +21,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
   // Loading-related state
   const [batchSize, setBatchSize] = useState(500);
   const [supportedFormats, setSupportedFormats] = useState<string[]>([]);
+  const [isVoxelProcessing, setIsVoxelProcessing] = useState(false);
 
   // Initialize supported formats from service manager
   useEffect(() => {
@@ -28,6 +29,26 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       setSupportedFormats(serviceManager.getSupportedFormats());
     }
   }, [serviceManager]);
+
+  // Check if voxel downsampling is processing by checking the tools service directly
+  useEffect(() => {
+    const checkVoxelProcessing = () => {
+      if (serviceManager?.toolsService) {
+        const isProcessing = serviceManager.toolsService.voxelDownsampling.isProcessing;
+        if (isProcessing !== isVoxelProcessing) {
+          setIsVoxelProcessing(isProcessing);
+        }
+      }
+    };
+
+    // Check immediately
+    checkVoxelProcessing();
+
+    // Set up interval to check periodically (like LAZ loader)
+    const interval = setInterval(checkVoxelProcessing, 100);
+
+    return () => clearInterval(interval);
+  }, [serviceManager, isVoxelProcessing]);
 
   // Event handlers
   const loadSampleData = async () => {
@@ -86,8 +107,15 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
 
   const handleCancelLoading = () => {
     if (serviceManager) {
+      // Cancel file loading
       serviceManager.cancelLoading();
       onLoadingChange(false);
+      
+      // Cancel voxel downsampling if it's running
+      if (isVoxelProcessing && serviceManager.toolsService) {
+        console.log('Cancelling voxel downsampling from LoadPoints...');
+        serviceManager.toolsService.voxelDownsampling.cancelProcessing();
+      }
     }
   };
 
@@ -151,13 +179,16 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
             </div>
 
             <div className="control-group">
-              <button onClick={loadSampleData} disabled={isLoading}>
-                {isLoading ? 'Loading...' : 'Load Sample Data'}
+              <button onClick={loadSampleData} disabled={isLoading || isVoxelProcessing}>
+                {isLoading ? 'Loading...' : isVoxelProcessing ? 'Processing...' : 'Load Sample Data'}
               </button>
-              <button onClick={handleCancelLoading} disabled={!isLoading}>
-                Cancel Loading
+              <button 
+                onClick={handleCancelLoading} 
+                disabled={!isLoading && !isVoxelProcessing}
+              >
+                {isVoxelProcessing ? 'Cancel Processing' : 'Cancel Loading'}
               </button>
-              <button onClick={handleClearScene} disabled={isLoading}>
+              <button onClick={handleClearScene} disabled={isLoading || isVoxelProcessing}>
                 Clear Scene
               </button>
             </div>

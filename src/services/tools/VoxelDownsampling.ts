@@ -1,12 +1,12 @@
-import { BaseService } from '../../BaseService';
-import { ToolsService } from '../ToolsService';
-import type { ServiceManager } from '../../ServiceManager';
+import { BaseService } from '../BaseService';
+import { ToolsService } from './ToolsService';
+import type { ServiceManager } from '../ServiceManager';
 import type {
   VoxelModule as VoxelModuleType,
-} from '../../../wasm/VoxelModule.d.ts';
-import { VoxelDownsampleDebug } from './VoxelDownsampleDebug';
-import type { VoxelDownsampleDebugOptions } from './VoxelDownsampleDebug';
-import { VoxelDownsampleService } from './VoxelDownsampleService';
+} from '../../wasm/VoxelModule.d.ts';
+import { VoxelDownsampleDebug } from './VoxelDownsampling/VoxelDownsampleDebug';
+import type { VoxelDownsampleDebugOptions } from './VoxelDownsampling/VoxelDownsampleDebug';
+import { VoxelDownsampleService } from './VoxelDownsampling/VoxelDownsampleService';
 
 export interface VoxelDownsampleParams {
   voxelSize: number;
@@ -38,7 +38,6 @@ export class VoxelDownsampling extends BaseService {
   private _voxelModule?: VoxelModuleType;
   private _voxelDebug?: VoxelDownsampleDebug;
   private _workerService: VoxelDownsampleService;
-  private _isCancelled: boolean = false;
 
   constructor(toolsService?: ToolsService, serviceManager?: ServiceManager) {
     super();
@@ -119,26 +118,6 @@ export class VoxelDownsampling extends BaseService {
     this._toolsService?.forwardEvent('voxelSizeChanged', { voxelSize: size });
   }
 
-  // Cancel processing
-  cancelProcessing(): void {
-    if (this._isProcessing) {
-      this._isCancelled = true;
-      console.log('VoxelDownsampling: Processing cancellation requested');
-      this.emit('processingCancelled', { operation: 'voxelDownsampling' });
-      this._toolsService?.forwardEvent('processingCancelled', { operation: 'voxelDownsampling' });
-    }
-  }
-
-  // Reset processing state (called when all batches are complete)
-  resetProcessingState(): void {
-    if (this._isProcessing) {
-      this._isProcessing = false;
-      this._isCancelled = false;
-      this.emit('processingFinished', { operation: 'voxelDownsampling' });
-      this._toolsService?.forwardEvent('processingFinished', { operation: 'voxelDownsampling' });
-    }
-  }
-
   // Worker-based batch processing
   async voxelDownsampleBatchWasm(batchData: {
     batchId: string;
@@ -153,31 +132,6 @@ export class VoxelDownsampling extends BaseService {
       maxZ: number;
     };
   }): Promise<VoxelDownsampleResult> {
-    // Check for cancellation before processing
-    if (this._isCancelled) {
-      return {
-        success: false,
-        error: 'Processing was cancelled',
-        downsampledPoints: new Float32Array(0),
-        originalCount: 0,
-        downsampledCount: 0,
-        processingTime: 0
-      };
-    }
-
-    // Set processing state for batch processing
-    if (!this._isProcessing) {
-      this._isProcessing = true;
-      this.emit('processingStarted', {
-        operation: 'voxelDownsampleBatchWasm',
-        batchId: batchData.batchId,
-      });
-      this._toolsService?.forwardEvent('processingStarted', {
-        operation: 'voxelDownsampleBatchWasm',
-        batchId: batchData.batchId,
-      });
-    }
-
     // If worker is not ready, fall back to direct WASM processing
     if (!this._workerService.ready) {
       console.warn('VoxelDownsampling: Worker not ready, falling back to direct WASM processing');
@@ -218,7 +172,6 @@ export class VoxelDownsampling extends BaseService {
     }
 
     this._isProcessing = true;
-    this._isCancelled = false; // Reset cancellation flag
     this.emit('processingStarted', {
       operation: 'voxelDownsampleWasm',
       params,
@@ -230,11 +183,6 @@ export class VoxelDownsampling extends BaseService {
 
     try {
       const startTime = performance.now();
-
-      // Check for cancellation before starting
-      if (this._isCancelled) {
-        throw new Error('Processing was cancelled');
-      }
 
       // Check if module is loaded, if not try to initialize
       if (!this._voxelModule) {
@@ -341,7 +289,6 @@ export class VoxelDownsampling extends BaseService {
       return errorResult;
     } finally {
       this._isProcessing = false;
-      this._isCancelled = false; // Reset cancellation flag
       this.emit('processingFinished', { operation: 'voxelDownsampleWasm' });
       this._toolsService?.forwardEvent('processingFinished', {
         operation: 'voxelDownsampleWasm',
