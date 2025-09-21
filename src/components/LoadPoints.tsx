@@ -122,6 +122,11 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
   const handleClearScene = () => {
     if (serviceManager) {
       serviceManager.clearAllPointClouds();
+      
+      // Also hide voxel debug when clearing the scene
+      if (serviceManager.toolsService?.voxelDownsampling) {
+        serviceManager.toolsService.voxelDownsampling.hideVoxelDebug();
+      }
     }
   };
 

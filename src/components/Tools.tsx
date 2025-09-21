@@ -22,6 +22,22 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
     }
   }, [serviceManager]);
 
+  // Listen for point cloud clearing events to reset voxel debug state
+  useEffect(() => {
+    if (!serviceManager?.pointService) return;
+
+    const handlePointCloudsCleared = () => {
+      // Reset voxel debug state when point clouds are cleared
+      setShowVoxelDebug(false);
+    };
+
+    serviceManager.pointService.on('cleared', handlePointCloudsCleared);
+
+    return () => {
+      serviceManager.pointService.off('cleared', handlePointCloudsCleared);
+    };
+  }, [serviceManager]);
+
   // Listen to voxel downsampling events
   useEffect(() => {
     if (!serviceManager?.toolsService) return;
