@@ -58,9 +58,12 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       return;
     }
 
-
     try {
       onErrorChange(null);
+
+      // Clear existing point clouds and turn off debug before loading sample data
+      serviceManager.clearAllPointClouds();
+      serviceManager.toolsService?.voxelDownsampling?.hideVoxelDebug();
 
       const sampleData = serviceManager.generateSamplePointCloud(
         'sample-1',
@@ -96,6 +99,11 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
         );
         return;
       }
+
+      // Clear existing point clouds and turn off debug before loading new file
+      serviceManager.clearAllPointClouds();
+      serviceManager.toolsService?.voxelDownsampling?.hideVoxelDebug();
+
       // Load the file - batches will appear in scene as they load
       await serviceManager.loadFile(file, batchSize);
     } catch (err) {

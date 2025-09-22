@@ -123,6 +123,10 @@ export class ServiceManager extends BaseService {
       this.emit('fileLoadingCompleted', data);
       // Automatically load the point cloud data into the point service
       if (data.pointCloudData) {
+        // Clear existing point clouds and turn off debug before loading new file
+        this.clearAllPointClouds();
+        this._toolsService?.voxelDownsampling?.hideVoxelDebug();
+        
         // Received point cloud data
         // Generate a unique ID for the loaded point cloud
         const id = `loaded_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
