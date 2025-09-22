@@ -309,7 +309,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
 
           // Add this batch to the scene immediately
           const batchId = `downsampled_batch_${batchCount}`;
-          await serviceManager.pointService?.loadPointCloud(batchId, batchPointCloud);
+          await serviceManager.pointService?.loadPointCloud(batchId, batchPointCloud, false); // Don't reposition camera
 
           Log.Debug('Tools', `Added downsampled batch ${batchCount}: ${downsampledPoints.length} points`);
         } else {
@@ -341,44 +341,127 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
     }
 
     try {
-      // Get current point cloud data
-      const activePointCloud = serviceManager.activePointCloud;
-      if (!activePointCloud) {
-        Log.Error('Tools', 'No active point cloud to process');
+      // Get all point cloud IDs
+      const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
+      Log.Debug('Tools', 'Found point cloud IDs for BE processing', allPointCloudIds);
+      
+      if (allPointCloudIds.length === 0) {
+        Log.Error('Tools', 'No point clouds found in scene');
         return;
       }
 
-      // Extract positions from the point cloud data
-      if (!activePointCloud.points || activePointCloud.points.length === 0) {
-        Log.Error('Tools', 'No points found in point cloud');
-        return;
-      }
+      // Collect all points from all point clouds
+      const allPositions: number[] = [];
+      let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
+      let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
 
-      // Extract positions from points array
-      const positions: number[] = [];
-      for (const point of activePointCloud.points) {
-        positions.push(point.position.x, point.position.y, point.position.z);
-      }
-
-      const pointCloudData = new Float32Array(positions);
-
-      const result =
-        await serviceManager.toolsService.voxelDownsampling.voxelDownsampleBackend(
-          {
-            voxelSize,
-            pointCloudData,
+      for (const pointCloudId of allPointCloudIds) {
+        const pointCloud = serviceManager.pointService?.getPointCloud(pointCloudId);
+        if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
+          for (const point of pointCloud.points) {
+            allPositions.push(point.position.x, point.position.y, point.position.z);
+            
+            // Calculate global bounding box
+            globalMinX = Math.min(globalMinX, point.position.x);
+            globalMinY = Math.min(globalMinY, point.position.y);
+            globalMinZ = Math.min(globalMinZ, point.position.z);
+            globalMaxX = Math.max(globalMaxX, point.position.x);
+            globalMaxY = Math.max(globalMaxY, point.position.y);
+            globalMaxZ = Math.max(globalMaxZ, point.position.z);
           }
-        );
+        }
+      }
 
-      if (result.success) {
-        Log.Info('Tools', 'BE voxel downsampling completed', result);
-        // TODO: Update the point cloud with downsampled data
-        // serviceManager.pointService.updatePointCloud(activePointCloud.id, result.downsampledPoints);
+      if (allPositions.length === 0) {
+        Log.Error('Tools', 'No valid points found for BE processing');
+        return;
+      }
+
+      const pointCloudData = new Float32Array(allPositions);
+
+      Log.Info('Tools', 'Starting BE voxel downsampling', {
+        pointCount: pointCloudData.length / 3,
+        voxelSize,
+        bounds: { globalMinX, globalMinY, globalMinZ, globalMaxX, globalMaxY, globalMaxZ }
+      });
+
+      // Clear the scene
+      serviceManager.pointService?.clearAllPointClouds();
+
+      // Process with Backend implementation
+      const result = await serviceManager.toolsService.voxelDownsamplingBackend.voxelDownsampleBackend({
+        voxelSize,
+        pointCloudData,
+        globalBounds: {
+          minX: globalMinX,
+          minY: globalMinY,
+          minZ: globalMinZ,
+          maxX: globalMaxX,
+          maxY: globalMaxY,
+          maxZ: globalMaxZ,
+        }
+      });
+
+      if (result.success && result.downsampledPoints) {
+        // Convert downsampled points to PointCloudPoint array
+        const downsampledPoints = [];
+        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
+          downsampledPoints.push({
+            position: {
+              x: result.downsampledPoints[i],
+              y: result.downsampledPoints[i + 1],
+              z: result.downsampledPoints[i + 2],
+            },
+            color: { r: 1, g: 0, b: 0 }, // Red color for Backend processed points
+            intensity: 1,
+            classification: 0,
+          });
+        }
+
+        // Create point cloud for Backend result
+        const backendPointCloud = {
+          points: downsampledPoints,
+          metadata: {
+            name: 'Backend Downsampled Point Cloud',
+            totalPoints: downsampledPoints.length,
+            bounds: {
+              min: {
+                x: Math.min(...downsampledPoints.map(p => p.position.x)),
+                y: Math.min(...downsampledPoints.map(p => p.position.y)),
+                z: Math.min(...downsampledPoints.map(p => p.position.z))
+              },
+              max: {
+                x: Math.max(...downsampledPoints.map(p => p.position.x)),
+                y: Math.max(...downsampledPoints.map(p => p.position.y)),
+                z: Math.max(...downsampledPoints.map(p => p.position.z))
+              }
+            },
+            hasColor: true,
+            hasIntensity: true,
+            hasClassification: true,
+            originalCount: result.originalCount,
+            downsampledCount: result.downsampledCount,
+            voxelSize: voxelSize,
+            processingTime: result.processingTime,
+            method: result.method || 'Backend Node.js'
+          },
+        };
+
+        // Add Backend result to the scene
+        const backendId = `backend_downsampled_${Date.now()}`;
+        await serviceManager.pointService?.loadPointCloud(backendId, backendPointCloud, false); // Don't reposition camera
+
+        Log.Info('Tools', 'Backend voxel downsampling completed', {
+          originalCount: result.originalCount,
+          downsampledCount: result.downsampledCount,
+          reduction: ((result.originalCount - result.downsampledCount) / result.originalCount * 100).toFixed(2) + '%',
+          processingTime: result.processingTime.toFixed(2) + 'ms'
+        });
       } else {
-        Log.Error('Tools', 'BE voxel downsampling failed', result.error);
+        Log.Error('Tools', 'Backend voxel downsampling failed', result.error);
       }
     } catch (error) {
-      Log.Error('Tools', 'BE voxel downsampling error', error);
+      Log.Error('Tools', 'Backend voxel downsampling error', error);
     }
   };
 

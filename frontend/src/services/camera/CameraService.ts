@@ -52,7 +52,7 @@ export class CameraService extends BaseService {
       'camera',
       -Math.PI / 2,
       Math.PI / 2.5,
-      20,
+      50, // Increased distance to see the point cloud better
       Vector3.Zero(),
       this._scene
     );
@@ -173,7 +173,7 @@ export class CameraService extends BaseService {
     this._camera.setTarget(Vector3.Zero());
     this._camera.alpha = -Math.PI / 2;
     this._camera.beta = Math.PI / 2.5;
-    this._camera.radius = 20;
+    this._camera.radius = 50; // Match the initial setup distance
   }
 
   /**

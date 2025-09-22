@@ -41,12 +41,12 @@ export class ServiceManager extends BaseService {
         this._toolsService.initialize(),
       ]);
 
-      // Initialize point service with the scene
+      // Initialize point service with the scene and service manager
       const scene = this._sceneService.scene;
       if (!scene) {
         throw new Error('Failed to get scene from scene service');
       }
-      await this._pointService.initialize(scene);
+      await this._pointService.initialize(scene, this);
 
       this.isInitialized = true;
       this.emit('initialized');
@@ -162,8 +162,8 @@ export class ServiceManager extends BaseService {
   }
 
   // Point Service Methods
-  async loadPointCloud(id: string, data: PointCloudData): Promise<void> {
-    return this._pointService.loadPointCloud(id, data);
+  async loadPointCloud(id: string, data: PointCloudData, autoPositionCamera: boolean = true): Promise<void> {
+    return this._pointService.loadPointCloud(id, data, autoPositionCamera);
   }
 
   generateSamplePointCloud(
