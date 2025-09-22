@@ -19,6 +19,7 @@ export class PointService extends BaseService {
   private pointMesh: PointMesh | null = null;
   private scene: any = null;
   private serviceManager: any = null;
+  private _batchSize: number = 5000;
 
   async initialize(scene: any, serviceManager?: any): Promise<void> {
     this.scene = scene;
@@ -183,6 +184,14 @@ export class PointService extends BaseService {
     return this._activePointCloudId;
   }
 
+  get batchSize(): number {
+    return this._batchSize;
+  }
+
+  setBatchSize(size: number): void {
+    this._batchSize = Math.max(100, Math.min(50000, size)); // Clamp between 100 and 50000
+  }
+
   /**
    * Get point mesh instance
    */
@@ -271,7 +280,7 @@ export class PointService extends BaseService {
     }
 
     // Create the mesh directly
-    this.pointMesh.createPointCloudMesh(id, pointCloud, options);
+    this.pointMesh.createPointCloudMesh(id, pointCloud, options, this._batchSize);
     
     // Note: Camera auto-positioning is handled in loadPointCloud, not here
     // This prevents camera repositioning during downsampling operations

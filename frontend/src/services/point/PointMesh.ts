@@ -25,7 +25,8 @@ export class PointMesh {
   createPointCloudMesh(
     id: string,
     pointCloudData: PointCloudData,
-    options: RenderOptions
+    options: RenderOptions,
+    batchSize: number = 1000
   ): any {
     Log.Debug('PointMesh', 'Creating point cloud mesh', { id, hasScene: !!this.scene, pointCount: pointCloudData.points?.length || 0 });
     
@@ -63,7 +64,7 @@ export class PointMesh {
     const colors = new Float32Array(pointsToRender.length * 4);
 
     // Process points in batches for better memory management
-    const batchSize = 1000;
+    // batchSize is now passed as parameter
     for (
       let batchStart = 0;
       batchStart < pointsToRender.length;

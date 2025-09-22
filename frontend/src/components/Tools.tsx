@@ -10,6 +10,7 @@ interface ToolsProps {
 export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [voxelSize, setVoxelSize] = useState(0.1);
+  const [wasmBatchSize, setWasmBatchSize] = useState(5000);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
   const [isCancelled, setIsCancelled] = useState(false);
@@ -17,12 +18,15 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
   // Use ref to track processing state for event handlers
   const isProcessingRef = useRef(false);
 
-  // Initialize voxel size from service
+  // Initialize voxel size and batch size from service
   useEffect(() => {
     if (serviceManager?.toolsService) {
       setVoxelSize(
         serviceManager.toolsService.voxelDownsampling.currentVoxelSize
       );
+    }
+    if (serviceManager?.pointService) {
+      setWasmBatchSize(serviceManager.pointService.batchSize);
     }
   }, [serviceManager]);
 
@@ -89,6 +93,14 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       if (showVoxelDebug) {
         serviceManager.toolsService.voxelDownsampling.updateVoxelDebug(newSize);
       }
+    }
+  };
+
+  // Handle WASM batch size changes
+  const handleWasmBatchSizeChange = (newSize: number) => {
+    setWasmBatchSize(newSize);
+    if (serviceManager?.pointService) {
+      serviceManager.pointService.setBatchSize(newSize);
     }
   };
 
@@ -232,35 +244,54 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
           continue;
         }
 
-        Log.Debug('Tools', `Processing batch: ${pointCloudId} with ${pointCloud.points.length} points`);
+        Log.Debug('Tools', `Processing point cloud: ${pointCloudId} with ${pointCloud.points.length} points`);
 
-        // Convert points to Float32Array for this batch
-        const batchPositions: number[] = [];
+        // Convert points to Float32Array
+        const allPositions: number[] = [];
         for (const point of pointCloud.points) {
-          batchPositions.push(point.position.x, point.position.y, point.position.z);
+          allPositions.push(point.position.x, point.position.y, point.position.z);
         }
 
-        const batchPointCloudData = new Float32Array(batchPositions);
-        totalOriginalPoints += batchPositions.length / 3;
+        const allPointCloudData = new Float32Array(allPositions);
+        totalOriginalPoints += allPositions.length / 3;
 
-        // Process this batch with WASM worker
-        const batchResult = await serviceManager.toolsService.voxelDownsampling.voxelDownsampleBatchWasm(
-          {
-            batchId: pointCloudId,
-            points: batchPointCloudData,
-            voxelSize: effectiveVoxelSize,
-            globalBounds: {
-              minX: globalMinX,
-              minY: globalMinY,
-              minZ: globalMinZ,
-              maxX: globalMaxX,
-              maxY: globalMaxY,
-              maxZ: globalMaxZ,
-            }
+        // Split large point clouds into smaller batches based on wasmBatchSize
+        const pointsPerBatch = wasmBatchSize * 3; // 3 coordinates per point
+        const numBatches = Math.ceil(allPointCloudData.length / pointsPerBatch);
+        
+        Log.Info('Tools', `Splitting ${pointCloudId} into ${numBatches} batches of ${wasmBatchSize} points each`);
+
+        for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
+          // Check for cancellation before each batch
+          if (isCancelled) {
+            Log.Info('Tools', 'Voxel downsampling cancelled during batch processing');
+            break;
           }
-        );
 
-        if (batchResult.success && batchResult.downsampledPoints) {
+          const batchStart = batchIndex * pointsPerBatch;
+          const batchEnd = Math.min(batchStart + pointsPerBatch, allPointCloudData.length);
+          const batchData = allPointCloudData.slice(batchStart, batchEnd);
+
+          Log.Debug('Tools', `Processing batch ${batchIndex + 1}/${numBatches}: ${batchData.length / 3} points`);
+
+          // Process this batch with WASM worker
+          const batchResult = await serviceManager.toolsService.voxelDownsampling.voxelDownsampleBatchWasm(
+            {
+              batchId: `${pointCloudId}_batch_${batchIndex + 1}`,
+              points: batchData,
+              voxelSize: effectiveVoxelSize,
+              globalBounds: {
+                minX: globalMinX,
+                minY: globalMinY,
+                minZ: globalMinZ,
+                maxX: globalMaxX,
+                maxY: globalMaxY,
+                maxZ: globalMaxZ,
+              }
+            }
+          );
+
+          if (batchResult.success && batchResult.downsampledPoints) {
           // Convert downsampled points to PointCloudPoint array
           const downsampledPoints = [];
           for (let i = 0; i < batchResult.downsampledPoints.length; i += 3) {
@@ -300,34 +331,37 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
               hasColor: true,
               hasIntensity: true,
               hasClassification: true,
-              originalCount: batchPositions.length / 3,
+              originalCount: batchData.length / 3,
               downsampledCount: downsampledPoints.length,
               voxelSize: effectiveVoxelSize,
               processingTime: batchResult.processingTime,
+              batchSize: wasmBatchSize,
             },
           };
 
-          // Add this batch to the scene immediately
-          const batchId = `downsampled_batch_${batchCount}`;
-          await serviceManager.pointService?.loadPointCloud(batchId, batchPointCloud, false); // Don't reposition camera
+            // Add this batch to the scene immediately
+            const batchId = `downsampled_batch_${batchCount}`;
+            await serviceManager.pointService?.loadPointCloud(batchId, batchPointCloud, false); // Don't reposition camera
 
-          Log.Debug('Tools', `Added downsampled batch ${batchCount}: ${downsampledPoints.length} points`);
-        } else {
-          // Check if it's a cancellation (expected) or actual error
-          if (batchResult.error === 'Processing was cancelled') {
-            Log.Info('Tools', `Batch ${pointCloudId} processing cancelled`);
+            Log.Debug('Tools', `Added downsampled batch ${batchCount}: ${downsampledPoints.length} points (batch size: ${wasmBatchSize})`);
           } else {
-            Log.Error('Tools', `Batch ${pointCloudId} processing failed`, batchResult.error);
+            // Check if it's a cancellation (expected) or actual error
+            if (batchResult.error === 'Processing was cancelled') {
+              Log.Info('Tools', 'Batch processing was cancelled');
+              break;
+            } else {
+              Log.Error('Tools', 'Batch processing failed', batchResult.error);
+            }
           }
         }
       }
 
-      Log.Info('Tools', `Incremental processing complete: ${totalOriginalPoints} original → ${totalDownsampledPoints} downsampled points in ${batchCount} batches`);
+      Log.Info('Tools', `WASM processing complete: ${totalOriginalPoints} original → ${totalDownsampledPoints} downsampled points in ${batchCount} batches (batch size: ${wasmBatchSize})`);
 
       // Reset processing state when all batches are complete
       serviceManager.toolsService.voxelDownsampling.resetProcessingState();
 
-     } catch (error) {
+    } catch (error) {
        Log.Error('Tools', 'WASM voxel downsampling error', error);
        // Reset processing state on error too
        serviceManager.toolsService.voxelDownsampling.resetProcessingState();
@@ -470,18 +504,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       name: 'Voxel Downsampling',
       description: 'Reduce point count by averaging points in grid cells',
     },
-    {
-      name: 'Pass-Through Filtering',
-      description: 'Filter by coordinate ranges (X, Y, Z)',
-    },
-    {
-      name: 'Statistical Outlier Removal',
-      description: 'Remove noise points (isolated points)',
-    },
-    {
-      name: 'Plane Segmentation',
-      description: 'Find and extract flat surfaces (ground, walls)',
-    },
   ];
 
   return (
@@ -524,31 +546,21 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                   <div className="tools-col-2">
                     {tool.name === 'Voxel Downsampling' && (
                       <div className="tool-control">
-                        <div className="tool-slider-container">
+                        <div className="tool-batch-size">
+                          <label>WASM Batch Size:</label>
                           <input
                             type="range"
-                            min="0.01"
-                            max="2.0"
-                            step="0.01"
-                            value={voxelSize}
-                            onChange={e =>
-                              handleVoxelSizeChange(parseFloat(e.target.value))
-                            }
+                            min="100"
+                            max="50000"
+                            step="500"
+                            value={wasmBatchSize}
+                            onChange={e => handleWasmBatchSizeChange(parseInt(e.target.value))}
                             className="tool-slider"
+                            style={{ width: '120px', marginLeft: '8px' }}
                           />
-                          <div className="tool-value">
-                            {voxelSize.toFixed(2)}m
-                          </div>
-                        </div>
-                        <div className="tool-debug-toggle">
-                          <label>
-                            <input
-                              type="checkbox"
-                              checked={showVoxelDebug}
-                              onChange={handleVoxelDebugToggle}
-                            />
-                            Show Voxel Grid
-                          </label>
+                          <span style={{ marginLeft: '8px', fontSize: '12px' }}>
+                            {wasmBatchSize}
+                          </span>
                         </div>
                       </div>
                     )}
@@ -603,6 +615,72 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                   </div>
                 </div>
               ))}
+
+              {/* Debug Voxels Row */}
+              <div className="tools-table-row">
+                <div className="tools-col-1">
+                  <div className="tool-name">Debug Voxels</div>
+                  <div className="tool-description">Visualize voxel grid for debugging</div>
+                </div>
+                <div className="tools-col-2">
+                  <div className="tool-control">
+                    <div className="tool-debug-toggle">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={showVoxelDebug}
+                          onChange={handleVoxelDebugToggle}
+                        />
+                        Show Voxel Grid
+                      </label>
+                    </div>
+                    <div className="tool-slider-container">
+                      <label>Debug Voxel Size:</label>
+                      <input
+                        type="range"
+                        min="0.01"
+                        max="2.0"
+                        step="0.01"
+                        value={voxelSize}
+                        onChange={e =>
+                          handleVoxelSizeChange(parseFloat(e.target.value))
+                        }
+                        className="tool-slider"
+                        style={{ width: '120px', marginLeft: '8px' }}
+                      />
+                      <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
+                        {voxelSize.toFixed(2)}m
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="tools-col-3">
+                  <button
+                    className="tools-wasm-btn"
+                    onClick={() => {
+                      if (showVoxelDebug) {
+                        serviceManager?.toolsService?.voxelDownsampling?.showVoxelDebug(voxelSize);
+                      }
+                    }}
+                    disabled={!showVoxelDebug}
+                  >
+                    WASM
+                  </button>
+                </div>
+                <div className="tools-col-4">
+                  <button
+                    className="tools-be-btn"
+                    onClick={() => {
+                      if (showVoxelDebug) {
+                        serviceManager?.toolsService?.voxelDownsampling?.showVoxelDebug(voxelSize);
+                      }
+                    }}
+                    disabled={!showVoxelDebug}
+                  >
+                    BE
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
