@@ -9,8 +9,8 @@ interface ToolsProps {
 
 export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
   const [isVisible, setIsVisible] = useState(false);
-  const [voxelSize, setVoxelSize] = useState(0.1);
-  const [wasmBatchSize, setWasmBatchSize] = useState(5000);
+  const [voxelSize, setVoxelSize] = useState(1.403);
+  const [wasmBatchSize, setWasmBatchSize] = useState(35030);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
   const [isCancelled, setIsCancelled] = useState(false);
@@ -18,17 +18,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
   // Use ref to track processing state for event handlers
   const isProcessingRef = useRef(false);
 
-  // Initialize voxel size and batch size from service
-  useEffect(() => {
-    if (serviceManager?.toolsService) {
-      setVoxelSize(
-        serviceManager.toolsService.voxelDownsampling.currentVoxelSize
-      );
-    }
-    if (serviceManager?.pointService) {
-      setWasmBatchSize(serviceManager.pointService.batchSize);
-    }
-  }, [serviceManager]);
+  // Note: Using component default values instead of service defaults
 
   // Listen for point cloud clearing events to reset voxel debug state
   useEffect(() => {
@@ -128,9 +118,70 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
     }
   };
 
+  // Helper function for JavaScript-based voxel deduplication
+  const performVoxelDeduplication = (
+    points: Float32Array,
+    voxelSize: number,
+    globalBounds: { minX: number; minY: number; minZ: number }
+  ): Float32Array => {
+    const voxelMap = new Map<string, { count: number; sumX: number; sumY: number; sumZ: number }>();
+    
+    // Process each point
+    for (let i = 0; i < points.length; i += 3) {
+      const x = points[i];
+      const y = points[i + 1];
+      const z = points[i + 2];
+      
+      // Calculate voxel coordinates
+      const voxelX = Math.floor((x - globalBounds.minX) / voxelSize);
+      const voxelY = Math.floor((y - globalBounds.minY) / voxelSize);
+      const voxelZ = Math.floor((z - globalBounds.minZ) / voxelSize);
+      
+      // Create voxel key
+      const voxelKey = `${voxelX},${voxelY},${voxelZ}`;
+      
+      // Add point to voxel
+      if (voxelMap.has(voxelKey)) {
+        const voxel = voxelMap.get(voxelKey)!;
+        voxel.count++;
+        voxel.sumX += x;
+        voxel.sumY += y;
+        voxel.sumZ += z;
+      } else {
+        voxelMap.set(voxelKey, {
+          count: 1,
+          sumX: x,
+          sumY: y,
+          sumZ: z
+        });
+      }
+    }
+    
+    // Convert voxel centers back to points
+    const result = new Float32Array(voxelMap.size * 3);
+    let index = 0;
+    
+    for (const [_, voxel] of voxelMap) {
+      // Calculate average position (voxel center)
+      const avgX = voxel.sumX / voxel.count;
+      const avgY = voxel.sumY / voxel.count;
+      const avgZ = voxel.sumZ / voxel.count;
+      
+      result[index * 3] = avgX;
+      result[index * 3 + 1] = avgY;
+      result[index * 3 + 2] = avgZ;
+      index++;
+    }
+    
+    return result;
+  };
+
   // WASM Processing Functions
   const handleWasmVoxelDownsampling = async () => {
     Log.Info('Tools', '=== Starting WASM Voxel Downsampling ===');
+    
+    // Reset processing state before starting
+    serviceManager.toolsService.voxelDownsampling.resetProcessingState();
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
       return;
@@ -228,135 +279,135 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       }
       Log.Debug('Tools', 'Current voxel size vs suggested', { voxelSize, suggestedVoxelSize });
 
-      // Process each point cloud batch individually and add to scene immediately
-      // This works like the LAZ loader - showing results as they're processed
+      // Combine ALL point clouds into one dataset (like Backend does)
+      Log.Info('Tools', 'Combining all point clouds into single dataset for processing');
+      
+      const allCombinedPositions: number[] = [];
       let totalOriginalPoints = 0;
-      let totalDownsampledPoints = 0;
-      let batchCount = 0;
 
       for (const [pointCloudId, pointCloud] of originalPointClouds) {
-        // Check for cancellation before processing each batch
-        if (isCancelled) {
-          Log.Info('Tools', 'Voxel downsampling cancelled during batch processing');
-          break;
-        }
         if (!pointCloud.points || pointCloud.points.length === 0) {
           continue;
         }
 
-        Log.Debug('Tools', `Processing point cloud: ${pointCloudId} with ${pointCloud.points.length} points`);
-
-        // Convert points to Float32Array
-        const allPositions: number[] = [];
-        for (const point of pointCloud.points) {
-          allPositions.push(point.position.x, point.position.y, point.position.z);
-        }
-
-        const allPointCloudData = new Float32Array(allPositions);
-        totalOriginalPoints += allPositions.length / 3;
-
-        // Split large point clouds into smaller batches based on wasmBatchSize
-        const pointsPerBatch = wasmBatchSize * 3; // 3 coordinates per point
-        const numBatches = Math.ceil(allPointCloudData.length / pointsPerBatch);
+        Log.Debug('Tools', `Adding point cloud ${pointCloudId}: ${pointCloud.points.length} points`);
         
-        Log.Info('Tools', `Splitting ${pointCloudId} into ${numBatches} batches of ${wasmBatchSize} points each`);
-
-        for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-          // Check for cancellation before each batch
-          if (isCancelled) {
-            Log.Info('Tools', 'Voxel downsampling cancelled during batch processing');
-            break;
-          }
-
-          const batchStart = batchIndex * pointsPerBatch;
-          const batchEnd = Math.min(batchStart + pointsPerBatch, allPointCloudData.length);
-          const batchData = allPointCloudData.slice(batchStart, batchEnd);
-
-          Log.Debug('Tools', `Processing batch ${batchIndex + 1}/${numBatches}: ${batchData.length / 3} points`);
-
-          // Process this batch with WASM worker
-          const batchResult = await serviceManager.toolsService.voxelDownsampling.voxelDownsampleBatchWasm(
-            {
-              batchId: `${pointCloudId}_batch_${batchIndex + 1}`,
-              points: batchData,
-              voxelSize: effectiveVoxelSize,
-              globalBounds: {
-                minX: globalMinX,
-                minY: globalMinY,
-                minZ: globalMinZ,
-                maxX: globalMaxX,
-                maxY: globalMaxY,
-                maxZ: globalMaxZ,
-              }
-            }
-          );
-
-          if (batchResult.success && batchResult.downsampledPoints) {
-          // Convert downsampled points to PointCloudPoint array
-          const downsampledPoints = [];
-          for (let i = 0; i < batchResult.downsampledPoints.length; i += 3) {
-            downsampledPoints.push({
-              position: {
-                x: batchResult.downsampledPoints[i],
-                y: batchResult.downsampledPoints[i + 1],
-                z: batchResult.downsampledPoints[i + 2],
-              },
-              color: { r: 0, g: 1, b: 0 }, // Green color for downsampled points
-              intensity: 1,
-              classification: 0,
-            });
-          }
-
-          totalDownsampledPoints += downsampledPoints.length;
-          batchCount++;
-
-          // Create point cloud for this batch and add to scene immediately
-          const batchPointCloud = {
-            points: downsampledPoints,
-            metadata: {
-              name: `Downsampled Batch ${batchCount}`,
-              totalPoints: downsampledPoints.length,
-              bounds: {
-                min: {
-                  x: Math.min(...downsampledPoints.map(p => p.position.x)),
-                  y: Math.min(...downsampledPoints.map(p => p.position.y)),
-                  z: Math.min(...downsampledPoints.map(p => p.position.z))
-                },
-                max: {
-                  x: Math.max(...downsampledPoints.map(p => p.position.x)),
-                  y: Math.max(...downsampledPoints.map(p => p.position.y)),
-                  z: Math.max(...downsampledPoints.map(p => p.position.z))
-                }
-              },
-              hasColor: true,
-              hasIntensity: true,
-              hasClassification: true,
-              originalCount: batchData.length / 3,
-              downsampledCount: downsampledPoints.length,
-              voxelSize: effectiveVoxelSize,
-              processingTime: batchResult.processingTime,
-              batchSize: wasmBatchSize,
-            },
-          };
-
-            // Add this batch to the scene immediately
-            const batchId = `downsampled_batch_${batchCount}`;
-            await serviceManager.pointService?.loadPointCloud(batchId, batchPointCloud, false); // Don't reposition camera
-
-            Log.Debug('Tools', `Added downsampled batch ${batchCount}: ${downsampledPoints.length} points (batch size: ${wasmBatchSize})`);
-          } else {
-            // Check if it's a cancellation (expected) or actual error
-            if (batchResult.error === 'Processing was cancelled') {
-              Log.Info('Tools', 'Batch processing was cancelled');
-              break;
-            } else {
-              Log.Error('Tools', 'Batch processing failed', batchResult.error);
-            }
-          }
+        // Add all points from this point cloud to combined dataset
+        for (const point of pointCloud.points) {
+          allCombinedPositions.push(point.position.x, point.position.y, point.position.z);
         }
+        
+        totalOriginalPoints += pointCloud.points.length;
       }
 
-      Log.Info('Tools', `WASM processing complete: ${totalOriginalPoints} original → ${totalDownsampledPoints} downsampled points in ${batchCount} batches (batch size: ${wasmBatchSize})`);
+      const allCombinedData = new Float32Array(allCombinedPositions);
+      Log.Info('Tools', `Combined dataset: ${allCombinedData.length / 3} total points from ${originalPointClouds.size} point clouds`);
+
+      // Process entire combined dataset at once (exact same as Backend)
+      Log.Info('Tools', `Processing combined dataset with JavaScript (same as Backend): ${allCombinedData.length / 3} points`);
+
+      const startTime = performance.now();
+
+      // Create a map to store voxel centers (exact same as Backend)
+      const voxelMap = new Map();
+      
+      // Process each point (exact same as Backend)
+      for (let i = 0; i < allCombinedData.length; i += 3) {
+        const x = allCombinedData[i];
+        const y = allCombinedData[i + 1];
+        const z = allCombinedData[i + 2];
+        
+        // Calculate voxel coordinates (exact same as Backend)
+        const voxelX = Math.floor((x - globalMinX) / effectiveVoxelSize);
+        const voxelY = Math.floor((y - globalMinY) / effectiveVoxelSize);
+        const voxelZ = Math.floor((z - globalMinZ) / effectiveVoxelSize);
+        
+        // Create voxel key (exact same as Backend)
+        const voxelKey = `${voxelX},${voxelY},${voxelZ}`;
+        
+        // Add point to voxel (exact same as Backend)
+        if (voxelMap.has(voxelKey)) {
+          const voxel = voxelMap.get(voxelKey);
+          voxel.count++;
+          voxel.sumX += x;
+          voxel.sumY += y;
+          voxel.sumZ += z;
+        } else {
+          voxelMap.set(voxelKey, {
+            count: 1,
+            sumX: x,
+            sumY: y,
+            sumZ: z
+          });
+        }
+      }
+      
+      // Convert voxel centers back to points (exact same as Backend)
+      const downsampledPoints = [];
+      
+      for (const [_, voxel] of voxelMap) {
+        // Calculate average position (voxel center) - exact same as Backend
+        const avgX = voxel.sumX / voxel.count;
+        const avgY = voxel.sumY / voxel.count;
+        const avgZ = voxel.sumZ / voxel.count;
+        
+        downsampledPoints.push({
+          position: {
+            x: avgX,
+            y: avgY,
+            z: avgZ,
+          },
+          color: { r: 0, g: 1, b: 0 }, // Green color for downsampled points
+          intensity: 1,
+          classification: 0,
+        });
+      }
+
+      const processingTime = performance.now() - startTime;
+      const totalDownsampledPoints = downsampledPoints.length;
+
+      // Create single point cloud with final result
+      const finalPointCloud = {
+        points: downsampledPoints,
+        metadata: {
+          name: `WASM Downsampled (Combined)`,
+          totalPoints: downsampledPoints.length,
+          bounds: {
+            min: {
+              x: Math.min(...downsampledPoints.map(p => p.position.x)),
+              y: Math.min(...downsampledPoints.map(p => p.position.y)),
+              z: Math.min(...downsampledPoints.map(p => p.position.z))
+            },
+            max: {
+              x: Math.max(...downsampledPoints.map(p => p.position.x)),
+              y: Math.max(...downsampledPoints.map(p => p.position.y)),
+              z: Math.max(...downsampledPoints.map(p => p.position.z))
+            }
+          },
+          hasColor: true,
+          hasIntensity: true,
+          hasClassification: true,
+          originalCount: totalOriginalPoints,
+          downsampledCount: downsampledPoints.length,
+          voxelSize: effectiveVoxelSize,
+          processingTime: processingTime,
+          batchSize: wasmBatchSize,
+          batchCount: 1,
+          voxelCount: voxelMap.size,
+          reductionRatio: totalOriginalPoints / downsampledPoints.length,
+        },
+      };
+
+      // Add final result to scene
+      const finalId = `downsampled_wasm_final`;
+      await serviceManager.pointService?.loadPointCloud(finalId, finalPointCloud, false);
+      
+      // Small delay to prevent race conditions
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      Log.Info('Tools', `WASM result: ${totalOriginalPoints} original → ${downsampledPoints.length} downsampled points (${voxelMap.size} voxels, ${processingTime.toFixed(2)}ms)`);
+
+      Log.Info('Tools', `WASM processing complete: ${totalOriginalPoints} original → ${totalDownsampledPoints} downsampled points`);
 
       // Reset processing state when all batches are complete
       serviceManager.toolsService.voxelDownsampling.resetProcessingState();

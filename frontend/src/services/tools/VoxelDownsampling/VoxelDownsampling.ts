@@ -181,11 +181,16 @@ export class VoxelDownsampling extends BaseService {
     // If worker is not ready, fall back to direct WASM processing
     if (!this._workerService.ready) {
       Log.WarnClass(this, 'Worker not ready, falling back to direct WASM processing');
-      return this.voxelDownsampleWasm({
+      // Temporarily reset processing flag for fallback to avoid conflict
+      const wasProcessing = this._isProcessing;
+      this._isProcessing = false;
+      const result = await this.voxelDownsampleWasm({
         pointCloudData: batchData.points,
         voxelSize: batchData.voxelSize,
         globalBounds: batchData.globalBounds
       });
+      this._isProcessing = wasProcessing; // Restore original state
+      return result;
     }
 
     try {
@@ -201,11 +206,16 @@ export class VoxelDownsampling extends BaseService {
       };
     } catch (error) {
       Log.WarnClass(this, 'Worker processing failed, falling back to direct WASM', error);
-      return this.voxelDownsampleWasm({
+      // Temporarily reset processing flag for fallback to avoid conflict
+      const wasProcessing = this._isProcessing;
+      this._isProcessing = false;
+      const result = await this.voxelDownsampleWasm({
         pointCloudData: batchData.points,
         voxelSize: batchData.voxelSize,
         globalBounds: batchData.globalBounds
       });
+      this._isProcessing = wasProcessing; // Restore original state
+      return result;
     }
   }
 
