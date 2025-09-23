@@ -72,9 +72,8 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
 
       await serviceManager.loadPointCloud('sample-1', sampleData);
 
-      // Set the sample data as active and trigger rendering
-      serviceManager.activePointCloudId = 'sample-1';
-      serviceManager.renderActivePointCloud();
+      // Note: loadPointCloud already handles rendering and camera positioning
+      // No need to call renderActivePointCloud() again as it causes duplicate rendering
     } catch (err) {
       Log.Error('LoadPoints', 'Error loading sample data', err);
       onErrorChange(

@@ -48,6 +48,15 @@ export class PointMesh {
     // Create PointsCloudSystem with optimized capacity
     const pcs = new PointsCloudSystem(`pointCloud_${id}`, 1, this.scene);
     this.meshes.set(id, pcs);
+    
+    // Debug: Check available methods on PointsCloudSystem
+    Log.Debug('PointMesh', 'PointsCloudSystem created', { 
+      id, 
+      hasBuildMesh: typeof pcs.buildMesh === 'function',
+      hasBuildMeshAsync: typeof pcs.buildMeshAsync === 'function',
+      hasSetParticles: typeof pcs.setParticles === 'function',
+      availableMethods: Object.getOwnPropertyNames(pcs).filter(name => typeof pcs[name] === 'function')
+    });
 
     // Apply level-of-detail based on point count
     const pointCount = this.calculateLODPointCount(
@@ -123,20 +132,56 @@ export class PointMesh {
     pcs.setParticles();
     Log.Debug('PointMesh', 'Particles set', { id, particleCount: pcs.nbParticles });
 
-    // Build the mesh asynchronously but don't wait for it - this allows batches to process immediately
+    // Try to build the mesh - check if buildMeshAsync exists first
     try {
-      pcs.buildMeshAsync().then(() => {
-        Log.Debug('PointMesh', 'Mesh built successfully', { id, hasMesh: !!pcs.mesh });
-        // Set point size after mesh is built
-        if (pcs.mesh && pcs.mesh.material) {
-          pcs.mesh.material.pointSize = options.pointSize;
-          Log.Debug('PointMesh', 'Point size set', { pointSize: options.pointSize });
+      if (typeof pcs.buildMeshAsync === 'function') {
+        pcs.buildMeshAsync().then(() => {
+          Log.Debug('PointMesh', 'Mesh built successfully', { id, hasMesh: !!pcs.mesh });
+          
+          // Set point size after mesh is built
+          if (pcs.mesh && pcs.mesh.material) {
+            pcs.mesh.material.pointSize = options.pointSize;
+            Log.Debug('PointMesh', 'Point size set', { pointSize: options.pointSize });
+          }
+          
+          // Ensure the mesh is visible
+          if (pcs.mesh) {
+            pcs.mesh.setEnabled(true);
+            pcs.mesh.isVisible = true;
+            Log.Debug('PointMesh', 'Mesh enabled and visible', { 
+              id, 
+              isEnabled: pcs.mesh.isEnabled(), 
+              isVisible: pcs.mesh.isVisible,
+              position: pcs.mesh.position,
+              boundingInfo: pcs.mesh.getBoundingInfo(),
+              material: !!pcs.mesh.material,
+              pointSize: pcs.mesh.material?.pointSize
+            });
+          }
+        }).catch((error) => {
+          Log.Error('PointMesh', 'Failed to build mesh', { id, error: error instanceof Error ? error.message : 'Unknown error', stack: error instanceof Error ? error.stack : undefined });
+        });
+      } else {
+        // If buildMeshAsync doesn't exist, try to build synchronously or use alternative method
+        Log.Warn('PointMesh', 'buildMeshAsync not available, trying alternative approach', { id });
+        
+        // Try to force the mesh creation
+        if (pcs.mesh) {
+          pcs.mesh.setEnabled(true);
+          pcs.mesh.isVisible = true;
+          Log.Debug('PointMesh', 'Mesh enabled and visible', { 
+            id, 
+            isEnabled: pcs.mesh.isEnabled(), 
+            isVisible: pcs.mesh.isVisible,
+            position: pcs.mesh.position,
+            boundingInfo: pcs.mesh.getBoundingInfo(),
+            material: !!pcs.mesh.material,
+            pointSize: pcs.mesh.material?.pointSize
+          });
         }
-      }).catch((error) => {
-        Log.Error('PointMesh', 'Failed to build mesh', { id, error: error instanceof Error ? error.message : 'Unknown error', stack: error instanceof Error ? error.stack : undefined });
-      });
+      }
     } catch (error) {
-      Log.Error('PointMesh', 'Error calling buildMeshAsync', { id, error: error instanceof Error ? error.message : 'Unknown error' });
+      Log.Error('PointMesh', 'Error building mesh', { id, error: error instanceof Error ? error.message : 'Unknown error' });
     }
 
     // Update performance stats

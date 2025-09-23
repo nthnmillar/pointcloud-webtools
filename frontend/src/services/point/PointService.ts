@@ -22,6 +22,11 @@ export class PointService extends BaseService {
   private _batchSize: number = 5000;
 
   async initialize(scene: any, serviceManager?: any): Promise<void> {
+    if (this.isInitialized) {
+      Log.WarnClass(this, 'PointService already initialized, skipping');
+      return;
+    }
+    
     this.scene = scene;
     this.serviceManager = serviceManager;
     this.pointMesh = new PointMesh(scene);
@@ -46,6 +51,12 @@ export class PointService extends BaseService {
 
     try {
       this.validatePointCloudData(data);
+
+      // Check if point cloud already exists and clear it first
+      if (this.pointClouds.has(id)) {
+        Log.InfoClass(this, 'Point cloud already exists, replacing', { id });
+        this.removePointCloud(id);
+      }
 
       this.pointClouds.set(id, data);
 
