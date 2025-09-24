@@ -1,11 +1,12 @@
 import { BaseService } from './BaseService';
 import { PointService } from './point/PointService';
 import { SceneService } from './scene/SceneService';
+import { CameraService } from './camera/CameraService';
 import { RenderService } from './render/RenderService';
 import { LoaderService } from './loader/LoaderService';
-import { CameraService } from './camera/CameraService';
 import { ToolsService } from './tools/ToolsService';
 import type { PointCloudData, RenderOptions } from './point/PointCloud';
+import { Log } from '../utils/Log';
 
 /**
  * Service Manager - Coordinates all services and manages their lifecycle
@@ -13,6 +14,7 @@ import type { PointCloudData, RenderOptions } from './point/PointCloud';
 export class ServiceManager extends BaseService {
   private _pointService: PointService;
   private _sceneService: SceneService;
+  private _cameraService: CameraService;
   private _renderService: RenderService;
   private _loaderService: LoaderService;
   private _toolsService: ToolsService;
@@ -23,6 +25,7 @@ export class ServiceManager extends BaseService {
     // Initialize services
     this._pointService = new PointService();
     this._sceneService = new SceneService();
+    this._cameraService = new CameraService();
     this._renderService = new RenderService();
     this._loaderService = new LoaderService(this);
     this._toolsService = new ToolsService(this);
@@ -31,22 +34,30 @@ export class ServiceManager extends BaseService {
     this.setupServiceCommunication();
   }
 
+
   async initialize(canvas: HTMLCanvasElement): Promise<void> {
     try {
-      // Initialize services
+      // Initialize services - ensure scene service is ready first
+      await this._sceneService.initialize(canvas);
+      
+      // Get the scene
+      const scene = this._sceneService.scene;
+      
+      // Initialize camera service with the scene
+      if (scene) {
+        await this._cameraService.initialize(scene, canvas);
+      }
+      
       await Promise.all([
-        this._sceneService.initialize(canvas),
         this._renderService.initialize(),
         this._loaderService.initialize(),
         this._toolsService.initialize(),
       ]);
 
       // Initialize point service with the scene and service manager
-      const scene = this._sceneService.scene;
-      if (!scene) {
-        throw new Error('Failed to get scene from scene service');
+      if (scene) {
+        await this._pointService.initialize(scene, this);
       }
-      await this._pointService.initialize(scene, this);
 
       this.isInitialized = true;
       this.emit('initialized');
@@ -79,7 +90,7 @@ export class ServiceManager extends BaseService {
     // Point service events
     this._pointService.on('loaded', data => {
       this.emit('pointCloudLoaded', data);
-      this.renderActivePointCloud();
+      // Note: renderActivePointCloud() is already called by loadPointCloud() internally
     });
 
     this._pointService.on('loading', data => {
@@ -130,12 +141,12 @@ export class ServiceManager extends BaseService {
         // Received point cloud data
         // Generate a unique ID for the loaded point cloud
         const id = `loaded_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        this.loadPointCloud(id, data.pointCloudData);
+        this.loadPointCloud(id, data.pointCloudData).catch((error) => {
+          Log.Error('ServiceManager', 'Error loading point cloud', error);
+        });
         // Set the newly loaded point cloud as active
         this.activePointCloudId = id;
-        // Set active point cloud
-        // Trigger rendering of the new point cloud
-        this.renderActivePointCloud();
+        // Note: renderActivePointCloud() is already called by loadPointCloud() internally
       }
     });
 
@@ -230,7 +241,7 @@ export class ServiceManager extends BaseService {
   }
 
   get cameraService(): CameraService {
-    return this._sceneService.cameraService;
+    return this._cameraService;
   }
 
   // Convenience methods for UI

@@ -1,148 +1,96 @@
-import {
-  Engine,
-  Scene,
-  HemisphericLight,
-  Vector3,
-  Color3,
-  Color4,
-} from '@babylonjs/core';
+import { Engine, Scene, ArcRotateCamera, HemisphericLight, Vector3, Color4, StandardMaterial, Color3 } from '@babylonjs/core';
 import { BaseService } from '../BaseService';
-import { CameraService } from '../camera/CameraService';
+import { Log } from '../../utils/Log';
 
-/**
- * Scene Service - Handles Babylon.js scene setup and management
- */
 export class SceneService extends BaseService {
   private _engine: Engine | null = null;
   private _scene: Scene | null = null;
-  private _cameraService: CameraService;
-  private _isWebGLReady: boolean = false;
+  private _camera: ArcRotateCamera | null = null;
+  private _light: HemisphericLight | null = null;
+  private _isWebGLReady = false;
 
   constructor() {
     super();
-    this._cameraService = new CameraService();
   }
+
 
   async initialize(canvas: HTMLCanvasElement): Promise<void> {
-    this._engine = new Engine(canvas, true);
-    this._scene = new Scene(this._engine);
+    try {
+      // Create engine
+      this._engine = new Engine(canvas, true);
 
-    this.setupScene();
-    this.setupLighting();
-    this.startRenderLoop();
+      // Create scene
+      this._scene = new Scene(this._engine);
+      
+      // Set background color
+      this._scene.clearColor = new Color4(0.1, 0.1, 0.1, 1.0); // Dark gray background
 
-    // Initialize camera service with the scene
-    await this._cameraService.initialize(this._scene, canvas);
-
-    // Mark WebGL as ready since engine and scene are created
-    this._isWebGLReady = true;
-
-    this.isInitialized = true;
-    this.emit('initialized');
-  }
-
-  dispose(): void {
-    if (this._engine) {
-      this._engine.dispose();
-    }
-    if (this._scene) {
-      this._scene.dispose();
-    }
-    this._cameraService.dispose();
-    this.removeAllObservers();
-  }
-
-  /**
-   * Initialize the scene
-   */
-  private setupScene(): void {
-    if (!this._scene) return;
-
-    this._scene.clearColor = new Color4(0.1, 0.1, 0.1, 1.0);
-    this._scene.ambientColor = new Color3(0.3, 0.3, 0.3);
-  }
-
-  /**
-   * Setup lighting
-   */
-  private setupLighting(): void {
-    if (!this._scene) return;
-
-    const light = new HemisphericLight(
-      'light',
-      new Vector3(0, 1, 0),
-      this._scene
-    );
-    light.intensity = 0.7;
-  }
-
-  /**
-   * Start the render loop
-   */
-  private startRenderLoop(): void {
-    if (!this._engine || !this._scene) return;
-
-    this._engine.runRenderLoop(() => {
-      this._scene?.render();
-    });
-
-    // Handle window resize
-    window.addEventListener('resize', () => {
-      this.engine?.resize();
-    });
-  }
-
-
-  /**
-   * Update scene background
-   */
-  updateBackgroundColor(backgroundColor: {
-    r: number;
-    g: number;
-    b: number;
-  }): void {
-    if (this._scene) {
-      this._scene.clearColor = new Color4(
-        backgroundColor.r,
-        backgroundColor.g,
-        backgroundColor.b,
-        1.0
+      // Create camera with better default position for point clouds
+      this._camera = new ArcRotateCamera(
+        "Camera",
+        Math.PI / 2,
+        Math.PI / 4,
+        30, // Start further back to avoid jump
+        Vector3.Zero(),
+        this._scene
       );
+      this._camera.attachControl(canvas, true);
+
+      // Create light
+      this._light = new HemisphericLight("light", new Vector3(0, 1, 0), this._scene);
+      this._light.intensity = 0.7;
+
+      // Start render loop
+      if (this._engine) {
+        this._engine.runRenderLoop(() => {
+          this._scene?.render();
+        });
+      }
+
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        this._engine?.resize();
+      });
+
+      this._isWebGLReady = true;
+      this.isInitialized = true;
+      this.emit('initialized');
+    } catch (error) {
+      throw error;
     }
   }
 
-  /**
-   * Get the scene for other services to use
-   */
-  get scene(): Scene | null {
-    return this._scene;
-  }
-
-  /**
-   * Get the engine
-   */
   get engine(): Engine | null {
     return this._engine;
   }
 
-  /**
-   * Get the camera service
-   */
-  get cameraService(): CameraService {
-    return this._cameraService;
+  get scene(): Scene | null {
+    return this._scene;
   }
 
-  /**
-   * Get the camera (for backward compatibility)
-   */
-  get camera() {
-    return this._cameraService.camera;
+  get camera(): ArcRotateCamera | null {
+    return this._camera;
   }
 
-  /**
-   * Check if WebGL is ready
-   */
+
   get isWebGLReady(): boolean {
     return this._isWebGLReady;
+  }
+
+  dispose(): void {
+    if (this._scene) {
+      this._scene.dispose();
+      this._scene = null;
+    }
+    
+    if (this._engine) {
+      this._engine.dispose();
+      this._engine = null;
+    }
+    
+    this._camera = null;
+    this._light = null;
+    this._isWebGLReady = false;
+    this.isInitialized = false;
   }
 }

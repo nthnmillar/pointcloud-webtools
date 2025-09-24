@@ -16,20 +16,22 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
   onLoadingChange,
   onErrorChange,
 }) => {
+  console.log('SceneControls rendered:', { hasServiceManager: !!serviceManager, isLoading });
   const [isVisible, setIsVisible] = useState(false);
 
   // Internal state for controls
   const [pointSize, setPointSize] = useState(2.0);
   const [zoomSensitivity, setZoomSensitivity] = useState(0.005);
-  const [panningSensitivity, setPanningSensitivity] = useState(0.05);
+  const [panningSensitivity, setPanningSensitivity] = useState(0.1);
   const [targetEnabled, setTargetEnabled] = useState(true);
 
   // Initialize values from service manager
   useEffect(() => {
-    if (serviceManager) {
-      setZoomSensitivity(serviceManager.cameraService.zoomSensitivity);
-      setPanningSensitivity(serviceManager.cameraService.panningSensitivity);
-      setTargetEnabled(serviceManager.cameraService.targetEnabled);
+    if (serviceManager && serviceManager.sceneService) {
+      // Set default values since we removed CameraService
+      setZoomSensitivity(0.005);
+      setPanningSensitivity(0.1);
+      setTargetEnabled(true);
     }
   }, [serviceManager]);
 
@@ -51,6 +53,7 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
     if (!serviceManager) return;
 
     setZoomSensitivity(newZoomSensitivity);
+    // Use CameraService for zoom sensitivity
     serviceManager.cameraService.zoomSensitivity = newZoomSensitivity;
   };
 
@@ -58,14 +61,22 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
     if (!serviceManager) return;
 
     setPanningSensitivity(newPanningSensitivity);
+    // Use CameraService for panning sensitivity
     serviceManager.cameraService.panningSensitivity = newPanningSensitivity;
   };
 
   const handleTargetToggle = (enabled: boolean) => {
-    if (!serviceManager) return;
+    console.log('Target toggle clicked:', enabled);
+    if (!serviceManager) {
+      console.warn('No service manager available');
+      return;
+    }
 
     setTargetEnabled(enabled);
+    
+    // Use CameraService to toggle target
     serviceManager.cameraService.targetEnabled = enabled;
+    console.log('Target sphere visibility set to:', enabled);
   };
 
   return (
@@ -73,7 +84,10 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
       {/* Toggle Button */}
       <div className="scene-controls-toggle">
         <button
-          onClick={() => setIsVisible(!isVisible)}
+          onClick={() => {
+            console.log('Scene controls toggle clicked');
+            setIsVisible(!isVisible);
+          }}
           className="scene-controls-toggle-btn"
         >
           {isVisible ? 'Hide' : 'Scene Controls'}
@@ -134,8 +148,8 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
               <label>Panning Sensitivity:</label>
               <input
                 type="range"
-                min="0.01"
-                max="0.5"
+                min="0.05"
+                max="0.3"
                 step="0.01"
                 value={panningSensitivity}
                 onChange={e =>

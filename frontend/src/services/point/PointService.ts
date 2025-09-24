@@ -65,11 +65,23 @@ export class PointService extends BaseService {
       }
 
       // Render the point cloud
-      this.renderPointCloud(id, this.getRenderOptions());
+      await this.renderPointCloud(id, this.getRenderOptions());
 
       // Auto-position camera only when requested (e.g., for new point clouds, not downsampled ones)
       if (autoPositionCamera) {
         this.autoPositionCamera(data);
+        
+        // Debug: Check camera position after positioning
+        if (this.scene && this.scene.activeCamera) {
+          Log.Info('PointService', 'Camera position after auto-positioning', {
+            cameraPosition: this.scene.activeCamera.position,
+            cameraTarget: this.scene.activeCamera.getTarget(),
+            cameraType: this.scene.activeCamera.getClassName(),
+            cameraRadius: this.scene.activeCamera.radius,
+            pointCloudCenter: data.metadata.bounds.center,
+            pointCloudSize: data.metadata.bounds.size
+          });
+        }
       }
 
       this.emit('loaded', { id, metadata: data.metadata });
@@ -254,7 +266,7 @@ export class PointService extends BaseService {
   /**
    * Create point cloud mesh directly (bypasses loadPointCloud)
    */
-  createPointCloudMesh(id: string, data: PointCloudData): void {
+  async createPointCloudMesh(id: string, data: PointCloudData): Promise<void> {
     try {
       Log.InfoClass(this, 'Creating point cloud', { id });
 
@@ -271,7 +283,7 @@ export class PointService extends BaseService {
 
       // Create the mesh directly - don't call renderPointCloud to avoid duplication
       if (this.pointMesh) {
-        this.pointMesh.createPointCloudMesh(id, data, this.getRenderOptions());
+        await this.pointMesh.createPointCloudMesh(id, data, this.getRenderOptions());
       }
     } catch (error) {
       throw error;
@@ -281,8 +293,21 @@ export class PointService extends BaseService {
   /**
    * Render a point cloud
    */
-  renderPointCloud(id: string, options: RenderOptions): void {
+  async renderPointCloud(id: string, options: RenderOptions): Promise<void> {
     Log.InfoClass(this, 'Rendering point cloud', { id, hasPointCloud: !!this.pointClouds.get(id), hasPointMesh: !!this.pointMesh, scene: !!this.scene });
+
+    // Debug: Check scene state before rendering
+    if (this.scene) {
+      Log.InfoClass(this, 'Scene state before rendering point cloud', {
+        hasScene: !!this.scene,
+        hasActiveCamera: !!this.scene.activeCamera,
+        sceneMeshes: this.scene.meshes.length,
+        sceneMeshNames: this.scene.meshes.map(m => m.name),
+        sceneChildren: this.scene.children ? this.scene.children.length : 0,
+        sceneId: this.scene.uid || 'no-uid',
+        sceneConstructor: this.scene.constructor.name
+      });
+    }
 
     const pointCloud = this.pointClouds.get(id);
     if (!pointCloud || !this.pointMesh) {
@@ -291,7 +316,7 @@ export class PointService extends BaseService {
     }
 
     // Create the mesh directly
-    this.pointMesh.createPointCloudMesh(id, pointCloud, options, this._batchSize);
+    await this.pointMesh.createPointCloudMesh(id, pointCloud, options, this._batchSize);
     
     // Note: Camera auto-positioning is handled in loadPointCloud, not here
     // This prevents camera repositioning during downsampling operations
@@ -373,10 +398,12 @@ export class PointService extends BaseService {
     }
 
     const bounds = pointCloud.metadata.bounds;
+    
+    // Transform coordinates from robotics (X=forward, Y=left, Z=up) to Babylon.js (X=right, Y=up, Z=forward)
     const center = {
-      x: (bounds.min.x + bounds.max.x) / 2,
-      y: (bounds.min.y + bounds.max.y) / 2,
-      z: (bounds.min.z + bounds.max.z) / 2,
+      x: -(bounds.min.y + bounds.max.y) / 2, // left -> right (negated)
+      y: (bounds.min.z + bounds.max.z) / 2, // up -> up
+      z: (bounds.min.x + bounds.max.x) / 2, // forward -> forward
     };
 
     // Calculate the size of the bounding box
@@ -392,15 +419,43 @@ export class PointService extends BaseService {
       size,
       pointCount: pointCloud.points.length 
     });
+    
+    // Debug: Log the actual point positions
+    const firstFewPoints = pointCloud.points.slice(0, 5).map(p => p.position);
+    Log.InfoClass(this, 'First few point positions', { firstFewPoints });
 
     // Set camera target to the center of the point cloud
-    this.serviceManager.cameraService.setTarget(new Vector3(center.x, center.y, center.z));
-    
-    // Set camera distance to be 2x the size of the bounding box
-    const camera = this.serviceManager.cameraService.camera;
+    const camera = this.serviceManager.sceneService.camera;
     if (camera) {
-      camera.radius = Math.max(size * 2, 10); // Minimum distance of 10
+      camera.setTarget(new Vector3(center.x, center.y, center.z));
+      // Only adjust radius if it's significantly different to avoid jump
+      const newRadius = Math.max(size * 2, 30);
+      if (Math.abs(camera.radius - newRadius) > 5) {
+        camera.radius = newRadius;
+      }
       Log.InfoClass(this, 'Camera positioned for point cloud', { center, size, radius: camera.radius });
+      
+      // Debug: Log actual camera position and target
+      Log.InfoClass(this, 'Camera debug info', {
+        position: camera.position,
+        target: camera.getTarget(),
+        radius: camera.radius,
+        alpha: camera.alpha,
+        beta: camera.beta,
+        distanceFromTarget: camera.position.subtract(camera.getTarget()).length()
+      });
+      
+      // Debug: Check if camera is looking at the right place
+      const target = camera.getTarget();
+      const distance = camera.position.subtract(target).length();
+      Log.InfoClass(this, 'Camera positioning check', {
+        pointCloudCenter: center,
+        cameraTarget: target,
+        cameraPosition: camera.position,
+        distanceFromTarget: distance,
+        pointCloudSize: size,
+        isReasonableDistance: distance < size * 5 // Should be within 5x the point cloud size
+      });
     } else {
       Log.WarnClass(this, 'Camera not available for positioning');
     }

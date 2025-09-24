@@ -23,6 +23,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
   const [batchSize, setBatchSize] = useState(500);
   const [supportedFormats, setSupportedFormats] = useState<string[]>([]);
   const [isVoxelProcessing, setIsVoxelProcessing] = useState(false);
+  const [lastClickTime, setLastClickTime] = useState(0);
 
   // Initialize supported formats from service manager
   useEffect(() => {
@@ -52,14 +53,63 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
   }, [serviceManager, isVoxelProcessing]);
 
   // Event handlers
-  const loadSampleData = async () => {
+  const loadSampleData = async (retryCount = 0) => {
     if (!serviceManager) {
       Log.Error('LoadPoints', 'Service manager not initialized');
       return;
     }
 
+    // Debounce rapid clicks (prevent multiple calls within 1 second)
+    const now = Date.now();
+    if (now - lastClickTime < 1000) {
+      Log.Info('LoadPoints', 'Click debounced - too soon after last click');
+      return;
+    }
+    setLastClickTime(now);
+
+    // Prevent multiple simultaneous calls
+    if (isLoading) {
+      Log.Info('LoadPoints', 'Sample data already loading, skipping');
+      return;
+    }
+
+    // Wait for service manager to be fully initialized
+    if (!serviceManager.isInitialized) {
+      if (retryCount >= 5) {
+        Log.Error('LoadPoints', 'Service manager still not initialized after 5 retries');
+        return;
+      }
+      Log.Info('LoadPoints', 'Service manager not fully initialized, waiting...', { retryCount });
+      // Wait a bit and try again
+      setTimeout(() => {
+        if (serviceManager && serviceManager.isInitialized) {
+          loadSampleData(retryCount + 1);
+        } else {
+          Log.Error('LoadPoints', 'Service manager still not initialized after waiting');
+        }
+      }, 200);
+      return;
+    }
+
+    // Additional safety check - ensure all services are ready
+    if (!serviceManager._pointService || !serviceManager._sceneService) {
+      if (retryCount >= 5) {
+        Log.Error('LoadPoints', 'Services still not ready after 5 retries');
+        return;
+      }
+      Log.Info('LoadPoints', 'Services not ready, waiting...', { retryCount });
+      setTimeout(() => {
+        if (serviceManager && serviceManager.isInitialized) {
+          loadSampleData(retryCount + 1);
+        }
+      }, 200);
+      return;
+    }
+
+
     try {
       onErrorChange(null);
+      onLoadingChange(true);
 
       // Clear existing point clouds and turn off debug before loading sample data
       serviceManager.clearAllPointClouds();
@@ -79,6 +129,8 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       onErrorChange(
         err instanceof Error ? err.message : 'Failed to load sample data'
       );
+    } finally {
+      onLoadingChange(false);
     }
   };
 

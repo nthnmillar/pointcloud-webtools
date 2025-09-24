@@ -15,6 +15,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const serviceManagerRef = useRef<ServiceManager | null>(null);
+  const initializationRef = useRef<boolean>(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,8 +26,21 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
   // Initialize service manager
   useEffect(() => {
     if (!canvasRef.current) return;
+    
+    // Prevent multiple initializations
+    if (initializationRef.current) {
+      return;
+    }
+    
+    initializationRef.current = true;
 
     try {
+      // Dispose existing service manager if it exists (for HMR scenarios)
+      if (serviceManagerRef.current) {
+        serviceManagerRef.current.dispose();
+        serviceManagerRef.current = null;
+      }
+
       const serviceManager = new ServiceManager();
       serviceManagerRef.current = serviceManager;
 
@@ -50,10 +64,13 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
           Log.Error('PointCloudViewer', 'Failed to initialize service manager', err);
         });
 
-      return () => {
-        // Cleanup
-        serviceManager.dispose();
-      };
+      // No cleanup function in development mode to prevent disposal
+      if (process.env.NODE_ENV === 'production') {
+        return () => {
+          serviceManager?.dispose();
+          initializationRef.current = false;
+        };
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to initialize viewer'
@@ -115,12 +132,14 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         />
       </div>
 
-      <SceneControls
-        serviceManager={serviceManager}
-        isLoading={isLoading}
-        onLoadingChange={setIsLoading}
-        onErrorChange={setError}
-      />
+      {serviceManager && (
+        <SceneControls
+          serviceManager={serviceManager}
+          isLoading={isLoading}
+          onLoadingChange={setIsLoading}
+          onErrorChange={setError}
+        />
+      )}
       <LoadPoints
         serviceManager={serviceManager}
         isLoading={isLoading}

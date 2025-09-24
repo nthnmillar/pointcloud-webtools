@@ -24,6 +24,10 @@ export class CameraService extends BaseService {
   private _panningSensibility: number = 5;
   private _targetEnabled: boolean = true;
 
+  constructor() {
+    super();
+  }
+
   async initialize(scene: Scene, canvas: HTMLCanvasElement): Promise<void> {
     this._scene = scene;
     this.setupCamera(canvas);
@@ -60,6 +64,7 @@ export class CameraService extends BaseService {
     this._camera.attachControl(canvas, true);
     this._camera.setTarget(Vector3.Zero());
 
+
     // Create target sphere
     this.createTargetSphere();
 
@@ -84,6 +89,7 @@ export class CameraService extends BaseService {
       { diameter: 0.5 },
       this._scene
     );
+
 
     // Create material for the sphere
     const material = new StandardMaterial('targetMaterial', this._scene);
@@ -181,6 +187,16 @@ export class CameraService extends BaseService {
    */
   setTarget(target: Vector3): void {
     if (!this._camera) return;
+    
+    // Debug: Log camera target change
+    console.log('Camera target set:', {
+      newTarget: target,
+      cameraPosition: this._camera.position,
+      cameraRadius: this._camera.radius,
+      cameraAlpha: this._camera.alpha,
+      cameraBeta: this._camera.beta
+    });
+    
     this._camera.setTarget(target);
     this.updateTargetSphere();
   }
