@@ -56,8 +56,10 @@ export class LoadLaz {
   }
 
   async loadFromFile(file: File, batchSize: number = 500): Promise<void> {
+    // Cancel any existing loading process
     if (this.isProcessing) {
-      throw new Error('Already processing a LAZ file');
+      Log.Info('LoadLaz', 'Cancelling previous loading process');
+      this.cancelLoading();
     }
 
     this.isProcessing = true;

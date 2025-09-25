@@ -141,6 +141,9 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       return;
     }
 
+    // Clear the input value immediately to allow selecting the same file again
+    event.target.value = '';
+
     try {
       // Check if file format is supported
       const extension = '.' + file.name.split('.').pop()?.toLowerCase();
@@ -154,6 +157,9 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       // Clear existing point clouds and turn off debug before loading new file
       serviceManager.clearAllPointClouds();
       serviceManager.toolsService?.voxelDownsampling?.hideVoxelDebug();
+
+      // Small delay to ensure scene clearing completes
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Load the file - batches will appear in scene as they load
       await serviceManager.loadFile(file, batchSize);
