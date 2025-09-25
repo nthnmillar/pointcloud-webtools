@@ -13,25 +13,33 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
   const [wasmBatchSize, setWasmBatchSize] = useState(35030);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
-  const [isCancelled, setIsCancelled] = useState(false);
   
   // Use ref to track processing state for event handlers
   const isProcessingRef = useRef(false);
 
   // Note: Using component default values instead of service defaults
 
-  // Listen for point cloud clearing events to reset voxel debug state
+  // Listen for clear scene button clicks to turn off voxel debug toggle
+  useEffect(() => {
+    if (!serviceManager) return;
+
+    const handleSceneClearedByUser = () => {
+      setShowVoxelDebug(false);
+    };
+
+    serviceManager.on('sceneClearedByUser', handleSceneClearedByUser);
+
+    return () => {
+      serviceManager.off('sceneClearedByUser', handleSceneClearedByUser);
+    };
+  }, [serviceManager]);
+
+  // Listen for point cloud clearing events to reset processing state
   useEffect(() => {
     if (!serviceManager?.pointService) return;
 
     const handlePointCloudsCleared = () => {
-      // Only reset voxel debug state if we're not currently processing
-      // This prevents the debug toggle from being turned off during WASM processing
-      if (!isProcessingRef.current) {
-        setShowVoxelDebug(false);
-      }
       setIsProcessing(false);
-      setIsCancelled(false);
     };
 
     serviceManager.pointService.on('cleared', handlePointCloudsCleared);
@@ -50,7 +58,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
     const handleProcessingStarted = () => {
       setIsProcessing(true);
       isProcessingRef.current = true;
-      setIsCancelled(false);
     };
     const handleProcessingFinished = () => {
       setIsProcessing(false);
@@ -59,7 +66,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
     const handleProcessingCancelled = () => {
       setIsProcessing(false);
       isProcessingRef.current = false;
-      setIsCancelled(true);
     };
 
     voxelTool.on('processingStarted', handleProcessingStarted);
@@ -180,8 +186,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
   const handleWasmVoxelDownsampling = async () => {
     Log.Info('Tools', '=== Starting WASM Voxel Downsampling ===');
     
-    // Reset processing state before starting
-    serviceManager.toolsService.voxelDownsampling.resetProcessingState();
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
       return;
@@ -190,7 +194,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
     // Set processing state immediately to prevent debug toggle from being turned off
     setIsProcessing(true);
     isProcessingRef.current = true;
-    setIsCancelled(false);
 
     try {
       // Get all point cloud IDs
@@ -211,7 +214,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       
       for (const pointCloudId of allPointCloudIds) {
         const pointCloud = serviceManager.pointService?.getPointCloud(pointCloudId);
-        Log.Debug('Tools', `Checking point cloud ${pointCloudId}:`, pointCloud ? 'found' : 'not found', pointCloud?.points?.length || 0, 'points');
+        Log.Debug('Tools', `Checking point cloud ${pointCloudId}: ${pointCloud ? 'found' : 'not found'} ${pointCloud?.points?.length || 0} points`);
         
         if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
           originalPointClouds.set(pointCloudId, pointCloud);

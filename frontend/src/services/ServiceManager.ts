@@ -225,6 +225,9 @@ export class ServiceManager extends BaseService {
   clearAllPointClouds(): void {
     this._pointService.clearAllPointClouds();
     this._renderService.clearScene();
+    
+    // Emit event to notify components that scene was cleared via button
+    this.emit('sceneClearedByUser', {});
   }
 
   // Service Access Methods (for advanced usage)
