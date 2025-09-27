@@ -10,8 +10,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "vite preview",
-    "build-wasm": "./compile_wasm.sh",
-    "dev-only": "vite"
+    "build-wasm": "./compile_wasm.sh"
   },
   "dependencies": {
     "@babylonjs/core": "^8.26.0",
@@ -37,7 +36,6 @@
     "prettier": "^3.3.3",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.39.1",
-    "vite": "^7.1.2",
-    "vite-plugin-full-reload": "^1.2.0"
+    "vite": "^7.1.2"
   }
 }

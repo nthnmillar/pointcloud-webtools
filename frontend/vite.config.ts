@@ -5,11 +5,21 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [
     react(),
+    // Custom plugin to force page reload for service files
+    {
+      name: 'services-reload',
+      handleHotUpdate({ file, server }) {
+        // Force page reload for ANY file in services folder
+        if (file.includes('/services/')) {
+          server.ws.send({
+            type: 'full-reload'
+          });
+          return [];
+        }
+      }
+    }
   ],
-  optimizeDeps: {
-    include: ['laz-perf', '@babylonjs/core'],
-  },
   server: {
-    hmr: false, // Completely disable HMR
-  }
+    port: 3000,
+  },
 });

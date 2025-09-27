@@ -1,4 +1,3 @@
-import React from 'react';
 import { PointCloudViewer } from './components/PointCloudViewer';
 import './App.css';
 
