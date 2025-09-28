@@ -601,7 +601,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                   <div className="tools-col-2">
                     {tool.name === 'Voxel Downsampling' && (
                       <div className="tool-control">
-                        <div className="tool-batch-size">
+                        {/* <div className="tool-batch-size">
                           <label>WASM Batch Size:</label>
                           <input
                             type="range"
@@ -616,7 +616,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                           <span style={{ marginLeft: '8px', fontSize: '12px' }}>
                             {wasmBatchSize}
                           </span>
-                        </div>
+                        </div> */}
                       </div>
                     )}
                   </div>
