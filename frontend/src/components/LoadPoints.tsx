@@ -20,7 +20,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
   const [isVisible, setIsVisible] = useState(true);
 
   // Loading-related state
-  const [batchSize, setBatchSize] = useState(500);
+  const [batchSize, setBatchSize] = useState(2000);
   const [supportedFormats, setSupportedFormats] = useState<string[]>([]);
   const [isVoxelProcessing, setIsVoxelProcessing] = useState(false);
   const [lastClickTime, setLastClickTime] = useState(0);
@@ -229,10 +229,10 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
               <input
                 type="number"
                 min="100"
-                max="2000"
+                max="5000"
                 step="100"
                 value={batchSize}
-                onChange={e => setBatchSize(parseInt(e.target.value) || 500)}
+                onChange={e => setBatchSize(parseInt(e.target.value) || 2000)}
                 style={{ width: '80px', marginLeft: '8px' }}
               />
               <span style={{ marginLeft: '8px' }}>points per batch</span>
@@ -252,7 +252,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
             </div>
 
             <div className="control-group">
-              <button onClick={loadSampleData} disabled={isLoading || isVoxelProcessing}>
+              <button onClick={() => loadSampleData()} disabled={isLoading || isVoxelProcessing}>
                 {isLoading ? 'Loading...' : isVoxelProcessing ? 'Processing...' : 'Load Sample Data'}
               </button>
               <button 

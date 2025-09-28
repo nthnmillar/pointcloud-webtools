@@ -10,7 +10,7 @@ interface ToolsProps {
 export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [voxelSize, setVoxelSize] = useState(1.403);
-  const [wasmBatchSize, setWasmBatchSize] = useState(35030);
+  const [wasmBatchSize, setWasmBatchSize] = useState(2000);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
   
@@ -605,7 +605,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                           <input
                             type="range"
                             min="100"
-                            max="50000"
+                            max="5000"
                             step="500"
                             value={wasmBatchSize}
                             onChange={e => handleWasmBatchSizeChange(parseInt(e.target.value))}
