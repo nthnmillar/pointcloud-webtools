@@ -688,7 +688,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                         Show Voxel Grid
                       </label>
                     </div>
-                    <div className="tool-slider-container">
+                    {/* <div className="tool-slider-container">
                       <label>Debug Voxel Size:</label>
                       <input
                         type="range"
@@ -705,11 +705,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                       <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
                         {voxelSize.toFixed(2)}m
                       </div>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
                 <div className="tools-col-3">
-                  <button
+                  {/* <button
                     className="tools-wasm-btn"
                     onClick={() => {
                       if (showVoxelDebug) {
@@ -719,10 +719,10 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                     disabled={!showVoxelDebug}
                   >
                     WASM
-                  </button>
+                  </button> */}
                 </div>
                 <div className="tools-col-4">
-                  <button
+                  {/* <button
                     className="tools-be-btn"
                     onClick={() => {
                       if (showVoxelDebug) {
@@ -732,7 +732,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                     disabled={!showVoxelDebug}
                   >
                     BE
-                  </button>
+                  </button> */}
                 </div>
               </div>
             </div>
