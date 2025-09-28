@@ -1,4 +1,4 @@
-# Point Cloud Web Tools
+# Pointcloud-webtools
 
 Testing and benchmarking different processing techniques for point cloud data.
 
