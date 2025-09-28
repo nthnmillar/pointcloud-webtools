@@ -1,11 +1,10 @@
-import { Engine, Scene, ArcRotateCamera, HemisphericLight, Vector3, Color4, StandardMaterial, Color3 } from '@babylonjs/core';
+import { Engine, Scene, HemisphericLight, Vector3, Color4, StandardMaterial, Color3 } from '@babylonjs/core';
 import { BaseService } from '../BaseService';
 import { Log } from '../../utils/Log';
 
 export class SceneService extends BaseService {
   private _engine: Engine | null = null;
   private _scene: Scene | null = null;
-  private _camera: ArcRotateCamera | null = null;
   private _light: HemisphericLight | null = null;
   private _isWebGLReady = false;
 
@@ -25,16 +24,7 @@ export class SceneService extends BaseService {
       // Set background color
       this._scene.clearColor = new Color4(0.1, 0.1, 0.1, 1.0); // Dark gray background
 
-      // Create camera with better default position for point clouds
-      this._camera = new ArcRotateCamera(
-        "Camera",
-        Math.PI / 2,
-        Math.PI / 4,
-        30, // Start further back to avoid jump
-        Vector3.Zero(),
-        this._scene
-      );
-      this._camera.attachControl(canvas, true);
+      // Camera will be created by CameraService
 
       // Create light
       this._light = new HemisphericLight("light", new Vector3(0, 1, 0), this._scene);
@@ -68,9 +58,6 @@ export class SceneService extends BaseService {
     return this._scene;
   }
 
-  get camera(): ArcRotateCamera | null {
-    return this._camera;
-  }
 
 
   get isWebGLReady(): boolean {

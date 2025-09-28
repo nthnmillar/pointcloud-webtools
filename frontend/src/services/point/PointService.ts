@@ -433,7 +433,7 @@ export class PointService extends BaseService {
     Log.InfoClass(this, 'First few point positions', { firstFewPoints });
 
     // Set camera target to the center of the point cloud
-    const camera = this.serviceManager.sceneService.camera;
+    const camera = this.serviceManager.cameraService.camera;
     if (camera) {
       camera.setTarget(new Vector3(center.x, center.y, center.z));
       // Only adjust radius if it's significantly different to avoid jump
