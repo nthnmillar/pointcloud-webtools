@@ -2,8 +2,9 @@
 
 Testing and benchmarking different processing techniques for point cloud data.
 
-[Image placeholder]
-[Link to video]
+![Point Cloud Web Tools Preview](images/pointcloud-webtools-preview.png)
+
+[Watch Demo Video](https://youtu.be/FixpiAs2Gso)
 
 This project is for experimenting with different tools to manipulate point cloud data, and benchmarking the efficiency and performance of tools using different code languages to process them.
 
@@ -25,5 +26,5 @@ yarn dev
 To build the WASM:
 ```bash
 cd frontend
-./compile_wasm.sh
+yarn build-wasm
 ```
