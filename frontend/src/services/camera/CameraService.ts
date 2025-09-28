@@ -113,12 +113,14 @@ export class CameraService extends BaseService {
   private updateCameraControls(): void {
     if (!this._camera) return;
 
-    // Update wheel precision for zoom sensitivity (invert so higher slider = more sensitive)
-    this._camera.wheelPrecision = this._wheelPrecision / this._zoomSensitivity;
-
-    // Update panning sensibility (invert so higher slider = more sensitive)
-    this._camera.panningSensibility =
-      this._panningSensibility / this._panningSensitivity;
+    // Update wheel precision for zoom sensitivity (lower values = more sensitive)
+    // Use a more reasonable range: 0.1 to 2.0
+    const newWheelPrecision = Math.max(0.1, Math.min(2.0, this._zoomSensitivity * 20));
+    this._camera.wheelPrecision = newWheelPrecision;
+    // Update panning sensibility (lower values = more sensitive)
+    // Use a more reasonable range: 1 to 20
+    const newPanningSensibility = Math.max(1, Math.min(20, this._panningSensitivity * 100));
+    this._camera.panningSensibility = newPanningSensibility;
   }
 
   /**

@@ -87,7 +87,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
       
       // Update voxel debug visualization if it's currently visible
       if (showVoxelDebug) {
-        serviceManager.toolsService.voxelDownsampling.updateVoxelDebug(newSize);
+        // Re-show the voxel debug with the new size
+        serviceManager.toolsService.voxelDownsampling.showVoxelDebug(newSize);
       }
     }
   };
@@ -688,7 +689,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                         Show Voxel Grid
                       </label>
                     </div>
-                    {/* <div className="tool-slider-container">
+                    <div className="tool-slider-container">
                       <label>Debug Voxel Size:</label>
                       <input
                         type="range"
@@ -696,16 +697,14 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
                         max="2.0"
                         step="0.01"
                         value={voxelSize}
-                        onChange={e =>
-                          handleVoxelSizeChange(parseFloat(e.target.value))
-                        }
+                        onChange={e => handleVoxelSizeChange(parseFloat(e.target.value))}
                         className="tool-slider"
                         style={{ width: '120px', marginLeft: '8px' }}
                       />
                       <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
                         {voxelSize.toFixed(2)}m
                       </div>
-                    </div> */}
+                    </div>
                   </div>
                 </div>
                 <div className="tools-col-3">

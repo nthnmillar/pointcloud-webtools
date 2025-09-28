@@ -66,7 +66,6 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
   };
 
   const handleTargetToggle = (enabled: boolean) => {
-    console.log('Target toggle clicked:', enabled);
     if (!serviceManager) {
       console.warn('No service manager available');
       return;
@@ -76,7 +75,6 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
     
     // Use CameraService to toggle target
     serviceManager.cameraService.targetEnabled = enabled;
-    console.log('Target sphere visibility set to:', enabled);
   };
 
   return (
@@ -84,10 +82,7 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
       {/* Toggle Button */}
       <div className="scene-controls-toggle">
         <button
-          onClick={() => {
-            console.log('Scene controls toggle clicked');
-            setIsVisible(!isVisible);
-          }}
+          onClick={() => setIsVisible(!isVisible)}
           className="scene-controls-toggle-btn"
         >
           {isVisible ? 'Hide' : 'Scene Controls'}
