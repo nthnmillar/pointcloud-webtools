@@ -78,8 +78,16 @@ export class PointService extends BaseService {
             cameraTarget: this.scene.activeCamera.getTarget(),
             cameraType: this.scene.activeCamera.getClassName(),
             cameraRadius: this.scene.activeCamera.radius,
-            pointCloudCenter: data.metadata.bounds.center,
-            pointCloudSize: data.metadata.bounds.size
+            pointCloudCenter: {
+              x: (data.metadata.bounds.min.x + data.metadata.bounds.max.x) / 2,
+              y: (data.metadata.bounds.min.y + data.metadata.bounds.max.y) / 2,
+              z: (data.metadata.bounds.min.z + data.metadata.bounds.max.z) / 2
+            },
+            pointCloudSize: {
+              x: data.metadata.bounds.max.x - data.metadata.bounds.min.x,
+              y: data.metadata.bounds.max.y - data.metadata.bounds.min.y,
+              z: data.metadata.bounds.max.z - data.metadata.bounds.min.z
+            }
           });
         }
       }
