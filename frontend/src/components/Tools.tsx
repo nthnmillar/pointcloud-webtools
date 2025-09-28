@@ -17,6 +17,7 @@ interface ToolsProps {
     downsampledCount: number;
     processingTime: number;
     reductionRatio: number;
+    voxelCount: number;
   }) => void;
 }
 
@@ -41,6 +42,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     downsampledCount: number;
     processingTime: number;
     reductionRatio: number;
+    voxelCount: number;
   } | null>(null);
   
   // Use ref to track processing state for event handlers
@@ -591,12 +593,16 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           processingTime: result.processingTime.toFixed(2) + 'ms'
         });
 
+        // Calculate voxel count for BE results (same as WASM calculation)
+        const voxelCount = result.downsampledCount; // Each downsampled point represents one voxel
+        
         // Store BE results for display
         const beResults = {
           originalCount: result.originalCount,
           downsampledCount: result.downsampledCount,
           processingTime: result.processingTime,
-          reductionRatio: result.originalCount / result.downsampledCount
+          reductionRatio: result.originalCount / result.downsampledCount,
+          voxelCount: voxelCount
         };
         setBeResults(beResults);
         

@@ -37,6 +37,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     downsampledCount: number;
     processingTime: number;
     reductionRatio: number;
+    voxelCount: number;
   } | null>(null);
 
   // Initialize service manager

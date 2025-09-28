@@ -14,6 +14,7 @@ interface BenchmarkProps {
     downsampledCount: number;
     processingTime: number;
     reductionRatio: number;
+    voxelCount: number;
   } | null;
 }
 
@@ -112,9 +113,9 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, be
                   </span>
                 </div>
                 <div className="metric-item">
-                  <span className="metric-label">Method:</span>
+                  <span className="metric-label">Voxels:</span>
                   <span className="metric-value">
-                    {beResults ? 'Node.js' : '--'}
+                    {beResults ? beResults.voxelCount.toLocaleString() : '--'}
                   </span>
                 </div>
               </div>
