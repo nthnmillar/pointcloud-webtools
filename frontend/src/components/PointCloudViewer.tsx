@@ -22,6 +22,22 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
   const [serviceManager, setServiceManager] = useState<ServiceManager | null>(
     null
   );
+  
+  // Benchmark results state
+  const [wasmResults, setWasmResults] = useState<{
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+    voxelCount: number;
+  } | null>(null);
+  
+  const [beResults, setBeResults] = useState<{
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+  } | null>(null);
 
   // Initialize service manager
   useEffect(() => {
@@ -146,8 +162,15 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         onLoadingChange={setIsLoading}
         onErrorChange={setError}
       />
-      <Benchmark />
-      <Tools serviceManager={serviceManager} />
+      <Benchmark 
+        wasmResults={wasmResults}
+        beResults={beResults}
+      />
+      <Tools 
+        serviceManager={serviceManager}
+        onWasmResults={setWasmResults}
+        onBeResults={setBeResults}
+      />
     </div>
   );
 };

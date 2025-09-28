@@ -2,9 +2,22 @@ import React, { useState } from 'react';
 
 interface BenchmarkProps {
   className?: string;
+  wasmResults?: {
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+    voxelCount: number;
+  } | null;
+  beResults?: {
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+  } | null;
 }
 
-export const Benchmark: React.FC<BenchmarkProps> = ({ className }) => {
+export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, beResults }) => {
   const [isVisible, setIsVisible] = useState(false);
 
   return (
@@ -39,23 +52,33 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className }) => {
               <div className="benchmark-metrics">
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
-                  <span className="metric-value">-- ms</span>
+                  <span className="metric-value">
+                    {wasmResults ? `${wasmResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                  </span>
                 </div>
                 <div className="metric-item">
-                  <span className="metric-label">GPU:</span>
-                  <span className="metric-value">-- MB</span>
+                  <span className="metric-label">Original Points:</span>
+                  <span className="metric-value">
+                    {wasmResults ? wasmResults.originalCount.toLocaleString() : '--'}
+                  </span>
                 </div>
                 <div className="metric-item">
-                  <span className="metric-label">Draw Calls:</span>
-                  <span className="metric-value">--</span>
+                  <span className="metric-label">Downsampled:</span>
+                  <span className="metric-value">
+                    {wasmResults ? wasmResults.downsampledCount.toLocaleString() : '--'}
+                  </span>
                 </div>
                 <div className="metric-item">
-                  <span className="metric-label">Memory:</span>
-                  <span className="metric-value">-- MB</span>
+                  <span className="metric-label">Reduction:</span>
+                  <span className="metric-value">
+                    {wasmResults ? `${((wasmResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                  </span>
                 </div>
                 <div className="metric-item">
-                  <span className="metric-label">Points:</span>
-                  <span className="metric-value">--</span>
+                  <span className="metric-label">Voxels:</span>
+                  <span className="metric-value">
+                    {wasmResults ? wasmResults.voxelCount.toLocaleString() : '--'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -66,23 +89,33 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className }) => {
               <div className="benchmark-metrics">
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
-                  <span className="metric-value">-- ms</span>
+                  <span className="metric-value">
+                    {beResults ? `${beResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                  </span>
                 </div>
                 <div className="metric-item">
-                  <span className="metric-label">GPU:</span>
-                  <span className="metric-value">-- MB</span>
+                  <span className="metric-label">Original Points:</span>
+                  <span className="metric-value">
+                    {beResults ? beResults.originalCount.toLocaleString() : '--'}
+                  </span>
                 </div>
                 <div className="metric-item">
-                  <span className="metric-label">Draw Calls:</span>
-                  <span className="metric-value">--</span>
+                  <span className="metric-label">Downsampled:</span>
+                  <span className="metric-value">
+                    {beResults ? beResults.downsampledCount.toLocaleString() : '--'}
+                  </span>
                 </div>
                 <div className="metric-item">
-                  <span className="metric-label">Memory:</span>
-                  <span className="metric-value">-- MB</span>
+                  <span className="metric-label">Reduction:</span>
+                  <span className="metric-value">
+                    {beResults ? `${((beResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                  </span>
                 </div>
                 <div className="metric-item">
-                  <span className="metric-label">Points:</span>
-                  <span className="metric-value">--</span>
+                  <span className="metric-label">Method:</span>
+                  <span className="metric-value">
+                    {beResults ? 'Node.js' : '--'}
+                  </span>
                 </div>
               </div>
             </div>

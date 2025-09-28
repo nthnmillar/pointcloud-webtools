@@ -5,14 +5,43 @@ import { Log } from '../utils/Log';
 interface ToolsProps {
   serviceManager: ServiceManager | null;
   className?: string;
+  onWasmResults?: (results: {
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+    voxelCount: number;
+  }) => void;
+  onBeResults?: (results: {
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+  }) => void;
 }
 
-export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
+export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onBeResults }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [voxelSize, setVoxelSize] = useState(1.403);
   const [wasmBatchSize, setWasmBatchSize] = useState(2000);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
+  
+  // Processing results state
+  const [wasmResults, setWasmResults] = useState<{
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+    voxelCount: number;
+  } | null>(null);
+  
+  const [beResults, setBeResults] = useState<{
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+  } | null>(null);
   
   // Use ref to track processing state for event handlers
   const isProcessingRef = useRef(false);
@@ -413,6 +442,21 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
 
       Log.Info('Tools', `WASM processing complete: ${totalOriginalPoints} original → ${totalDownsampledPoints} downsampled points`);
 
+      // Store WASM results for display
+      const wasmResults = {
+        originalCount: totalOriginalPoints,
+        downsampledCount: totalDownsampledPoints,
+        processingTime: processingTime,
+        reductionRatio: totalOriginalPoints / totalDownsampledPoints,
+        voxelCount: voxelMap.size
+      };
+      setWasmResults(wasmResults);
+      
+      // Emit results to parent component
+      if (onWasmResults) {
+        onWasmResults(wasmResults);
+      }
+
       // Reset processing state when all batches are complete
       serviceManager.toolsService.voxelDownsampling.resetProcessingState();
 
@@ -546,6 +590,20 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className }) => {
           reduction: ((result.originalCount - result.downsampledCount) / result.originalCount * 100).toFixed(2) + '%',
           processingTime: result.processingTime.toFixed(2) + 'ms'
         });
+
+        // Store BE results for display
+        const beResults = {
+          originalCount: result.originalCount,
+          downsampledCount: result.downsampledCount,
+          processingTime: result.processingTime,
+          reductionRatio: result.originalCount / result.downsampledCount
+        };
+        setBeResults(beResults);
+        
+        // Emit results to parent component
+        if (onBeResults) {
+          onBeResults(beResults);
+        }
       } else {
         Log.Error('Tools', 'Backend voxel downsampling failed', result.error);
       }
