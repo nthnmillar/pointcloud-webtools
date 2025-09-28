@@ -16,7 +16,6 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
   onLoadingChange,
   onErrorChange,
 }) => {
-  console.log('SceneControls rendered:', { hasServiceManager: !!serviceManager, isLoading });
   const [isVisible, setIsVisible] = useState(false);
 
   // Internal state for controls
@@ -27,13 +26,13 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
 
   // Initialize values from service manager
   useEffect(() => {
-    if (serviceManager && serviceManager.sceneService) {
+    if (serviceManager?.sceneService) {
       // Set default values since we removed CameraService
       setZoomSensitivity(0.005);
       setPanningSensitivity(0.1);
       setTargetEnabled(true);
     }
-  }, [serviceManager]);
+  }, [serviceManager?.sceneService]); // Only run when sceneService changes
 
   // Event handlers
   const handlePointSizeChange = (newPointSize: number) => {
@@ -144,12 +143,10 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
               <input
                 type="range"
                 min="0.05"
-                max="0.3"
+                max="0.5"
                 step="0.01"
                 value={panningSensitivity}
-                onChange={e =>
-                  handlePanningSensitivityChange(parseFloat(e.target.value))
-                }
+                onChange={e => handlePanningSensitivityChange(parseFloat(e.target.value))}
                 style={{ width: '120px' }}
               />
               <span style={{ minWidth: '30px', textAlign: 'right' }}>

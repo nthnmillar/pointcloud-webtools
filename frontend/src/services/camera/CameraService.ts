@@ -116,20 +116,24 @@ export class CameraService extends BaseService {
     // Check camera type and apply appropriate controls
     if (this._camera.getClassName() === 'ArcRotateCamera') {
       // For ArcRotateCamera, use wheelPrecision for zoom sensitivity
-      // Map 0.001-0.1 to 2.0-0.1 range (inverted: higher slider = lower wheelPrecision = more sensitive)
-      const newWheelPrecision = Math.max(0.1, Math.min(2.0, 2.0 - (this._zoomSensitivity - 0.001) * (1.9 / 0.099)));
+      // Map 0.001-0.1 to 3.0-0.5 range (inverted: higher slider = lower wheelPrecision = more sensitive)
+      // Using wider range to make zoom less sensitive overall
+      const newWheelPrecision = Math.max(0.5, Math.min(3.0, 3.0 - (this._zoomSensitivity - 0.001) * (2.5 / 0.099)));
       this._camera.wheelPrecision = newWheelPrecision;
-      console.log('Setting wheelPrecision to:', newWheelPrecision, 'from zoomSensitivity:', this._zoomSensitivity);
       
       // Disable wheelDeltaPercentage to ensure equal zoom in/out behavior
       this._camera.wheelDeltaPercentage = 0;
-      console.log('Setting wheelDeltaPercentage to:', 0);
 
-      // Update panning sensibility (lower values = more sensitive)
-      // Map 0.01-0.5 to 0.1-2.0 range
-      const newPanningSensibility = Math.max(0.1, Math.min(2.0, 0.1 + (this._panningSensitivity - 0.01) * (1.9 / 0.49)));
+      // Update panning sensibility using the correct property name
+      // Map 0.01-0.5 to 200-10 range (higher slider = lower panningSensibility = more sensitive)
+      const newPanningSensibility = Math.max(10, Math.min(200, 200 - (this._panningSensitivity - 0.01) * (190 / 0.49)));
       this._camera.panningSensibility = newPanningSensibility;
-      console.log('Setting panningSensibility to:', newPanningSensibility, 'from panningSensitivity:', this._panningSensitivity);
+      
+      // Also set angularSensibility for panning control
+      this._camera.angularSensibility = newPanningSensibility;
+      
+      // Ensure panning inertia is set for smooth movement
+      this._camera.panningInertia = 0.9;
     } else {
       // For FreeCamera, use wheelPrecision
       const newWheelPrecision = Math.max(0.1, Math.min(2.0, 0.1 + (this._zoomSensitivity - 0.001) * (1.9 / 0.099)));
