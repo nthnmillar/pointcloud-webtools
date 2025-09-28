@@ -203,16 +203,13 @@ export class PointMesh {
             // Additional debugging: Check if the mesh is actually being rendered
             setTimeout(() => {
               Log.Info('PointMesh', 'Mesh status after 100ms', {
-                meshName: pcs.mesh.name,
-                isEnabled: pcs.mesh.isEnabled(),
-                isVisible: pcs.mesh.isVisible,
-                position: pcs.mesh.position,
-                boundingInfo: pcs.mesh.getBoundingInfo(),
-                material: pcs.mesh.material ? {
+                meshName: pcs.mesh?.name,
+                isEnabled: pcs.mesh?.isEnabled(),
+                isVisible: pcs.mesh?.isVisible,
+                position: pcs.mesh?.position,
+                boundingInfo: pcs.mesh?.getBoundingInfo(),
+                material: pcs.mesh?.material ? {
                   pointSize: pcs.mesh.material.pointSize,
-                  isVisible: pcs.mesh.material.isVisible,
-                  hasTexture: !!pcs.mesh.material.diffuseTexture,
-                  hasEmissiveTexture: !!pcs.mesh.material.emissiveTexture,
                   materialType: pcs.mesh.material.constructor.name
                 } : null,
                 sceneActiveCamera: this.scene.activeCamera ? {
@@ -221,9 +218,9 @@ export class PointMesh {
                   fov: this.scene.activeCamera.fov
                 } : null,
                 // Check if the mesh is actually in the scene and being rendered
-                meshInScene: pcs.mesh.isInScene,
-                meshParent: pcs.mesh.parent,
-                meshChildren: pcs.mesh.getChildMeshes().length,
+                meshInScene: pcs.mesh ? this.scene.meshes.includes(pcs.mesh) : false,
+                meshParent: pcs.mesh?.parent,
+                meshChildren: pcs.mesh?.getChildMeshes().length,
                 // Check WebGL context
                 webglContext: this.scene.getEngine()._gl ? 'available' : 'not available'
               });
@@ -361,7 +358,7 @@ export class PointMesh {
    */
   dispose(): void {
     // Dispose of all tracked meshes
-    for (const [id, mesh] of this.meshes) {
+    for (const [, mesh] of this.meshes) {
       mesh.dispose();
     }
     this.meshes.clear();
