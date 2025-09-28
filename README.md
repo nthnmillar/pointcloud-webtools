@@ -1,33 +1,29 @@
 # Point Cloud Web Tools
 
-TODO: Write project description
+Testing and benchmarking different processing techniques for point cloud data.
 
-## Project Structure
+[Image placeholder]
+[Link to video]
 
-```
-pointcloud-webtools/
-├── frontend/     # React frontend
-├── backend/      # Node.js backend
-└── package.json  # Workspace configuration
-```
+This project is for experimenting with different tools to manipulate point cloud data, and benchmarking the efficiency and performance of tools using different code languages to process them.
 
-## Development
+WASM allows C++ to be compiled for web applications on the client side for near-native performance.
 
+C++ processing can be done on the backend as well.
+
+Though it's best to avoid excessive compute on the client's device and rather leave it to be a burden on the backend for a greater user experience.
+
+WASM may still play a part for immediate and smaller processes such as tools. FIGMA currently uses WASM for its tooling and there may be uses for it in other cases.
+
+## Running Instructions
+
+To run the project:
 ```bash
-# Install dependencies
-yarn install
-
-# Run both frontend and backend
 yarn dev
-
-# Run individual services
-yarn dev:frontend
-yarn dev:backend
 ```
 
-## TODO
-
-- [ ] Write project description
-- [ ] Add setup instructions
-- [ ] Document API endpoints
-- [ ] Add usage examples
+To build the WASM:
+```bash
+cd frontend
+./compile_wasm.sh
+```
