@@ -80,7 +80,17 @@ export class LoadCOPC {
     if (this.module) return;
 
     try {
-      // Load WASM module using fetch and eval (same approach as voxel downsampling)
+      // Load laz-perf for real point decompression
+      const lazPerfModule = await import('laz-perf');
+      const createLazPerf = lazPerfModule.createLazPerf;
+      
+      // Initialize laz-perf
+      const lazPerf = await createLazPerf({
+        locateFile: (path: string) =>
+          path.endsWith('.wasm') ? '/wasm/laz-perf.wasm' : path,
+      });
+
+      // Load COPC WASM module
       const response = await fetch('/wasm/copc_loader.js');
       const jsCode = await response.text();
 
@@ -108,10 +118,11 @@ export class LoadCOPC {
         }
       });
       
-      // Create a new loader instance
+      // Create a new loader instance with laz-perf
       this.loader = new this.module.COPCLoader();
+      this.loader.setLazPerf(lazPerf); // Pass laz-perf to the loader
       
-      Log.Info('LoadCOPC', 'COPC WASM module initialized');
+      Log.Info('LoadCOPC', 'COPC WASM module initialized with laz-perf');
     } catch (error) {
       Log.Error('LoadCOPC', 'Failed to initialize COPC WASM module', error);
       throw error;
