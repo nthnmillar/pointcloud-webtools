@@ -1,5 +1,6 @@
 import { BaseService } from '../BaseService';
 import { LoadLaz } from './LoadLaz';
+import { LoadCOPC } from './LoadCOPC';
 
 export interface LazLoadingProgress {
   stage: 'initializing' | 'processing' | 'complete' | 'error';
@@ -9,10 +10,12 @@ export interface LazLoadingProgress {
 
 export class LoaderService extends BaseService {
   private loadLaz: LoadLaz;
+  private loadCOPC: LoadCOPC;
 
   constructor(serviceManager: any) {
     super();
     this.loadLaz = new LoadLaz(serviceManager);
+    this.loadCOPC = new LoadCOPC(serviceManager);
   }
 
   async initialize(): Promise<void> {
@@ -20,15 +23,16 @@ export class LoaderService extends BaseService {
   }
 
   get isReady(): boolean {
-    return this.isInitialized && this.loadLaz.ready;
+    return this.isInitialized && this.loadLaz.ready && this.loadCOPC.ready;
   }
 
   get isProcessing(): boolean {
-    return this.loadLaz.processing;
+    return this.loadLaz.processing || this.loadCOPC.processing;
   }
 
   cancelLoading(): void {
     this.loadLaz.cancelLoading();
+    this.loadCOPC.cancelLoading();
   }
 
   async loadFile(file: File, batchSize: number = 500): Promise<void> {
@@ -36,26 +40,32 @@ export class LoaderService extends BaseService {
       .toLowerCase()
       .substring(file.name.lastIndexOf('.'));
 
-    if (!['.laz', '.las'].includes(fileExtension)) {
+    if (!['.laz', '.las', '.copc', '.copc.laz'].includes(fileExtension)) {
       throw new Error(`Unsupported file format: ${fileExtension}`);
     }
 
     try {
       this.emit('loadingStarted', {
-        type: 'LAZ',
+        type: (fileExtension === '.copc' || fileExtension === '.copc.laz') ? 'COPC' : 'LAZ',
         fileName: file.name,
       });
 
-      // Using batch loading
-      await this.loadLaz.loadFromFile(file, batchSize);
+      if (fileExtension === '.copc' || fileExtension === '.copc.laz') {
+        // Load COPC file
+        await this.loadCOPC.loadFromFile(file, batchSize);
+      } else {
+        // Load LAZ file
+        await this.loadLaz.loadFromFile(file, batchSize);
+      }
+
       this.emit('loadingCompleted', {
-        type: 'LAZ',
+        type: (fileExtension === '.copc' || fileExtension === '.copc.laz') ? 'COPC' : 'LAZ',
         fileName: file.name,
         pointCloudData: null, // Batches are handled individually
       });
     } catch (error) {
       this.emit('loadingError', {
-        type: 'LAZ',
+        type: (fileExtension === '.copc' || fileExtension === '.copc.laz') ? 'COPC' : 'LAZ',
         fileName: file.name,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -64,11 +74,11 @@ export class LoaderService extends BaseService {
   }
 
   isSupportedFormat(extension: string): boolean {
-    return ['.laz', '.las'].includes(extension.toLowerCase());
+    return ['.laz', '.las', '.copc', '.copc.laz'].includes(extension.toLowerCase());
   }
 
   getSupportedFormats(): string[] {
-    return ['.laz', '.las'];
+    return ['.laz', '.las', '.copc', '.copc.laz'];
   }
 
   async getFileMetadata(file: File): Promise<any> {

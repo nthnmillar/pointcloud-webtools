@@ -23,8 +23,23 @@ To run the project:
 yarn dev
 ```
 
-To build the WASM:
+To build the WASM modules:
 ```bash
 cd frontend
-yarn build-wasm
+./compile_wasm.sh
 ```
+
+## Supported File Formats
+
+- **LAZ/LAS** - Traditional point cloud formats with WASM-based loading
+- **COPC** - Cloud Optimized Point Cloud format with WASM-based loading and LOD support
+
+## Features
+
+- **Point Cloud Visualization** - 3D rendering with Babylon.js
+- **WASM Processing** - High-performance C++ processing in the browser
+- **Voxel Downsampling** - Reduce point density using voxel grids
+- **COPC Support** - Load and visualize COPC files with level-of-detail
+- **Camera Controls** - Zoom, pan, and rotate with adjustable sensitivity
+- **Debug Tools** - Frustum visualization and debug camera
+- **Benchmarking** - Compare WASM vs Backend processing performance

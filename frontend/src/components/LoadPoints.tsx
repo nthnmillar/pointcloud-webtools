@@ -252,6 +252,19 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
             </div>
 
             <div className="control-group">
+              <label>
+                Load COPC File:
+                <input
+                  type="file"
+                  accept=".copc,.copc.laz"
+                  onChange={handleFileLoad}
+                  disabled={isLoading}
+                  style={{ marginLeft: '8px' }}
+                />
+              </label>
+            </div>
+
+            <div className="control-group">
               <button onClick={() => loadSampleData()} disabled={isLoading || isVoxelProcessing}>
                 {isLoading ? 'Loading...' : isVoxelProcessing ? 'Processing...' : 'Load Sample Data'}
               </button>
