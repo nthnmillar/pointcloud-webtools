@@ -149,14 +149,18 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         />
       </div>
 
-      {serviceManager && (
-        <SceneControls
-          serviceManager={serviceManager}
-          isLoading={isLoading}
-          onLoadingChange={setIsLoading}
-          onErrorChange={setError}
-        />
-      )}
+      {/* Top Controls Bar */}
+      <div className="top-controls-bar">
+        {serviceManager && (
+          <SceneControls
+            serviceManager={serviceManager}
+            isLoading={isLoading}
+            onLoadingChange={setIsLoading}
+            onErrorChange={setError}
+          />
+        )}
+      </div>
+
       <LoadPoints
         serviceManager={serviceManager}
         isLoading={isLoading}

@@ -1,6 +1,5 @@
 import { Engine, Scene, HemisphericLight, Vector3, Color4, StandardMaterial, Color3 } from '@babylonjs/core';
 import { BaseService } from '../BaseService';
-import { Log } from '../../utils/Log';
 
 export class SceneService extends BaseService {
   private _engine: Engine | null = null;
@@ -41,6 +40,8 @@ export class SceneService extends BaseService {
       window.addEventListener('resize', () => {
         this._engine?.resize();
       });
+
+      // Debug layer removed to avoid CDN dependency issues
 
       this._isWebGLReady = true;
       this.isInitialized = true;

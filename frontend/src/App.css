@@ -265,9 +265,10 @@
 /* Scene Controls Panel */
 .scene-controls-toggle {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 0;
+  right: 0;
   z-index: 300;
+  pointer-events: auto; /* Re-enable clicks for this button */
 }
 
 .scene-controls-toggle-btn {
@@ -814,3 +815,45 @@
   flex-direction: column;
   gap: 1rem;
 }
+
+/* Top Controls Bar */
+.top-controls-bar {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  pointer-events: none; /* Allow clicks to pass through to buttons */
+}
+
+/* Ensure scene controls are above everything */
+.scene-controls-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 400 !important;
+  pointer-events: auto !important;
+}
+
+.scene-controls-panel {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 400px;
+  max-height: 80vh;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  border-radius: 8px;
+  padding: 1rem;
+  z-index: 400 !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  overflow-y: auto;
+  pointer-events: auto !important;
+}
+

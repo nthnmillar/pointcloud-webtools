@@ -214,7 +214,8 @@ export class PointMesh {
                 } : null,
                 sceneActiveCamera: this.scene.activeCamera ? {
                   position: this.scene.activeCamera.position,
-                  target: this.scene.activeCamera.getTarget(),
+                  // Use 'target' property if available, otherwise fallback to null
+                  target: (this.scene.activeCamera as any).target ?? null,
                   fov: this.scene.activeCamera.fov
                 } : null,
                 // Check if the mesh is actually in the scene and being rendered

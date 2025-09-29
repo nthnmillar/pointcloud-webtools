@@ -46,6 +46,7 @@ export class ServiceManager extends BaseService {
       // Initialize camera service with the scene
       if (scene) {
         await this._cameraService.initialize(scene, canvas);
+        // Don't show frustum by default - let user choose
       }
       
       await Promise.all([
