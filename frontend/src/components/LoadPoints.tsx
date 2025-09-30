@@ -279,14 +279,6 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
               </button>
             </div>
 
-            <div className="control-group">
-              <label>Supported Formats:</label>
-              <span
-                style={{ marginLeft: '8px', fontSize: '0.9em', color: '#ccc' }}
-              >
-                {supportedFormats.join(', ')}
-              </span>
-            </div>
           </div>
         </div>
       )}
