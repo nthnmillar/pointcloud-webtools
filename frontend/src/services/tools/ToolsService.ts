@@ -1,32 +1,45 @@
 import { BaseService } from '../BaseService';
-import { VoxelDownsampling } from './VoxelDownsampling/VoxelDownsampling';
+import { VoxelDownsamplingWASM } from './VoxelDownsampling/VoxelDownsamplingWASM';
+import { VoxelDownsamplingTS } from './VoxelDownsampling/VoxelDownsamplingTS';
 import { VoxelDownsamplingBackend } from './VoxelDownsampling/VoxelDownsamplingBackend';
 import type { ServiceManager } from '../ServiceManager';
 
 export class ToolsService extends BaseService {
-  private _voxelDownsampling: VoxelDownsampling;
+  private _voxelDownsamplingWASM: VoxelDownsamplingWASM;
+  private _voxelDownsamplingTS: VoxelDownsamplingTS;
   private _voxelDownsamplingBackend: VoxelDownsamplingBackend;
   private _serviceManager?: ServiceManager;
 
   constructor(serviceManager?: ServiceManager) {
     super();
     this._serviceManager = serviceManager;
-    this._voxelDownsampling = new VoxelDownsampling(this, serviceManager);
+    this._voxelDownsamplingWASM = new VoxelDownsamplingWASM(this, serviceManager);
+    this._voxelDownsamplingTS = new VoxelDownsamplingTS(this, serviceManager);
     this._voxelDownsamplingBackend = new VoxelDownsamplingBackend(this);
   }
 
   async initialize(): Promise<void> {
-    await this._voxelDownsampling.initialize();
+    await this._voxelDownsamplingWASM.initialize();
+    await this._voxelDownsamplingTS.initialize();
     this.isInitialized = true;
   }
 
   // Generic tool access
-  get voxelDownsampling(): VoxelDownsampling {
-    return this._voxelDownsampling;
+  get voxelDownsamplingWASM(): VoxelDownsamplingWASM {
+    return this._voxelDownsamplingWASM;
+  }
+
+  get voxelDownsamplingTS(): VoxelDownsamplingTS {
+    return this._voxelDownsamplingTS;
   }
 
   get voxelDownsamplingBackend(): VoxelDownsamplingBackend {
     return this._voxelDownsamplingBackend;
+  }
+
+  // Legacy access for backward compatibility
+  get voxelDownsampling(): VoxelDownsamplingWASM {
+    return this._voxelDownsamplingWASM;
   }
 
   // Event forwarding for tools
@@ -45,7 +58,8 @@ export class ToolsService extends BaseService {
   // async planeSegmentationWasm(params: PlaneParams): Promise<PlaneResult> { ... }
 
   dispose(): void {
-    this._voxelDownsampling.dispose();
+    this._voxelDownsamplingWASM.dispose();
+    this._voxelDownsamplingTS.dispose();
     this._voxelDownsamplingBackend.dispose();
     this.removeAllObservers();
   }

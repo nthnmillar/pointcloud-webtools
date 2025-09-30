@@ -9,6 +9,13 @@ interface BenchmarkProps {
     reductionRatio: number;
     voxelCount: number;
   } | null;
+  tsResults?: {
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+    voxelCount: number;
+  } | null;
   beResults?: {
     originalCount: number;
     downsampledCount: number;
@@ -18,7 +25,7 @@ interface BenchmarkProps {
   } | null;
 }
 
-export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, beResults }) => {
+export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, tsResults, beResults }) => {
   const [isVisible, setIsVisible] = useState(false);
 
   return (
@@ -47,6 +54,43 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, be
           </div>
 
           <div className="benchmark-content">
+            {/* TypeScript Column */}
+            <div className="benchmark-column">
+              <h4>TYPESCRIPT</h4>
+              <div className="benchmark-metrics">
+                <div className="metric-item">
+                  <span className="metric-label">Time Taken:</span>
+                  <span className="metric-value">
+                    {tsResults ? `${tsResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                  </span>
+                </div>
+                <div className="metric-item">
+                  <span className="metric-label">Original Points:</span>
+                  <span className="metric-value">
+                    {tsResults ? tsResults.originalCount.toLocaleString() : '--'}
+                  </span>
+                </div>
+                <div className="metric-item">
+                  <span className="metric-label">Downsampled:</span>
+                  <span className="metric-value">
+                    {tsResults ? tsResults.downsampledCount.toLocaleString() : '--'}
+                  </span>
+                </div>
+                <div className="metric-item">
+                  <span className="metric-label">Reduction:</span>
+                  <span className="metric-value">
+                    {tsResults ? `${((tsResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                  </span>
+                </div>
+                <div className="metric-item">
+                  <span className="metric-label">Voxels:</span>
+                  <span className="metric-value">
+                    {tsResults ? tsResults.voxelCount.toLocaleString() : '--'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* WASM Column */}
             <div className="benchmark-column">
               <h4>WASM</h4>

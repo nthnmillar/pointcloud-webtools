@@ -113,7 +113,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
 
       // Clear existing point clouds and turn off debug before loading sample data
       serviceManager.clearAllPointClouds();
-      serviceManager.toolsService?.voxelDownsampling?.hideVoxelDebug();
+      serviceManager.toolsService?.voxelDownsamplingWASM?.hideVoxelDebug();
 
       const sampleData = serviceManager.generateSamplePointCloud(
         'sample-1',
@@ -156,7 +156,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
 
       // Clear existing point clouds and turn off debug before loading new file
       serviceManager.clearAllPointClouds();
-      serviceManager.toolsService?.voxelDownsampling?.hideVoxelDebug();
+      serviceManager.toolsService?.voxelDownsamplingWASM?.hideVoxelDebug();
 
       // Small delay to ensure scene clearing completes
       await new Promise(resolve => setTimeout(resolve, 100));

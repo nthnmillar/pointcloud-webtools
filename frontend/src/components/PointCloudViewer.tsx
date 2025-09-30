@@ -32,6 +32,14 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     voxelCount: number;
   } | null>(null);
   
+  const [tsResults, setTsResults] = useState<{
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+    voxelCount: number;
+  } | null>(null);
+  
   const [beResults, setBeResults] = useState<{
     originalCount: number;
     downsampledCount: number;
@@ -169,11 +177,13 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
       />
       <Benchmark 
         wasmResults={wasmResults}
+        tsResults={tsResults}
         beResults={beResults}
       />
       <Tools 
         serviceManager={serviceManager}
         onWasmResults={setWasmResults}
+        onTsResults={setTsResults}
         onBeResults={setBeResults}
       />
     </div>

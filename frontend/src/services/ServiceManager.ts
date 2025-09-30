@@ -137,7 +137,7 @@ export class ServiceManager extends BaseService {
       if (data.pointCloudData) {
         // Clear existing point clouds and turn off debug before loading new file
         this.clearAllPointClouds();
-        this._toolsService?.voxelDownsampling?.hideVoxelDebug();
+        this._toolsService?.voxelDownsamplingWASM?.hideVoxelDebug();
         
         // Received point cloud data
         // Generate a unique ID for the loaded point cloud

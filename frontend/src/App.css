@@ -428,8 +428,8 @@
 
 .benchmark-content {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1.5rem;
 }
 
 .benchmark-column h4 {
@@ -504,6 +504,13 @@
   .benchmark-content {
     grid-template-columns: 1fr;
     gap: 1rem;
+  }
+  
+  .tools-table-header,
+  .tools-table-row {
+    grid-template-columns: 1.5fr 1fr 0.7fr 0.7fr 0.7fr;
+    gap: 0.3rem;
+    font-size: 0.8rem;
   }
 }
 
@@ -596,18 +603,18 @@
 
 .tools-table-header {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
-  gap: 1rem;
+  grid-template-columns: 2fr 1fr 0.8fr 0.8fr 0.8fr;
+  gap: 0.5rem;
   padding: 0.5rem 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .tools-table-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
-  gap: 1rem;
+  grid-template-columns: 2fr 1fr 0.8fr 0.8fr 0.8fr;
+  gap: 0.5rem;
   padding: 0.75rem 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   align-items: center;
@@ -630,27 +637,31 @@
 }
 
 .tools-wasm-btn,
+.tools-ts-btn,
 .tools-be-btn {
   background: rgba(97, 218, 251, 0.8);
   color: #000;
   border: 1px solid rgba(97, 218, 251, 0.5);
-  padding: 0.3rem 0.6rem;
+  padding: 0.25rem 0.4rem;
   border-radius: 4px;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
   backdrop-filter: blur(5px);
   width: 100%;
+  min-width: 50px;
 }
 
 .tools-wasm-btn:hover,
+.tools-ts-btn:hover,
 .tools-be-btn:hover {
   background: rgba(97, 218, 251, 1);
   transform: translateY(-1px);
 }
 
 .tools-wasm-btn:disabled,
+.tools-ts-btn:disabled,
 .tools-be-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -658,9 +669,19 @@
 }
 
 .tools-wasm-btn:disabled:hover,
+.tools-ts-btn:disabled:hover,
 .tools-be-btn:disabled:hover {
   background: rgba(97, 218, 251, 0.8);
   transform: none;
+}
+
+.tools-ts-btn {
+  background: rgba(138, 43, 226, 0.8);
+  border-color: rgba(138, 43, 226, 0.5);
+}
+
+.tools-ts-btn:hover {
+  background: rgba(138, 43, 226, 1);
 }
 
 .tools-be-btn {

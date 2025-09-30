@@ -12,6 +12,13 @@ interface ToolsProps {
     reductionRatio: number;
     voxelCount: number;
   }) => void;
+  onTsResults?: (results: {
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+    voxelCount: number;
+  }) => void;
   onBeResults?: (results: {
     originalCount: number;
     downsampledCount: number;
@@ -21,7 +28,7 @@ interface ToolsProps {
   }) => void;
 }
 
-export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onBeResults }) => {
+export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onTsResults, onBeResults }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [voxelSize, setVoxelSize] = useState(1.403);
   const [wasmBatchSize, setWasmBatchSize] = useState(2000);
@@ -30,6 +37,14 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   
   // Processing results state
   const [wasmResults, setWasmResults] = useState<{
+    originalCount: number;
+    downsampledCount: number;
+    processingTime: number;
+    reductionRatio: number;
+    voxelCount: number;
+  } | null>(null);
+  
+  const [tsResults, setTsResults] = useState<{
     originalCount: number;
     downsampledCount: number;
     processingTime: number;
@@ -84,7 +99,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   useEffect(() => {
     if (!serviceManager?.toolsService) return;
 
-    const voxelTool = serviceManager.toolsService.voxelDownsampling;
+    const voxelTool = serviceManager.toolsService.voxelDownsamplingWASM;
 
     const handleProcessingStarted = () => {
       setIsProcessing(true);
@@ -114,12 +129,12 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   const handleVoxelSizeChange = (newSize: number) => {
     setVoxelSize(newSize);
     if (serviceManager?.toolsService) {
-      serviceManager.toolsService.voxelDownsampling.setVoxelSize(newSize);
+      serviceManager.toolsService.voxelDownsamplingWASM.currentVoxelSize = newSize;
       
       // Update voxel debug visualization if it's currently visible
       if (showVoxelDebug) {
         // Re-show the voxel debug with the new size
-        serviceManager.toolsService.voxelDownsampling.showVoxelDebug(newSize);
+        serviceManager.toolsService.voxelDownsamplingWASM.showVoxelDebug(newSize);
       }
     }
   };
@@ -140,10 +155,10 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     if (serviceManager?.toolsService) {
       if (newShowDebug) {
         // Show voxel debug grid
-        serviceManager.toolsService.voxelDownsampling.showVoxelDebug(voxelSize);
+        serviceManager.toolsService.voxelDownsamplingWASM.showVoxelDebug(voxelSize);
       } else {
         // Hide voxel debug grid
-        serviceManager.toolsService.voxelDownsampling.hideVoxelDebug();
+        serviceManager.toolsService.voxelDownsamplingWASM.hideVoxelDebug();
       }
     }
   };
@@ -152,7 +167,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   const handleCancelProcessing = () => {
     if (serviceManager?.toolsService && isProcessing) {
       Log.Info('Tools', 'Cancelling voxel downsampling processing...');
-      serviceManager.toolsService.voxelDownsampling.cancelProcessing();
+      serviceManager.toolsService.voxelDownsamplingWASM.cancelProcessing();
     }
   };
 
@@ -460,12 +475,12 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       }
 
       // Reset processing state when all batches are complete
-      serviceManager.toolsService.voxelDownsampling.resetProcessingState();
+      serviceManager.toolsService.voxelDownsamplingWASM.resetProcessingState();
 
     } catch (error) {
        Log.Error('Tools', 'WASM voxel downsampling error', error);
        // Reset processing state on error too
-       serviceManager.toolsService.voxelDownsampling.resetProcessingState();
+       serviceManager.toolsService.voxelDownsamplingWASM.resetProcessingState();
      }
   };
 
@@ -618,6 +633,155 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
+  const handleTsVoxelDownsampling = async () => {
+    if (!serviceManager?.toolsService) {
+      Log.Error('Tools', 'Tools service not available');
+      return;
+    }
+
+    try {
+      // Get all point cloud IDs
+      const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
+      Log.Debug('Tools', 'Found point cloud IDs for TS processing', allPointCloudIds);
+      
+      if (allPointCloudIds.length === 0) {
+        Log.Error('Tools', 'No point clouds found in scene');
+        return;
+      }
+
+      // Collect all points from all point clouds
+      const allPositions: number[] = [];
+      let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
+      let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
+
+      for (const pointCloudId of allPointCloudIds) {
+        const pointCloud = serviceManager.pointService?.getPointCloud(pointCloudId);
+        if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
+          for (const point of pointCloud.points) {
+            allPositions.push(point.position.x, point.position.y, point.position.z);
+            
+            // Calculate global bounding box
+            globalMinX = Math.min(globalMinX, point.position.x);
+            globalMinY = Math.min(globalMinY, point.position.y);
+            globalMinZ = Math.min(globalMinZ, point.position.z);
+            globalMaxX = Math.max(globalMaxX, point.position.x);
+            globalMaxY = Math.max(globalMaxY, point.position.y);
+            globalMaxZ = Math.max(globalMaxZ, point.position.z);
+          }
+        }
+      }
+
+      if (allPositions.length === 0) {
+        Log.Error('Tools', 'No valid points found for TS processing');
+        return;
+      }
+
+      const pointCloudData = new Float32Array(allPositions);
+
+      Log.Info('Tools', 'Starting TS voxel downsampling', {
+        pointCount: pointCloudData.length / 3,
+        voxelSize,
+        bounds: { globalMinX, globalMinY, globalMinZ, globalMaxX, globalMaxY, globalMaxZ }
+      });
+
+      // Clear the scene
+      serviceManager.pointService?.clearAllPointClouds();
+
+      // Process with TypeScript implementation
+      const result = await serviceManager.toolsService.voxelDownsamplingTS.voxelDownsampleTypeScript({
+        voxelSize,
+        pointCloudData,
+        globalBounds: {
+          minX: globalMinX,
+          minY: globalMinY,
+          minZ: globalMinZ,
+          maxX: globalMaxX,
+          maxY: globalMaxY,
+          maxZ: globalMaxZ,
+        }
+      });
+
+      if (result.success && result.downsampledPoints) {
+        // Convert downsampled points to PointCloudPoint array
+        const downsampledPoints = [];
+        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
+          downsampledPoints.push({
+            position: {
+              x: result.downsampledPoints[i],
+              y: result.downsampledPoints[i + 1],
+              z: result.downsampledPoints[i + 2],
+            },
+            color: { r: 0, g: 0, b: 1 }, // Blue color for TypeScript downsampled points
+            intensity: 1,
+            classification: 0,
+          });
+        }
+
+        // Create point cloud for TypeScript result
+        const tsPointCloud = {
+          points: downsampledPoints,
+          metadata: {
+            name: 'TypeScript Downsampled Point Cloud',
+            totalPoints: downsampledPoints.length,
+            bounds: {
+              min: {
+                x: Math.min(...downsampledPoints.map(p => p.position.x)),
+                y: Math.min(...downsampledPoints.map(p => p.position.y)),
+                z: Math.min(...downsampledPoints.map(p => p.position.z))
+              },
+              max: {
+                x: Math.max(...downsampledPoints.map(p => p.position.x)),
+                y: Math.max(...downsampledPoints.map(p => p.position.y)),
+                z: Math.max(...downsampledPoints.map(p => p.position.z))
+              }
+            },
+            hasColor: true,
+            hasIntensity: true,
+            hasClassification: true,
+            originalCount: result.originalCount,
+            downsampledCount: result.downsampledCount,
+            voxelSize: voxelSize,
+            processingTime: result.processingTime,
+            method: 'TypeScript'
+          },
+        };
+
+        // Add TypeScript result to the scene
+        const tsId = `ts_downsampled_${Date.now()}`;
+        await serviceManager.pointService?.loadPointCloud(tsId, tsPointCloud, false); // Don't reposition camera
+
+        Log.Info('Tools', 'TypeScript voxel downsampling completed', {
+          originalCount: result.originalCount,
+          downsampledCount: result.downsampledCount,
+          reduction: result.originalCount && result.downsampledCount ? ((result.originalCount - result.downsampledCount) / result.originalCount * 100).toFixed(2) + '%' : '--',
+          processingTime: result.processingTime ? result.processingTime.toFixed(2) + 'ms' : '--'
+        });
+
+        // Calculate voxel count for TS results (same as WASM calculation)
+        const voxelCount = result.downsampledCount || 0; // Each downsampled point represents one voxel
+        
+        // Store TS results for display
+        const tsResults = {
+          originalCount: result.originalCount || 0,
+          downsampledCount: result.downsampledCount || 0,
+          processingTime: result.processingTime || 0,
+          reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
+          voxelCount: voxelCount
+        };
+        setTsResults(tsResults);
+        
+        // Emit results to parent component
+        if (onTsResults) {
+          onTsResults(tsResults);
+        }
+      } else {
+        Log.Error('Tools', 'TypeScript voxel downsampling failed', result.error);
+      }
+    } catch (error) {
+      Log.Error('Tools', 'TypeScript voxel downsampling error', error);
+    }
+  };
+
   const tools = [
     {
       name: 'Voxel Downsampling',
@@ -652,8 +816,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
               <div className="tools-table-header">
                 <div className="tools-col-1">Tool</div>
                 <div className="tools-col-2">Controls</div>
-                <div className="tools-col-3">WASM</div>
-                <div className="tools-col-4">BE</div>
+                <div className="tools-col-3">TS</div>
+                <div className="tools-col-4">WASM</div>
+                <div className="tools-col-5">BE</div>
               </div>
 
               {tools.map((tool, index) => (
@@ -685,6 +850,21 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                     )}
                   </div>
                   <div className="tools-col-3">
+                    <button
+                      className="tools-ts-btn"
+                      onClick={
+                        tool.name === 'Voxel Downsampling'
+                          ? handleTsVoxelDownsampling
+                          : undefined
+                      }
+                      disabled={isProcessing}
+                    >
+                      {isProcessing && tool.name === 'Voxel Downsampling'
+                        ? 'Processing...'
+                        : 'TS'}
+                    </button>
+                  </div>
+                  <div className="tools-col-4">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <button
                         className="tools-wasm-btn"
@@ -717,7 +897,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                       )}
                     </div>
                   </div>
-                  <div className="tools-col-4">
+                  <div className="tools-col-5">
                     <button
                       className="tools-be-btn"
                       onClick={
@@ -772,11 +952,14 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                   </div>
                 </div>
                 <div className="tools-col-3">
+                  {/* TypeScript column - empty for Debug Voxels */}
+                </div>
+                <div className="tools-col-4">
                   {/* <button
                     className="tools-wasm-btn"
                     onClick={() => {
                       if (showVoxelDebug) {
-                        serviceManager?.toolsService?.voxelDownsampling?.showVoxelDebug(voxelSize);
+                        serviceManager?.toolsService?.voxelDownsamplingWASM?.showVoxelDebug(voxelSize);
                       }
                     }}
                     disabled={!showVoxelDebug}
@@ -784,12 +967,12 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                     WASM
                   </button> */}
                 </div>
-                <div className="tools-col-4">
+                <div className="tools-col-5">
                   {/* <button
                     className="tools-be-btn"
                     onClick={() => {
                       if (showVoxelDebug) {
-                        serviceManager?.toolsService?.voxelDownsampling?.showVoxelDebug(voxelSize);
+                        serviceManager?.toolsService?.voxelDownsamplingWASM?.showVoxelDebug(voxelSize);
                       }
                     }}
                     disabled={!showVoxelDebug}
