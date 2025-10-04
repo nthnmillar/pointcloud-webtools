@@ -40,7 +40,7 @@ interface ToolsProps {
 
 export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onTsResults, onBeResults, onCurrentToolChange }) => {
   const [isVisible, setIsVisible] = useState(false);
-  const [voxelSize, setVoxelSize] = useState(0.1);
+  const [voxelSize, setVoxelSize] = useState(2.0);
   const [wasmBatchSize, setWasmBatchSize] = useState(2000);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
