@@ -14,15 +14,18 @@ else
     echo "Warning: laz-perf.wasm not found in node_modules/laz-perf/lib/"
 fi
 
-# Compile voxel downsampling WASM module
-echo "Compiling voxel downsampling WASM module..."
-emcc src/wasm/voxel_downsampling.cpp \
-  -o public/wasm/voxel_downsampling.js \
+# Compile unified tools WASM module
+echo "Compiling unified tools WASM module..."
+emcc src/wasm/tools.cpp \
+  -o public/wasm/tools.js \
   -s MODULARIZE=1 \
-  -s EXPORT_NAME="VoxelModule" \
+  -s EXPORT_NAME="ToolsModule" \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s INITIAL_MEMORY=16MB \
   -s MAXIMUM_MEMORY=512MB \
+  -s ENVIRONMENT="web" \
+  -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap']" \
+  -s NO_DISABLE_EXCEPTION_CATCHING=1 \
   -O3 \
   --bind
 
@@ -40,8 +43,8 @@ emcc src/wasm/copc_loader.cpp \
 
 echo "WASM compilation complete!"
 echo "Generated files:"
-echo "  - public/wasm/voxel_downsampling.js"
-echo "  - public/wasm/voxel_downsampling.wasm"
+echo "  - public/wasm/tools.js"
+echo "  - public/wasm/tools.wasm"
 echo "  - public/wasm/copc_loader.js"
 echo "  - public/wasm/copc_loader.wasm"
 

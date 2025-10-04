@@ -4,29 +4,43 @@ interface BenchmarkProps {
   className?: string;
   wasmResults?: {
     originalCount: number;
-    downsampledCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
     processingTime: number;
-    reductionRatio: number;
-    voxelCount: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
   } | null;
   tsResults?: {
     originalCount: number;
-    downsampledCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
     processingTime: number;
-    reductionRatio: number;
-    voxelCount: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
   } | null;
   beResults?: {
     originalCount: number;
-    downsampledCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
     processingTime: number;
-    reductionRatio: number;
-    voxelCount: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
   } | null;
+  currentTool?: 'voxel' | 'smoothing';
 }
 
-export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, tsResults, beResults }) => {
+export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, tsResults, beResults, currentTool = 'voxel' }) => {
   const [isVisible, setIsVisible] = useState(false);
+
+  // Determine if we're showing voxel downsampling or smoothing results
+  const isVoxelTool = currentTool === 'voxel' || (wasmResults && wasmResults.downsampledCount !== undefined);
+  const isSmoothingTool = currentTool === 'smoothing' || (wasmResults && wasmResults.smoothedCount !== undefined);
 
   return (
     <>
@@ -70,24 +84,50 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     {tsResults ? tsResults.originalCount.toLocaleString() : '--'}
                   </span>
                 </div>
-                <div className="metric-item">
-                  <span className="metric-label">Downsampled:</span>
-                  <span className="metric-value">
-                    {tsResults ? tsResults.downsampledCount.toLocaleString() : '--'}
-                  </span>
-                </div>
-                <div className="metric-item">
-                  <span className="metric-label">Reduction:</span>
-                  <span className="metric-value">
-                    {tsResults ? `${((tsResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
-                  </span>
-                </div>
-                <div className="metric-item">
-                  <span className="metric-label">Voxels:</span>
-                  <span className="metric-value">
-                    {tsResults ? tsResults.voxelCount.toLocaleString() : '--'}
-                  </span>
-                </div>
+                {isVoxelTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Downsampled:</span>
+                      <span className="metric-value">
+                        {tsResults ? tsResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Reduction:</span>
+                      <span className="metric-value">
+                        {tsResults && tsResults.reductionRatio ? `${((tsResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Voxels:</span>
+                      <span className="metric-value">
+                        {tsResults ? tsResults.voxelCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {isSmoothingTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Smoothed:</span>
+                      <span className="metric-value">
+                        {tsResults ? tsResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Radius:</span>
+                      <span className="metric-value">
+                        {tsResults ? `${tsResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Iterations:</span>
+                      <span className="metric-value">
+                        {tsResults ? tsResults.iterations?.toString() || '--' : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -107,24 +147,50 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     {wasmResults ? wasmResults.originalCount.toLocaleString() : '--'}
                   </span>
                 </div>
-                <div className="metric-item">
-                  <span className="metric-label">Downsampled:</span>
-                  <span className="metric-value">
-                    {wasmResults ? wasmResults.downsampledCount.toLocaleString() : '--'}
-                  </span>
-                </div>
-                <div className="metric-item">
-                  <span className="metric-label">Reduction:</span>
-                  <span className="metric-value">
-                    {wasmResults ? `${((wasmResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
-                  </span>
-                </div>
-                <div className="metric-item">
-                  <span className="metric-label">Voxels:</span>
-                  <span className="metric-value">
-                    {wasmResults ? wasmResults.voxelCount.toLocaleString() : '--'}
-                  </span>
-                </div>
+                {isVoxelTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Downsampled:</span>
+                      <span className="metric-value">
+                        {wasmResults ? wasmResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Reduction:</span>
+                      <span className="metric-value">
+                        {wasmResults && wasmResults.reductionRatio ? `${((wasmResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Voxels:</span>
+                      <span className="metric-value">
+                        {wasmResults ? wasmResults.voxelCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {isSmoothingTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Smoothed:</span>
+                      <span className="metric-value">
+                        {wasmResults ? wasmResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Radius:</span>
+                      <span className="metric-value">
+                        {wasmResults ? `${wasmResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Iterations:</span>
+                      <span className="metric-value">
+                        {wasmResults ? wasmResults.iterations?.toString() || '--' : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -144,24 +210,50 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     {beResults ? beResults.originalCount.toLocaleString() : '--'}
                   </span>
                 </div>
-                <div className="metric-item">
-                  <span className="metric-label">Downsampled:</span>
-                  <span className="metric-value">
-                    {beResults ? beResults.downsampledCount.toLocaleString() : '--'}
-                  </span>
-                </div>
-                <div className="metric-item">
-                  <span className="metric-label">Reduction:</span>
-                  <span className="metric-value">
-                    {beResults ? `${((beResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
-                  </span>
-                </div>
-                <div className="metric-item">
-                  <span className="metric-label">Voxels:</span>
-                  <span className="metric-value">
-                    {beResults ? beResults.voxelCount.toLocaleString() : '--'}
-                  </span>
-                </div>
+                {isVoxelTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Downsampled:</span>
+                      <span className="metric-value">
+                        {beResults ? beResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Reduction:</span>
+                      <span className="metric-value">
+                        {beResults && beResults.reductionRatio ? `${((beResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Voxels:</span>
+                      <span className="metric-value">
+                        {beResults ? beResults.voxelCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {isSmoothingTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Smoothed:</span>
+                      <span className="metric-value">
+                        {beResults ? beResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Radius:</span>
+                      <span className="metric-value">
+                        {beResults ? `${beResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Iterations:</span>
+                      <span className="metric-value">
+                        {beResults ? beResults.iterations?.toString() || '--' : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

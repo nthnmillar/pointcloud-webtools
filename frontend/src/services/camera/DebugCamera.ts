@@ -23,7 +23,6 @@ export class DebugCamera {
     // These values are calculated from the main camera's default sensitivity settings
     this._camera.wheelPrecision = 2.899; // Calculated from zoomSensitivity = 0.005
     this._camera.panningSensibility = 184.49; // Calculated from panningSensitivity = 0.05
-    this._camera.angularSensibility = 184.49; // Match panning sensitivity
     this._camera.panningInertia = 0.9; // Smooth panning
     this._camera.wheelDeltaPercentage = 0; // Disable for equal zoom in/out
   }

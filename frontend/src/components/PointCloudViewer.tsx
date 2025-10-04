@@ -26,27 +26,37 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
   // Benchmark results state
   const [wasmResults, setWasmResults] = useState<{
     originalCount: number;
-    downsampledCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
     processingTime: number;
-    reductionRatio: number;
-    voxelCount: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
   } | null>(null);
   
   const [tsResults, setTsResults] = useState<{
     originalCount: number;
-    downsampledCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
     processingTime: number;
-    reductionRatio: number;
-    voxelCount: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
   } | null>(null);
   
   const [beResults, setBeResults] = useState<{
     originalCount: number;
-    downsampledCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
     processingTime: number;
-    reductionRatio: number;
-    voxelCount: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
   } | null>(null);
+  const [currentTool, setCurrentTool] = useState<'voxel' | 'smoothing'>('voxel');
 
   // Initialize service manager
   useEffect(() => {
@@ -90,7 +100,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         });
 
       // No cleanup function in development mode to prevent disposal
-      if (process.env.NODE_ENV === 'production') {
+      if (import.meta.env.PROD) {
         return () => {
           serviceManager?.dispose();
           initializationRef.current = false;
@@ -162,9 +172,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         {serviceManager && (
           <SceneControls
             serviceManager={serviceManager}
-            isLoading={isLoading}
-            onLoadingChange={setIsLoading}
-            onErrorChange={setError}
           />
         )}
       </div>
@@ -179,12 +186,14 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         wasmResults={wasmResults}
         tsResults={tsResults}
         beResults={beResults}
+        currentTool={currentTool}
       />
       <Tools 
         serviceManager={serviceManager}
         onWasmResults={setWasmResults}
         onTsResults={setTsResults}
         onBeResults={setBeResults}
+        onCurrentToolChange={setCurrentTool}
       />
     </div>
   );

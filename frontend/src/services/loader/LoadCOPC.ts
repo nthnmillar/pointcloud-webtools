@@ -15,7 +15,6 @@ export class LoadCOPC {
   private isProcessing = false;
   private serviceManager: ServiceManager;
   private currentFileId: string | null = null;
-  private batchCount: number = 0;
   private headerData: any = null;
   private calculatedCentroid: { x: number; y: number; z: number } | null = null;
   private totalPointsProcessed: number = 0;
@@ -34,7 +33,6 @@ export class LoadCOPC {
 
   private resetAccumulator(): void {
     this.currentFileId = null;
-    this.batchCount = 0;
     this.headerData = null;
     this.calculatedCentroid = null;
     this.totalPointsProcessed = 0;

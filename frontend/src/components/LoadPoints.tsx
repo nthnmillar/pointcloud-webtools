@@ -36,7 +36,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
   useEffect(() => {
     const checkVoxelProcessing = () => {
       if (serviceManager?.toolsService) {
-        const isProcessing = serviceManager.toolsService.voxelDownsampling.isProcessing;
+        const isProcessing = serviceManager.toolsService.processing;
         if (isProcessing !== isVoxelProcessing) {
           setIsVoxelProcessing(isProcessing);
         }
@@ -113,7 +113,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
 
       // Clear existing point clouds and turn off debug before loading sample data
       serviceManager.clearAllPointClouds();
-      serviceManager.toolsService?.voxelDownsamplingWASM?.hideVoxelDebug();
+      serviceManager.toolsService?.hideVoxelDebug();
 
       const sampleData = serviceManager.generateSamplePointCloud(
         'sample-1',
@@ -156,7 +156,11 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
 
       // Clear existing point clouds and turn off debug before loading new file
       serviceManager.clearAllPointClouds();
-      serviceManager.toolsService?.voxelDownsamplingWASM?.hideVoxelDebug();
+      serviceManager.toolsService?.hideVoxelDebug();
+
+      // Set loading state
+      onLoadingChange(true);
+      onErrorChange(null);
 
       // Small delay to ensure scene clearing completes
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -167,7 +171,8 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       Log.Error('LoadPoints', 'Error loading file', err);
       onErrorChange(err instanceof Error ? err.message : 'Failed to load file');
     } finally {
-      // Reset file input
+      // Reset loading state and file input
+      onLoadingChange(false);
       event.target.value = '';
     }
   };
@@ -178,10 +183,10 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       serviceManager.cancelLoading();
       onLoadingChange(false);
       
-      // Cancel voxel downsampling if it's running
+      // Cancel processing if it's running
       if (isVoxelProcessing && serviceManager.toolsService) {
-        Log.Info('LoadPoints', 'Cancelling voxel downsampling from LoadPoints...');
-        serviceManager.toolsService.voxelDownsampling.cancelProcessing();
+        Log.Info('LoadPoints', 'Cancelling processing from LoadPoints...');
+        // Note: Cancellation will be re-implemented in unified service
       }
     }
   };
@@ -190,10 +195,9 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
     if (serviceManager) {
       serviceManager.clearAllPointClouds();
       
-      // Also hide voxel debug and reset processing state when clearing the scene
-      if (serviceManager.toolsService?.voxelDownsampling) {
-        serviceManager.toolsService.voxelDownsampling.hideVoxelDebug();
-        serviceManager.toolsService.voxelDownsampling.resetProcessingState();
+      // Also hide voxel debug when clearing the scene
+      if (serviceManager.toolsService) {
+        serviceManager.toolsService.hideVoxelDebug();
       }
     }
   };
@@ -270,7 +274,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
               </button>
               <button 
                 onClick={handleCancelLoading} 
-                disabled={!isLoading && !isVoxelProcessing}
+                disabled={!(isLoading || isVoxelProcessing)}
               >
                 {isVoxelProcessing ? 'Cancel Processing' : 'Cancel Loading'}
               </button>

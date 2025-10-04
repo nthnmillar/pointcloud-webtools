@@ -25,8 +25,6 @@ export class CameraService extends BaseService {
   // Camera control properties
   private _zoomSensitivity: number = 0.005;
   private _panningSensitivity: number = 0.05;
-  private _wheelPrecision: number = 0.01;
-  private _panningSensibility: number = 5;
   private _targetEnabled: boolean = true;
 
   constructor() {

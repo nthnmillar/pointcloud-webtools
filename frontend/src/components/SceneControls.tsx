@@ -1,20 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
+import { Log } from '../utils/Log';
 
 interface SceneControlsProps {
   className?: string;
   serviceManager: ServiceManager | null;
-  isLoading: boolean;
-  onLoadingChange: (loading: boolean) => void;
-  onErrorChange: (error: string | null) => void;
 }
 
 export const SceneControls: React.FC<SceneControlsProps> = ({
   className,
   serviceManager,
-  isLoading,
-  onLoadingChange,
-  onErrorChange,
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -70,7 +65,7 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
 
   const handleTargetToggle = (enabled: boolean) => {
     if (!serviceManager) {
-      console.warn('No service manager available');
+      Log.Warn('SceneControls', 'No service manager available');
       return;
     }
 

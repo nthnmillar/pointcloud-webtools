@@ -29,11 +29,12 @@ export class ServiceManager extends BaseService {
     this._renderService = new RenderService();
     this._loaderService = new LoaderService(this);
     this._toolsService = new ToolsService(this);
-
-    // Set up service communication
-    this.setupServiceCommunication();
   }
 
+  /** Get the scene service */
+  public get sceneService(): SceneService {
+    return this._sceneService;
+  }
 
   async initialize(canvas: HTMLCanvasElement): Promise<void> {
     try {
@@ -52,7 +53,10 @@ export class ServiceManager extends BaseService {
       await Promise.all([
         this._renderService.initialize(),
         this._loaderService.initialize(),
-        this._toolsService.initialize(),
+        this._toolsService.initialize().catch(err => {
+          Log.Error('ServiceManager', 'ToolsService initialization failed, continuing without it:', err);
+          return null;
+        }),
       ]);
 
       // Initialize point service with the scene and service manager
@@ -84,98 +88,6 @@ export class ServiceManager extends BaseService {
     this.removeAllObservers();
   }
 
-  /**
-   * Set up communication between services
-   */
-  private setupServiceCommunication(): void {
-    // Point service events
-    this._pointService.on('loaded', data => {
-      this.emit('pointCloudLoaded', data);
-      // Note: renderActivePointCloud() is already called by loadPointCloud() internally
-    });
-
-    this._pointService.on('loading', data => {
-      this.emit('pointCloudLoading', data);
-    });
-
-    this._pointService.on('error', data => {
-      this.emit('pointCloudError', data);
-    });
-
-    this._pointService.on('selectionChanged', data => {
-      this.emit('selectionChanged', data);
-      this.renderActivePointCloud();
-    });
-
-    this._pointService.on('removed', data => {
-      this.emit('pointCloudRemoved', data);
-    });
-
-    // Point cloud rendering handled directly
-
-    this._pointService.on('renderOptionsUpdated', data => {
-      this.emit('renderOptionsUpdated', data);
-    });
-
-    // Render service events
-    this._renderService.on('renderRequested', () => {
-      this.renderActivePointCloud();
-    });
-
-    this._renderService.on('renderOptionsChanged', data => {
-      this.emit('renderOptionsChanged', data);
-    });
-
-    // Loader service events
-    this._loaderService.on('loadingStarted', (data: any) => {
-      this.emit('fileLoadingStarted', data);
-    });
-
-    this._loaderService.on('loadingCompleted', (data: any) => {
-      this.emit('fileLoadingCompleted', data);
-      // Automatically load the point cloud data into the point service
-      if (data.pointCloudData) {
-        // Clear existing point clouds and turn off debug before loading new file
-        this.clearAllPointClouds();
-        this._toolsService?.voxelDownsamplingWASM?.hideVoxelDebug();
-        
-        // Received point cloud data
-        // Generate a unique ID for the loaded point cloud
-        const id = `loaded_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        this.loadPointCloud(id, data.pointCloudData).catch((error) => {
-          Log.Error('ServiceManager', 'Error loading point cloud', error);
-        });
-        // Set the newly loaded point cloud as active
-        this.activePointCloudId = id;
-        // Note: renderActivePointCloud() is already called by loadPointCloud() internally
-      }
-    });
-
-    this._loaderService.on('loadingError', (data: any) => {
-      this.emit('fileLoadingError', data);
-    });
-
-    // Tools service events
-    this._toolsService.on('processingStarted', (data: any) => {
-      this.emit('toolsProcessingStarted', data);
-    });
-
-    this._toolsService.on('processingCompleted', (data: any) => {
-      this.emit('toolsProcessingCompleted', data);
-    });
-
-    this._toolsService.on('processingError', (data: any) => {
-      this.emit('toolsProcessingError', data);
-    });
-
-    this._toolsService.on('processingFinished', (data: any) => {
-      this.emit('toolsProcessingFinished', data);
-    });
-
-    this._toolsService.on('voxelSizeChanged', (data: any) => {
-      this.emit('voxelSizeChanged', data);
-    });
-  }
 
   // Point Service Methods
   async loadPointCloud(id: string, data: PointCloudData, autoPositionCamera: boolean = true): Promise<void> {
@@ -234,10 +146,6 @@ export class ServiceManager extends BaseService {
   // Service Access Methods (for advanced usage)
   get pointService(): PointService {
     return this._pointService;
-  }
-
-  get sceneService(): SceneService {
-    return this._sceneService;
   }
 
   get renderService(): RenderService {
