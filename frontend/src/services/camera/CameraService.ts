@@ -21,6 +21,7 @@ export class CameraService extends BaseService {
   private _targetSphere: Mesh | null = null;
   private _frustumLines: LinesMesh | null = null;
   private _debugCamera: DebugCamera | null = null;
+  private _lastFrustumUpdate: number = 0;
 
   // Camera control properties
   private _zoomSensitivity: number = 0.005;
@@ -80,9 +81,10 @@ export class CameraService extends BaseService {
     // Set initial camera control sensitivities
     this.updateCameraControls();
 
-    // Add event listener to update target sphere when camera moves
+    // Add event listener to update target sphere and frustum lines when camera moves
     this._camera.onViewMatrixChangedObservable.add(() => {
       this.updateTargetSphere();
+      this.updateFrustumLines();
     });
   }
 
@@ -313,6 +315,29 @@ export class CameraService extends BaseService {
   }
 
   /**
+   * Update frustum lines to match current camera position and rotation
+   */
+  updateFrustumLines(): void {
+    if (!this._frustumLines || !this._camera || !this._scene) return;
+    
+    // For now, we'll recreate the lines but with throttling to avoid excessive updates
+    // In a production app, you'd want to use a more efficient approach like:
+    // - Using a single mesh with instanced geometry
+    // - Using Babylon.js's built-in frustum visualization
+    // - Implementing custom line updating
+    
+    // Throttle updates to avoid excessive recreation
+    if (this._lastFrustumUpdate && Date.now() - this._lastFrustumUpdate < 16) {
+      return; // Skip if less than 16ms since last update (60fps max)
+    }
+    this._lastFrustumUpdate = Date.now();
+    
+    // Dispose old lines and create new ones
+    this._frustumLines.dispose();
+    this.createFrustumLines();
+  }
+
+  /**
    * Create a debug camera to view the frustum from outside
    */
   private createDebugCamera(): void {
@@ -447,11 +472,11 @@ export class CameraService extends BaseService {
       points.push(farCorners[i]);
     }
 
-    // Create lines mesh as child of main camera
+    // Create lines mesh in world space
     this._frustumLines = CreateLines("frustumLines", { points }, this._scene);
     
-    // Make it a child of the main camera so it moves with it
-    this._frustumLines.parent = this._camera;
+    // Don't make it a child of the camera - keep it in world space
+    // The frustum is already calculated in world coordinates
     
     // Set material
     const material = new StandardMaterial("frustumMaterial", this._scene);
