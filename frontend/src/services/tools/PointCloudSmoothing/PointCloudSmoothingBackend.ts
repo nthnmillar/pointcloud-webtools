@@ -30,9 +30,6 @@ export class PointCloudSmoothingBackend extends BaseService {
     try {
       const startTime = performance.now();
       
-      // Simulate backend processing with network delay
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
       const pointCount = params.points.length / 3;
       let smoothedPoints = new Float32Array(params.points);
       

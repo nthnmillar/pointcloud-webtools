@@ -38,9 +38,6 @@ export class VoxelDownsamplingBackend extends BaseService {
     try {
       const startTime = performance.now();
       
-      // Simulate backend processing with network delay
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
       const pointCount = params.pointCloudData.length / 3;
       const voxelMap = new Map<string, {
         count: number;

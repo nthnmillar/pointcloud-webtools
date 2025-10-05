@@ -61,7 +61,14 @@ std::vector<Point3D> voxelDownsample(
            globalMinY, globalMinY + (maxY - minY), 
            globalMinZ, globalMinZ + (maxZ - minZ));
 
-    std::unordered_map<std::string, std::vector<Point3D>> voxelMap;
+    // Use efficient sum/count approach like TS/BE implementations
+    struct Voxel {
+        int count;
+        float sumX, sumY, sumZ;
+        Voxel() : count(0), sumX(0), sumY(0), sumZ(0) {}
+    };
+    
+    std::unordered_map<std::string, Voxel> voxelMap;
     
     for (const auto& point : points) {
         int voxelX = static_cast<int>((point.x - globalMinX) / voxelSize);
@@ -72,25 +79,30 @@ std::vector<Point3D> voxelDownsample(
                               std::to_string(voxelY) + "," + 
                               std::to_string(voxelZ);
         
-        voxelMap[voxelKey].push_back(point);
+        if (voxelMap.find(voxelKey) != voxelMap.end()) {
+            Voxel& voxel = voxelMap[voxelKey];
+            voxel.count++;
+            voxel.sumX += point.x;
+            voxel.sumY += point.y;
+            voxel.sumZ += point.z;
+        } else {
+            Voxel voxel;
+            voxel.count = 1;
+            voxel.sumX = point.x;
+            voxel.sumY = point.y;
+            voxel.sumZ = point.z;
+            voxelMap[voxelKey] = voxel;
+        }
     }
     
     printf("DEBUG: Created %zu voxels\n", voxelMap.size());
     
     std::vector<Point3D> result;
-    for (const auto& [voxelKey, voxelPoints] : voxelMap) {
-        if (voxelPoints.empty()) continue;
-        
-        float avgX = 0, avgY = 0, avgZ = 0;
-        for (const auto& point : voxelPoints) {
-            avgX += point.x;
-            avgY += point.y;
-            avgZ += point.z;
-        }
-        
-        avgX /= voxelPoints.size();
-        avgY /= voxelPoints.size();
-        avgZ /= voxelPoints.size();
+    for (const auto& [voxelKey, voxel] : voxelMap) {
+        // Calculate average position (voxel center) - same as TS/BE
+        float avgX = voxel.sumX / voxel.count;
+        float avgY = voxel.sumY / voxel.count;
+        float avgZ = voxel.sumZ / voxel.count;
         
         result.push_back({avgX, avgY, avgZ});
     }
