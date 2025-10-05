@@ -89,63 +89,13 @@ export class VoxelDownsampleDebugBackend extends BaseService {
     } catch (error) {
       Log.Error('VoxelDownsampleDebugBackend', 'Real C++ backend voxel centers generation failed', error);
       
-      // Fallback to TS algorithm when backend is not available
-      console.log('🔧 Backend Debug: Falling back to TS algorithm (backend unavailable)');
+      // No fallback - BE must use real C++ processing for benchmarking
+      console.log('🔧 Backend Debug: No fallback allowed - BE must use real C++ processing');
       
-      const startTime = performance.now();
-      const pointCount = params.pointCloudData.length / 3;
-      const voxelMap = new Map();
-      
-      // Process each point to find voxel centers (TS algorithm)
-      for (let i = 0; i < pointCount; i++) {
-        const x = params.pointCloudData[i * 3];
-        const y = params.pointCloudData[i * 3 + 1];
-        const z = params.pointCloudData[i * 3 + 2];
-        
-        // Calculate voxel coordinates
-        const voxelX = Math.floor((x - params.globalBounds.minX) / params.voxelSize);
-        const voxelY = Math.floor((y - params.globalBounds.minY) / params.voxelSize);
-        const voxelZ = Math.floor((z - params.globalBounds.minZ) / params.voxelSize);
-        
-        const voxelKey = `${voxelX},${voxelY},${voxelZ}`;
-        
-        if (voxelMap.has(voxelKey)) {
-          const voxel = voxelMap.get(voxelKey);
-          voxel.count++;
-          voxel.sumX += x;
-          voxel.sumY += y;
-          voxel.sumZ += z;
-        } else {
-          voxelMap.set(voxelKey, {
-            count: 1,
-            sumX: x,
-            sumY: y,
-            sumZ: z
-          });
-        }
-      }
-      
-      // Calculate voxel grid positions for proper visualization
-      const voxelGridPositions: number[] = [];
-      for (const [voxelKey] of voxelMap) {
-        const [voxelX, voxelY, voxelZ] = voxelKey.split(',').map(Number);
-        
-        // Calculate voxel grid position (center of voxel grid cell)
-        const gridX = params.globalBounds.minX + (voxelX + 0.5) * params.voxelSize;
-        const gridY = params.globalBounds.minY + (voxelY + 0.5) * params.voxelSize;
-        const gridZ = params.globalBounds.minZ + (voxelZ + 0.5) * params.voxelSize;
-        
-        voxelGridPositions.push(gridX, gridY, gridZ);
-      }
-      
-      const processingTime = performance.now() - startTime;
-      const voxelCenters = new Float32Array(voxelGridPositions);
       
       return {
-        success: true,
-        voxelCenters: voxelCenters,
-        voxelCount: voxelMap.size,
-        processingTime
+        success: false,
+        error: 'Backend C++ processing required for benchmarking - no fallback allowed'
       };
     }
   }

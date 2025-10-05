@@ -70,70 +70,41 @@ export class VoxelDownsampleDebugWASM extends BaseService {
       // Convert Float32Array to regular array for WASM compatibility
       const pointArray = Array.from(params.pointCloudData);
       
-      // Use C++ WASM module for voxel debug generation
-      const voxelResult = this.module.voxelDownsample(
+      // Use dedicated C++ WASM debug functions for proper benchmarking
+      this.module.showVoxelDebug(
         pointArray,
-        params.voxelSize,
-        params.globalBounds.minX,
-        params.globalBounds.minY,
-        params.globalBounds.minZ
+        params.voxelSize
       );
       
-      // Extract centers from the C++ WASM result
-      const voxelCenters = voxelResult;
       const processingTime = performance.now() - startTime;
       
-      console.log('🔧 WASM Debug: C++ voxelDownsample result', {
-        resultSize: voxelCenters ? voxelCenters.size() : 0,
+      // Get voxel debug centers from C++ WASM (already calculated as grid positions)
+      const voxelCenters = this.module.getVoxelDebugCenters();
+      
+      console.log('🔧 WASM Debug: C++ debug centers result', {
+        resultLength: voxelCenters ? voxelCenters.length : 0,
         voxelSize: params.voxelSize,
         bounds: params.globalBounds
       });
       
-      // Convert C++ result to Float32Array and calculate grid positions
+      // Convert C++ result to Float32Array (already grid positions)
       let centersArray: Float32Array;
-      const resultSize = voxelCenters ? voxelCenters.size() : 0;
-      if (resultSize === 0) {
+      if (!voxelCenters || voxelCenters.length === 0) {
         centersArray = new Float32Array(0);
       } else {
-        // Get the original centers from C++ WASM
-        const originalCenters: number[] = [];
-        for (let i = 0; i < resultSize; i++) {
-          const point = voxelCenters.get(i);
-          originalCenters.push(point.x, point.y, point.z);
-        }
-        
-        // Calculate voxel grid positions for proper visualization
-        const voxelGridPositions: number[] = [];
-        for (let i = 0; i < resultSize; i++) {
-          const x = originalCenters[i * 3];
-          const y = originalCenters[i * 3 + 1];
-          const z = originalCenters[i * 3 + 2];
-          
-          // Calculate voxel grid coordinates
-          const voxelX = Math.floor((x - params.globalBounds.minX) / params.voxelSize);
-          const voxelY = Math.floor((y - params.globalBounds.minY) / params.voxelSize);
-          const voxelZ = Math.floor((z - params.globalBounds.minZ) / params.voxelSize);
-          
-          // Calculate voxel grid position (center of voxel grid cell)
-          const gridX = params.globalBounds.minX + (voxelX + 0.5) * params.voxelSize;
-          const gridY = params.globalBounds.minY + (voxelY + 0.5) * params.voxelSize;
-          const gridZ = params.globalBounds.minZ + (voxelZ + 0.5) * params.voxelSize;
-          
-          voxelGridPositions.push(gridX, gridY, gridZ);
-        }
-        
-        centersArray = new Float32Array(voxelGridPositions);
+        // WASM debug centers are already grid positions (calculated in C++)
+        centersArray = new Float32Array(voxelCenters);
       }
       
       Log.Info('VoxelDownsampleDebugWASM', 'Voxel centers generated using C++ WASM', {
-        voxelCount: resultSize,
+        voxelCount: centersArray.length / 3,
         processingTime: processingTime.toFixed(2) + 'ms'
       });
 
       return {
         success: true,
         voxelCenters: centersArray,
-        voxelCount: resultSize,
+        voxelCount: centersArray.length / 3,
         processingTime
       };
     } catch (error) {
