@@ -41,6 +41,7 @@ interface ToolsProps {
 export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onTsResults, onBeResults, onCurrentToolChange }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [voxelSize, setVoxelSize] = useState(2.0);
+  const [maxVoxels, setMaxVoxels] = useState(2000);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
   
@@ -111,12 +112,19 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
 
   // Handle voxel size changes
   const handleVoxelSizeChange = (newSize: number) => {
+    console.log('🎚️ Slider changed to:', newSize, 'showVoxelDebug:', showVoxelDebug);
     setVoxelSize(newSize);
     if (serviceManager?.toolsService) {
       // Update voxel debug visualization if it's currently visible
       if (showVoxelDebug) {
-        serviceManager.toolsService.showVoxelDebug(newSize);
+        // Update existing debug squares instead of creating new ones
+        console.log('🔧 Updating voxel size for existing debug visualization:', newSize);
+        serviceManager.toolsService.updateVoxelSize(newSize);
+      } else {
+        console.log('🔧 Debug visualization not visible, skipping update');
       }
+    } else {
+      console.log('🔧 Service manager not available');
     }
   };
 
@@ -129,11 +137,90 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     if (serviceManager?.toolsService) {
       if (newShowDebug) {
         // Show voxel debug grid
-        serviceManager.toolsService.showVoxelDebug(voxelSize);
+        serviceManager.toolsService.showVoxelDebug(voxelSize, 'TS', maxVoxels);
       } else {
         // Hide voxel debug grid
         serviceManager.toolsService.hideVoxelDebug();
       }
+    }
+  };
+
+  // Debug voxel handlers for benchmarking
+  const handleTsVoxelDebug = async () => {
+    if (!serviceManager?.toolsService) return;
+    
+    const startTime = performance.now();
+    try {
+      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'TS', maxVoxels);
+      const processingTime = performance.now() - startTime;
+      
+      Log.Info('Tools', 'TS Debug Voxel generation completed', {
+        processingTime: processingTime.toFixed(2) + 'ms',
+        voxelCount: result?.voxelCount || 0
+      });
+
+      // Emit benchmark results for debug voxel generation
+      if (onTsResults) {
+        onTsResults({
+          originalCount: 0, // Debug voxels don't have original point count
+          processingTime: processingTime,
+          voxelCount: result?.voxelCount || 0,
+        });
+      }
+    } catch (error) {
+      Log.Error('Tools', 'TS Debug Voxel generation failed', error);
+    }
+  };
+
+  const handleWasmVoxelDebug = async () => {
+    if (!serviceManager?.toolsService) return;
+    
+    const startTime = performance.now();
+    try {
+      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'WASM', maxVoxels);
+      const processingTime = performance.now() - startTime;
+      
+      Log.Info('Tools', 'WASM Debug Voxel generation completed', {
+        processingTime: processingTime.toFixed(2) + 'ms',
+        voxelCount: result?.voxelCount || 0
+      });
+
+      // Emit benchmark results for debug voxel generation
+      if (onWasmResults) {
+        onWasmResults({
+          originalCount: 0, // Debug voxels don't have original point count
+          processingTime: processingTime,
+          voxelCount: result?.voxelCount || 0,
+        });
+      }
+    } catch (error) {
+      Log.Error('Tools', 'WASM Debug Voxel generation failed', error);
+    }
+  };
+
+  const handleBeVoxelDebug = async () => {
+    if (!serviceManager?.toolsService) return;
+    
+    const startTime = performance.now();
+    try {
+      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'BE', maxVoxels);
+      const processingTime = performance.now() - startTime;
+      
+      Log.Info('Tools', 'BE Debug Voxel generation completed', {
+        processingTime: processingTime.toFixed(2) + 'ms',
+        voxelCount: result?.voxelCount || 0
+      });
+
+      // Emit benchmark results for debug voxel generation
+      if (onBeResults) {
+        onBeResults({
+          originalCount: 0, // Debug voxels don't have original point count
+          processingTime: processingTime,
+          voxelCount: result?.voxelCount || 0,
+        });
+      }
+    } catch (error) {
+      Log.Error('Tools', 'BE Debug Voxel generation failed', error);
     }
   };
 
@@ -825,207 +912,225 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
               </div>
 
               {tools.map((tool, index) => (
-                <div key={index} className="tools-table-row">
-                  <div className="tools-col-1">
-                    <div className="tool-name">{tool.name}</div>
-                    <div className="tool-description">{tool.description}</div>
-                  </div>
-                  <div className="tools-col-2">
-                    {tool.name === 'Voxel Downsampling' && (
-                      <div className="tool-control">
-                        {/* <div className="tool-batch-size">
-                          <label>WASM Batch Size:</label>
-                          <input
-                            type="range"
-                            min="100"
-                            max="5000"
-                            step="500"
-                            value={wasmBatchSize}
-                            onChange={e => handleWasmBatchSizeChange(parseInt(e.target.value))}
-                            className="tool-slider"
-                            style={{ width: '120px', marginLeft: '8px' }}
-                          />
-                          <span style={{ marginLeft: '8px', fontSize: '12px' }}>
-                            {wasmBatchSize}
-                          </span>
-                        </div> */}
-                      </div>
-                    )}
-                    {tool.name === 'Point Cloud Smoothing' && (
-                      <div className="tool-control">
-                        <div className="tool-slider-container">
-                          <label>Smoothing Radius:</label>
-                          <input
-                            type="range"
-                            min="0.1"
-                            max="2.0"
-                            step="0.1"
-                            value={smoothingRadius}
-                            onChange={e => setSmoothingRadius(parseFloat(e.target.value))}
-                            className="tool-slider"
-                            style={{ width: '120px', marginLeft: '8px' }}
-                          />
-                          <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
-                            {smoothingRadius.toFixed(1)}m
+                <React.Fragment key={index}>
+                  <div className="tools-table-row">
+                    <div className="tools-col-1">
+                      <div className="tool-name">{tool.name}</div>
+                      <div className="tool-description">{tool.description}</div>
+                    </div>
+                    <div className="tools-col-2">
+                      {tool.name === 'Voxel Downsampling' && (
+                        <div className="tool-control">
+                          {/* <div className="tool-batch-size">
+                            <label>WASM Batch Size:</label>
+                            <input
+                              type="range"
+                              min="100"
+                              max="5000"
+                              step="500"
+                              value={wasmBatchSize}
+                              onChange={e => handleWasmBatchSizeChange(parseInt(e.target.value))}
+                              className="tool-slider"
+                              style={{ width: '120px', marginLeft: '8px' }}
+                            />
+                            <span style={{ marginLeft: '8px', fontSize: '12px' }}>
+                              {wasmBatchSize}
+                            </span>
+                          </div> */}
+                        </div>
+                      )}
+                      {tool.name === 'Point Cloud Smoothing' && (
+                        <div className="tool-control">
+                          <div className="tool-slider-container">
+                            <label>Smoothing Radius:</label>
+                            <input
+                              type="range"
+                              min="0.1"
+                              max="2.0"
+                              step="0.1"
+                              value={smoothingRadius}
+                              onChange={e => setSmoothingRadius(parseFloat(e.target.value))}
+                              className="tool-slider"
+                              style={{ width: '120px', marginLeft: '8px' }}
+                            />
+                            <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
+                              {smoothingRadius.toFixed(1)}m
+                            </div>
+                          </div>
+                          <div className="tool-slider-container">
+                            <label>Iterations:</label>
+                            <input
+                              type="range"
+                              min="1"
+                              max="10"
+                              step="1"
+                              value={smoothingIterations}
+                              onChange={e => setSmoothingIterations(parseInt(e.target.value))}
+                              className="tool-slider"
+                              style={{ width: '120px', marginLeft: '8px' }}
+                            />
+                            <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
+                              {smoothingIterations}
+                            </div>
                           </div>
                         </div>
-                        <div className="tool-slider-container">
-                          <label>Iterations:</label>
-                          <input
-                            type="range"
-                            min="1"
-                            max="10"
-                            step="1"
-                            value={smoothingIterations}
-                            onChange={e => setSmoothingIterations(parseInt(e.target.value))}
-                            className="tool-slider"
-                            style={{ width: '120px', marginLeft: '8px' }}
-                          />
-                          <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
-                            {smoothingIterations}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="tools-col-3">
-                    <button
-                      className="tools-ts-btn"
-                      onClick={
-                        tool.name === 'Voxel Downsampling'
-                          ? handleTsVoxelDownsampling
-                          : tool.name === 'Point Cloud Smoothing'
-                          ? handleTsPointCloudSmoothing
-                          : undefined
-                      }
-                      disabled={isProcessing}
-                    >
-                      {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
-                        ? 'Processing...'
-                        : 'TS'}
-                    </button>
-                  </div>
-                  <div className="tools-col-4">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      )}
+                    </div>
+                    <div className="tools-col-3">
                       <button
-                        className="tools-wasm-btn"
+                        className="tools-ts-btn"
                         onClick={
                           tool.name === 'Voxel Downsampling'
-                            ? handleWasmVoxelDownsampling
+                            ? handleTsVoxelDownsampling
                             : tool.name === 'Point Cloud Smoothing'
-                            ? handleWasmPointCloudSmoothing
+                            ? handleTsPointCloudSmoothing
                             : undefined
                         }
                         disabled={isProcessing}
                       >
                         {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
                           ? 'Processing...'
-                          : 'WASM'}
+                          : 'TS'}
                       </button>
-                      {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing') && (
+                    </div>
+                    <div className="tools-col-4">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <button
-                          className="tools-cancel-btn"
-                          onClick={handleCancelProcessing}
-                          style={{
-                            backgroundColor: '#dc3545',
-                            color: 'white',
-                            border: 'none',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                          }}
+                          className="tools-wasm-btn"
+                          onClick={
+                            tool.name === 'Voxel Downsampling'
+                              ? handleWasmVoxelDownsampling
+                              : tool.name === 'Point Cloud Smoothing'
+                              ? handleWasmPointCloudSmoothing
+                              : undefined
+                          }
+                          disabled={isProcessing}
                         >
-                          Cancel
+                          {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                            ? 'Processing...'
+                            : 'WASM'}
                         </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="tools-col-5">
-                    <button
-                      className="tools-be-btn"
-                      onClick={
-                        tool.name === 'Voxel Downsampling'
-                          ? handleBeVoxelDownsampling
-                          : tool.name === 'Point Cloud Smoothing'
-                          ? handleBePointCloudSmoothing
-                          : undefined
-                      }
-                      disabled={isProcessing}
-                    >
-                      {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
-                        ? 'Processing...'
-                        : 'BE'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {/* Debug Voxels Row */}
-              <div className="tools-table-row">
-                <div className="tools-col-1">
-                  <div className="tool-name">Debug Voxels</div>
-                  <div className="tool-description">Visualize voxel grid for debugging</div>
-                </div>
-                <div className="tools-col-2">
-                  <div className="tool-control">
-                    <div className="tool-debug-toggle">
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={showVoxelDebug}
-                          onChange={handleVoxelDebugToggle}
-                        />
-                        Show Voxel Grid
-                      </label>
-                    </div>
-                    <div className="tool-slider-container">
-                      <label>Debug Voxel Size:</label>
-                      <input
-                        type="range"
-                        min="0.01"
-                        max="2.0"
-                        step="0.01"
-                        value={voxelSize}
-                        onChange={e => handleVoxelSizeChange(parseFloat(e.target.value))}
-                        className="tool-slider"
-                        style={{ width: '120px', marginLeft: '8px' }}
-                      />
-                      <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
-                        {voxelSize.toFixed(2)}m
+                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing') && (
+                          <button
+                            className="tools-cancel-btn"
+                            onClick={handleCancelProcessing}
+                            style={{
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        )}
                       </div>
                     </div>
+                    <div className="tools-col-5">
+                      <button
+                        className="tools-be-btn"
+                        onClick={
+                          tool.name === 'Voxel Downsampling'
+                            ? handleBeVoxelDownsampling
+                            : tool.name === 'Point Cloud Smoothing'
+                            ? handleBePointCloudSmoothing
+                            : undefined
+                        }
+                        disabled={isProcessing}
+                      >
+                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                          ? 'Processing...'
+                          : 'BE'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <div className="tools-col-3">
-                  {/* TypeScript column - empty for Debug Voxels */}
-                </div>
-                <div className="tools-col-4">
-                  {/* <button
-                    className="tools-wasm-btn"
-                    onClick={() => {
-                      if (showVoxelDebug) {
-                        serviceManager?.toolsService?.showVoxelDebug(voxelSize);
-                      }
-                    }}
-                    disabled={!showVoxelDebug}
-                  >
-                    WASM
-                  </button> */}
-                </div>
-                <div className="tools-col-5">
-                  {/* <button
-                    className="tools-be-btn"
-                    onClick={() => {
-                      if (showVoxelDebug) {
-                        serviceManager?.toolsService?.showVoxelDebug(voxelSize);
-                      }
-                    }}
-                    disabled={!showVoxelDebug}
-                  >
-                    BE
-                  </button> */}
-                </div>
-              </div>
+                  
+                  {/* Debug Voxels Row - Show after Voxel Downsampling */}
+                  {tool.name === 'Voxel Downsampling' && (
+                    <div className="tools-table-row">
+                      <div className="tools-col-1">
+                        <div className="tool-name">Debug Voxels</div>
+                        <div className="tool-description">Visualize voxel grid for debugging</div>
+                      </div>
+                      <div className="tools-col-2">
+                        <div className="tool-control">
+                          <div className="tool-debug-toggle">
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={showVoxelDebug}
+                                onChange={handleVoxelDebugToggle}
+                              />
+                              Show Voxel Grid
+                            </label>
+                          </div>
+                          <div className="tool-slider-container">
+                            <label>Debug Voxel Size:</label>
+                            <input
+                              type="range"
+                              min="0.01"
+                              max="2.0"
+                              step="0.01"
+                              value={voxelSize}
+                              onChange={e => handleVoxelSizeChange(parseFloat(e.target.value))}
+                              className="tool-slider"
+                              style={{ width: '120px', marginLeft: '8px' }}
+                            />
+                            <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
+                              {voxelSize.toFixed(2)}m
+                            </div>
+                          </div>
+                          <div className="tool-slider-container">
+                            <label>Max Voxels:</label>
+                            <input
+                              type="range"
+                              min="100"
+                              max="10000"
+                              step="100"
+                              value={maxVoxels}
+                              onChange={e => setMaxVoxels(parseInt(e.target.value))}
+                              className="tool-slider"
+                              style={{ width: '120px', marginLeft: '8px' }}
+                            />
+                            <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
+                              {maxVoxels.toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="tools-col-3">
+                        <button
+                          className="tools-ts-btn"
+                          onClick={handleTsVoxelDebug}
+                          disabled={!showVoxelDebug || isProcessing}
+                        >
+                          {isProcessing ? 'Processing...' : 'TS'}
+                        </button>
+                      </div>
+                      <div className="tools-col-4">
+                        <button
+                          className="tools-wasm-btn"
+                          onClick={handleWasmVoxelDebug}
+                          disabled={!showVoxelDebug || isProcessing}
+                        >
+                          {isProcessing ? 'Processing...' : 'WASM'}
+                        </button>
+                      </div>
+                      <div className="tools-col-5">
+                        <button
+                          className="tools-be-btn"
+                          onClick={handleBeVoxelDebug}
+                          disabled={!showVoxelDebug || isProcessing}
+                        >
+                          {isProcessing ? 'Processing...' : 'BE'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </React.Fragment>
+              ))}
             </div>
           </div>
         </div>

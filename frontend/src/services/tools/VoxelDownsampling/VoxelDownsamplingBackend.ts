@@ -107,6 +107,7 @@ export class VoxelDownsamplingBackend extends BaseService {
     }
   }
 
+
   dispose(): void {
     // Cleanup implementation if needed
   }

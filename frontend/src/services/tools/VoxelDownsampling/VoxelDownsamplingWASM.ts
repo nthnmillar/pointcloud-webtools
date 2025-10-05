@@ -171,6 +171,7 @@ export class VoxelDownsamplingWASM extends BaseService {
     }
   }
 
+
   dispose(): void {
     this.module = null;
     this.removeAllObservers();
