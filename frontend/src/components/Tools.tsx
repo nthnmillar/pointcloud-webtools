@@ -41,50 +41,14 @@ interface ToolsProps {
 export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onTsResults, onBeResults, onCurrentToolChange }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [voxelSize, setVoxelSize] = useState(2.0);
-  const [wasmBatchSize, setWasmBatchSize] = useState(2000);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
   
-  // Processing results state
-  const [wasmResults, setWasmResults] = useState<{
-    originalCount: number;
-    downsampledCount?: number;
-    smoothedCount?: number;
-    processingTime: number;
-    reductionRatio?: number;
-    voxelCount?: number;
-    smoothingRadius?: number;
-    iterations?: number;
-  } | null>(null);
-  
-  const [tsResults, setTsResults] = useState<{
-    originalCount: number;
-    downsampledCount?: number;
-    smoothedCount?: number;
-    processingTime: number;
-    reductionRatio?: number;
-    voxelCount?: number;
-    smoothingRadius?: number;
-    iterations?: number;
-  } | null>(null);
-  
-  const [beResults, setBeResults] = useState<{
-    originalCount: number;
-    downsampledCount?: number;
-    smoothedCount?: number;
-    processingTime: number;
-    reductionRatio?: number;
-    voxelCount?: number;
-    smoothingRadius?: number;
-    iterations?: number;
-  } | null>(null);
 
   // Point cloud smoothing state
   const [smoothingRadius, setSmoothingRadius] = useState(0.5);
   const [smoothingIterations, setSmoothingIterations] = useState(3);
   
-  // Track which tool was last used for benchmark display
-  const [currentTool, setCurrentTool] = useState<'voxel' | 'smoothing'>('voxel');
   
   // Use ref to track processing state for event handlers
   const isProcessingRef = useRef(false);
@@ -127,10 +91,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
 
     const toolsService = serviceManager.toolsService;
 
-    const handleProcessingStarted = () => {
-      setIsProcessing(true);
-      isProcessingRef.current = true;
-    };
     const handleProcessingFinished = () => {
       setIsProcessing(false);
       isProcessingRef.current = false;
@@ -160,13 +120,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
-  // Handle WASM batch size changes
-  const handleWasmBatchSizeChange = (newSize: number) => {
-    setWasmBatchSize(newSize);
-    if (serviceManager?.pointService) {
-      serviceManager.pointService.setBatchSize(newSize);
-    }
-  };
 
   // Handle voxel debug visualization
   const handleVoxelDebugToggle = () => {
@@ -192,63 +145,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
-  // Helper function for JavaScript-based voxel deduplication
-  const performVoxelDeduplication = (
-    points: Float32Array,
-    voxelSize: number,
-    globalBounds: { minX: number; minY: number; minZ: number }
-  ): Float32Array => {
-    const voxelMap = new Map<string, { count: number; sumX: number; sumY: number; sumZ: number }>();
-    
-    // Process each point
-    for (let i = 0; i < points.length; i += 3) {
-      const x = points[i];
-      const y = points[i + 1];
-      const z = points[i + 2];
-      
-      // Calculate voxel coordinates
-      const voxelX = Math.floor((x - globalBounds.minX) / voxelSize);
-      const voxelY = Math.floor((y - globalBounds.minY) / voxelSize);
-      const voxelZ = Math.floor((z - globalBounds.minZ) / voxelSize);
-      
-      // Create voxel key
-      const voxelKey = `${voxelX},${voxelY},${voxelZ}`;
-      
-      // Add point to voxel
-      if (voxelMap.has(voxelKey)) {
-        const voxel = voxelMap.get(voxelKey)!;
-        voxel.count++;
-        voxel.sumX += x;
-        voxel.sumY += y;
-        voxel.sumZ += z;
-      } else {
-        voxelMap.set(voxelKey, {
-          count: 1,
-          sumX: x,
-          sumY: y,
-          sumZ: z
-        });
-      }
-    }
-    
-    // Convert voxel centers back to points
-    const result = new Float32Array(voxelMap.size * 3);
-    let index = 0;
-    
-    for (const [_, voxel] of voxelMap) {
-      // Calculate average position (voxel center)
-      const avgX = voxel.sumX / voxel.count;
-      const avgY = voxel.sumY / voxel.count;
-      const avgZ = voxel.sumZ / voxel.count;
-      
-      result[index * 3] = avgX;
-      result[index * 3 + 1] = avgY;
-      result[index * 3 + 2] = avgZ;
-      index++;
-    }
-    
-    return result;
-  };
 
   // WASM Processing Functions
   const handleWasmVoxelDownsampling = async () => {
@@ -312,7 +208,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       serviceManager.pointService?.clearAllPointClouds();
 
       // Set current tool for benchmark display
-      setCurrentTool('voxel');
       onCurrentToolChange?.('voxel');
 
       // Process with WASM service
@@ -395,19 +290,15 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           processingTime: result.processingTime ? result.processingTime.toFixed(2) + 'ms' : '--'
         });
 
-        // Store WASM results for display
-        const wasmResults = {
-          originalCount: result.originalCount || 0,
-          downsampledCount: result.downsampledCount || 0,
-          processingTime: result.processingTime || 0,
-          reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
-          voxelCount: result.voxelCount || 0
-        };
-        setWasmResults(wasmResults);
-        
         // Emit results to parent component
         if (onWasmResults) {
-          onWasmResults(wasmResults);
+          onWasmResults({
+            originalCount: result.originalCount || 0,
+            downsampledCount: result.downsampledCount || 0,
+            processingTime: result.processingTime || 0,
+            reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
+            voxelCount: result.voxelCount || 0
+          });
         }
       } else {
         Log.Error('Tools', 'WASM voxel downsampling failed', result.error);
@@ -472,7 +363,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       serviceManager.pointService?.clearAllPointClouds();
 
       // Set current tool for benchmark display
-      setCurrentTool('voxel');
       onCurrentToolChange?.('voxel');
 
       // Process with TS service
@@ -547,19 +437,15 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         // Calculate voxel count for BE results (same as WASM calculation)
         const voxelCount = result.downsampledCount || 0; // Each downsampled point represents one voxel
         
-        // Store BE results for display
-        const beResults = {
-          originalCount: result.originalCount || 0,
-          downsampledCount: result.downsampledCount || 0,
-          processingTime: result.processingTime || 0,
-          reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
-          voxelCount: voxelCount
-        };
-        setBeResults(beResults);
-        
         // Emit results to parent component
         if (onBeResults) {
-          onBeResults(beResults);
+          onBeResults({
+            originalCount: result.originalCount || 0,
+            downsampledCount: result.downsampledCount || 0,
+            processingTime: result.processingTime || 0,
+            reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
+            voxelCount: voxelCount
+          });
         }
       } else {
         Log.Error('Tools', 'Backend voxel downsampling failed', result.error);
@@ -624,7 +510,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       serviceManager.pointService?.clearAllPointClouds();
 
       // Set current tool for benchmark display
-      setCurrentTool('voxel');
       onCurrentToolChange?.('voxel');
 
       // Process with Backend service
@@ -700,19 +585,15 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         // Calculate voxel count for TS results (same as WASM calculation)
         const voxelCount = result.downsampledCount || 0; // Each downsampled point represents one voxel
         
-        // Store TS results for display
-        const tsResults = {
-          originalCount: result.originalCount || 0,
-          downsampledCount: result.downsampledCount || 0,
-          processingTime: result.processingTime || 0,
-          reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
-          voxelCount: voxelCount
-        };
-        setTsResults(tsResults);
-        
         // Emit results to parent component
         if (onTsResults) {
-          onTsResults(tsResults);
+          onTsResults({
+            originalCount: result.originalCount || 0,
+            downsampledCount: result.downsampledCount || 0,
+            processingTime: result.processingTime || 0,
+            reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
+            voxelCount: voxelCount
+          });
         }
       } else {
         Log.Error('Tools', 'TypeScript voxel downsampling failed', result.error);
@@ -778,7 +659,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       serviceManager.pointService?.clearAllPointClouds();
 
       // Set current tool for benchmark display
-      setCurrentTool('smoothing');
       onCurrentToolChange?.('smoothing');
 
       // Process with the appropriate service method
@@ -883,7 +763,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   const handleWasmPointCloudSmoothing = async () => {
     const results = await processPointCloudSmoothing('WASM');
     if (results) {
-      setWasmResults(results);
       onWasmResults?.(results);
     }
   };
@@ -891,7 +770,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   const handleTsPointCloudSmoothing = async () => {
     const results = await processPointCloudSmoothing('TS');
     if (results) {
-      setTsResults(results);
       onTsResults?.(results);
     }
   };
@@ -899,7 +777,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   const handleBePointCloudSmoothing = async () => {
     const results = await processPointCloudSmoothing('BE');
     if (results) {
-      setBeResults(results);
       onBeResults?.(results);
     }
   };
