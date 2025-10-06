@@ -3,6 +3,7 @@ import type { ServiceManager } from '../../ServiceManager';
 import { Log } from '../../../utils/Log';
 import { VoxelDownsampleDebugTS } from './VoxelDownsampleDebugTS';
 import { VoxelDownsampleDebugWASMCPP } from './VoxelDownsampleDebugWASMCPP';
+import { VoxelDownsampleDebugWASMRust } from './VoxelDownsampleDebugWASMRust';
 import { VoxelDownsampleDebugBECPP } from './VoxelDownsampleDebugBECPP';
 
 export interface VoxelDebugParams {
@@ -29,12 +30,14 @@ export interface VoxelDebugResult {
 export class VoxelDownsampleDebugService extends BaseService {
   public voxelDownsampleDebugTS: VoxelDownsampleDebugTS;
   public voxelDownsampleDebugWASMCPP: VoxelDownsampleDebugWASMCPP;
+  public voxelDownsampleDebugWASMRust: VoxelDownsampleDebugWASMRust;
   public voxelDownsampleDebugBECPP: VoxelDownsampleDebugBECPP;
 
   constructor(serviceManager: ServiceManager) {
     super();
     this.voxelDownsampleDebugTS = new VoxelDownsampleDebugTS(serviceManager);
     this.voxelDownsampleDebugWASMCPP = new VoxelDownsampleDebugWASMCPP(serviceManager);
+    this.voxelDownsampleDebugWASMRust = new VoxelDownsampleDebugWASMRust(serviceManager);
     this.voxelDownsampleDebugBECPP = new VoxelDownsampleDebugBECPP(serviceManager);
   }
 
@@ -42,12 +45,13 @@ export class VoxelDownsampleDebugService extends BaseService {
     await Promise.all([
       this.voxelDownsampleDebugTS.initialize(),
       this.voxelDownsampleDebugWASMCPP.initialize(),
+      this.voxelDownsampleDebugWASMRust.initialize(),
       this.voxelDownsampleDebugBECPP.initialize()
     ]);
     this.isInitialized = true;
   }
 
-  async generateVoxelCenters(params: VoxelDebugParams, implementation: 'TS' | 'WASM' | 'BE'): Promise<VoxelDebugResult> {
+  async generateVoxelCenters(params: VoxelDebugParams, implementation: 'TS' | 'WASM' | 'WASM_RUST' | 'BE'): Promise<VoxelDebugResult> {
     try {
       let result: VoxelDebugResult;
       
@@ -57,6 +61,9 @@ export class VoxelDownsampleDebugService extends BaseService {
           break;
         case 'WASM':
           result = await this.voxelDownsampleDebugWASMCPP.generateVoxelCenters(params);
+          break;
+        case 'WASM_RUST':
+          result = await this.voxelDownsampleDebugWASMRust.generateVoxelCenters(params);
           break;
         case 'BE':
           result = await this.voxelDownsampleDebugBECPP.generateVoxelCenters(params);
@@ -84,6 +91,7 @@ export class VoxelDownsampleDebugService extends BaseService {
   dispose(): void {
     this.voxelDownsampleDebugTS.dispose();
     this.voxelDownsampleDebugWASMCPP.dispose();
+    this.voxelDownsampleDebugWASMRust.dispose();
     this.voxelDownsampleDebugBECPP.dispose();
     this.removeAllObservers();
   }

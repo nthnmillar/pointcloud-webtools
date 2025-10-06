@@ -46,9 +46,6 @@ app.post('/api/voxel-downsample', async (req, res) => {
     // Use real C++ backend processing for voxel downsampling
     console.log('🔧 Backend: Using real C++ backend processing for voxel downsampling');
     
-    const { spawn } = require('child_process');
-    const path = require('path');
-    
     // Path to the C++ executable
     const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample');
     
@@ -159,9 +156,6 @@ app.post('/api/point-smooth', async (req, res) => {
     // Use real C++ backend processing for point cloud smoothing
     console.log('🔧 Backend: Using real C++ backend processing for point cloud smoothing');
     
-    const { spawn } = require('child_process');
-    const path = require('path');
-    
     // Path to the C++ executable
     const cppExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth');
     
@@ -181,16 +175,37 @@ app.post('/api/point-smooth', async (req, res) => {
     const cppProcess = spawn(cppExecutable);
     
     let smoothedPoints = [];
+    let outputBuffer = '';
     
     cppProcess.stdout.on('data', (data) => {
-      const output = data.toString();
-      const lines = output.trim().split('\n');
+      outputBuffer += data.toString();
+    });
+    
+    cppProcess.stdout.on('end', () => {
+      console.log('🔧 Backend: C++ stdout complete:', outputBuffer);
+      const lines = outputBuffer.trim().split('\n');
       
       if (lines.length >= 2) {
         const pointCount = parseInt(lines[0]);
         const points = lines[1].trim().split(' ').map(parseFloat);
         smoothedPoints = points;
+        console.log('🔧 Backend: Parsed smoothedPoints:', smoothedPoints.length / 3, 'points');
       }
+      
+      // Send response after processing stdout
+      const processingTime = Date.now() - startTime;
+      console.log('🔧 Backend: C++ point cloud smoothing processing completed', {
+        processingTime: processingTime + 'ms'
+      });
+      
+      res.json({
+        success: true,
+        smoothedPoints: smoothedPoints,
+        originalCount: pointCount,
+        smoothedCount: smoothedPoints.length / 3,
+        processingTime: processingTime,
+        method: 'Backend C++ (real)'
+      });
     });
     
     cppProcess.stderr.on('data', (data) => {
@@ -210,19 +225,6 @@ app.post('/api/point-smooth', async (req, res) => {
           reject(new Error(`C++ process exited with code ${code}`));
         }
       });
-    });
-    
-    const processingTime = Date.now() - startTime;
-    
-    console.log('🔧 Backend: C++ point cloud smoothing processing completed', {
-      processingTime: processingTime + 'ms'
-    });
-    
-    res.json({
-      success: true,
-      smoothedPoints: smoothedPoints,
-      processingTime: processingTime,
-      method: 'Backend C++ (real)'
     });
     
   } catch (error) {
@@ -315,6 +317,23 @@ app.post('/api/voxel-debug', async (req, res) => {
       }
       
       console.log('🔧 Backend: Parsed voxelCount:', voxelCount, 'positions:', voxelGridPositions.length);
+      
+      // Send response after processing stdout
+      const processingTime = Date.now() - startTime;
+      
+      console.log('🔧 Backend: C++ voxel debug processing completed', {
+        voxelCount: voxelCount,
+        processingTime: processingTime + 'ms'
+      });
+      
+      res.json({
+        success: true,
+        voxelCenters: voxelGridPositions,
+        voxelCount: voxelCount,
+        originalCount: originalCount,
+        processingTime: processingTime,
+        method: 'Backend C++ (real)'
+      });
     });
     
     cppProcess.stderr.on('data', (data) => {
@@ -334,22 +353,6 @@ app.post('/api/voxel-debug', async (req, res) => {
           reject(new Error(`C++ process exited with code ${code}`));
         }
       });
-    });
-    
-    const processingTime = Date.now() - startTime;
-    
-    console.log('🔧 Backend: C++ voxel debug processing completed', {
-      voxelCount: voxelCount,
-      processingTime: processingTime + 'ms'
-    });
-    
-    res.json({
-      success: true,
-      voxelCenters: voxelGridPositions,
-      voxelCount: voxelCount,
-      originalCount: originalCount,
-      processingTime: processingTime,
-      method: 'Backend C++ (real)'
     });
     
   } catch (error) {

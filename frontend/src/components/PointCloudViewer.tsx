@@ -56,6 +56,24 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     smoothingRadius?: number;
     iterations?: number;
   } | null>(null);
+  
+  const [wasmRustResults, setWasmRustResults] = useState<{
+    originalCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
+    processingTime: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
+  } | null>(null);
+
+  // Debug logging for WASM Rust results
+  useEffect(() => {
+    if (wasmRustResults) {
+      console.log('🔧 PointCloudViewer: WASM Rust results updated:', wasmRustResults);
+    }
+  }, [wasmRustResults]);
   const [currentTool, setCurrentTool] = useState<'voxel' | 'smoothing'>('voxel');
 
   // Initialize service manager
@@ -186,6 +204,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         wasmResults={wasmResults}
         tsResults={tsResults}
         beResults={beResults}
+        wasmRustResults={wasmRustResults}
         currentTool={currentTool}
       />
       <Tools 
@@ -193,6 +212,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         onWasmResults={setWasmResults}
         onTsResults={setTsResults}
         onBeResults={setBeResults}
+        onWasmRustResults={setWasmRustResults}
         onCurrentToolChange={setCurrentTool}
       />
     </div>

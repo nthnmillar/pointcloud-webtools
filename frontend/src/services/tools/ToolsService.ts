@@ -3,6 +3,7 @@ import type { ServiceManager } from '../ServiceManager';
 import { Log } from '../../utils/Log';
 import { VoxelDownsampleService } from './VoxelDownsampling/VoxelDownsampleService';
 import { PointCloudSmoothingWASMCPP } from './PointCloudSmoothing/PointCloudSmoothingWASMCPP';
+import { PointCloudSmoothingWASMRust } from './PointCloudSmoothing/PointCloudSmoothingWASMRust';
 import { PointCloudSmoothingTS } from './PointCloudSmoothing/PointCloudSmoothingTS';
 import { PointCloudSmoothingBECPP } from './PointCloudSmoothing/PointCloudSmoothingBECPP';
 import { VoxelDownsampleDebugService } from './VoxelDownsampleDebug/VoxelDownsampleDebugService';
@@ -51,6 +52,7 @@ export class ToolsService extends BaseService {
   // Individual tool services
   public voxelDownsampleService: VoxelDownsampleService;
   private pointCloudSmoothingWASMCPP: PointCloudSmoothingWASMCPP;
+  private pointCloudSmoothingWASMRust: PointCloudSmoothingWASMRust;
   private pointCloudSmoothingTS: PointCloudSmoothingTS;
   private pointCloudSmoothingBECPP: PointCloudSmoothingBECPP;
   public voxelDownsampleDebugService: VoxelDownsampleDebugService;
@@ -61,6 +63,7 @@ export class ToolsService extends BaseService {
     // Initialize individual tool services
     this.voxelDownsampleService = new VoxelDownsampleService(serviceManager);
     this.pointCloudSmoothingWASMCPP = new PointCloudSmoothingWASMCPP(serviceManager);
+    this.pointCloudSmoothingWASMRust = new PointCloudSmoothingWASMRust(serviceManager);
     this.pointCloudSmoothingTS = new PointCloudSmoothingTS(serviceManager);
     this.pointCloudSmoothingBECPP = new PointCloudSmoothingBECPP(serviceManager);
     this.voxelDownsampleDebugService = new VoxelDownsampleDebugService(serviceManager);
@@ -76,6 +79,10 @@ export class ToolsService extends BaseService {
         }),
         this.pointCloudSmoothingWASMCPP.initialize().catch(err => {
           Log.Error('ToolsService', 'PointCloudSmoothingWASMCPP initialization failed:', err);
+          return null;
+        }),
+        this.pointCloudSmoothingWASMRust.initialize().catch(err => {
+          Log.Error('ToolsService', 'PointCloudSmoothingWASMRust initialization failed:', err);
           return null;
         }),
         this.pointCloudSmoothingTS.initialize().catch(err => {
@@ -108,6 +115,10 @@ export class ToolsService extends BaseService {
     return this.voxelDownsampleService.voxelDownsamplingWASMCPP.voxelDownsample(params);
   }
 
+  async voxelDownsampleWASMRust(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
+    return this.voxelDownsampleService.voxelDownsampleWASMRust(params);
+  }
+
   async voxelDownsampleTS(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
     return this.voxelDownsampleService.voxelDownsamplingTS.voxelDownsample(params);
   }
@@ -121,6 +132,14 @@ export class ToolsService extends BaseService {
     return this.pointCloudSmoothingWASMCPP.pointCloudSmoothing(params);
   }
 
+  async performPointCloudSmoothingWASMRust(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
+    return this.pointCloudSmoothingWASMRust.performPointCloudSmoothing(
+      params.points,
+      params.smoothingRadius,
+      params.iterations
+    );
+  }
+
   async performPointCloudSmoothingTS(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
     return this.pointCloudSmoothingTS.pointCloudSmoothing(params);
   }
@@ -130,7 +149,7 @@ export class ToolsService extends BaseService {
   }
 
   // Voxel debug methods
-  async showVoxelDebug(voxelSize: number, implementation?: 'TS' | 'WASM' | 'BE', maxVoxels?: number): Promise<{ voxelCount: number; processingTime: number } | null> {
+  async showVoxelDebug(voxelSize: number, implementation?: 'TS' | 'WASM' | 'WASM_RUST' | 'BE', maxVoxels?: number): Promise<{ voxelCount: number; processingTime: number } | null> {
     console.log('🔍 Debug voxel generation started', { implementation, voxelSize });
     
     // Clear any existing debug visualization first
@@ -223,6 +242,9 @@ export class ToolsService extends BaseService {
         if (implementation === 'WASM') {
           // Light blue/cyan to match .tools-wasm-btn: rgba(97, 218, 251, 0.8)
           color = { r: 97/255, g: 218/255, b: 251/255 };
+        } else if (implementation === 'WASM_RUST') {
+          // Orange/red to match .tools-wasm-rust-btn: rgba(255, 99, 71, 0.8)
+          color = { r: 255/255, g: 99/255, b: 71/255 };
         } else if (implementation === 'BE') {
           // Orange to match .tools-be-btn: rgba(255, 165, 0, 0.8)
           color = { r: 255/255, g: 165/255, b: 0/255 };
@@ -269,6 +291,7 @@ export class ToolsService extends BaseService {
   dispose(): void {
     this.voxelDownsampleService?.dispose();
     this.pointCloudSmoothingWASMCPP?.dispose();
+    this.pointCloudSmoothingWASMRust?.dispose();
     this.pointCloudSmoothingTS?.dispose();
     this.pointCloudSmoothingBECPP?.dispose();
     this.removeAllObservers();

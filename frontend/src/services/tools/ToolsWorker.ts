@@ -46,7 +46,7 @@ async function loadWasmModule() {
     Log.Info('ToolsWorker', 'Loading WASM module...');
     
     // Load the WASM module from public directory
-    const response = await fetch('/wasm/tools.js');
+    const response = await fetch('/wasm/cpp/tools_cpp.js');
     if (!response.ok) {
       throw new Error(`Failed to fetch WASM JS: ${response.status} ${response.statusText}`);
     }
@@ -74,7 +74,7 @@ async function loadWasmModule() {
       locateFile: (path: string) => {
         Log.Info('ToolsWorker', 'locateFile called with path', { path });
         if (path.endsWith('.wasm')) {
-          const wasmUrl = new URL('/wasm/tools.wasm', window.location.origin).href;
+          const wasmUrl = new URL('/wasm/cpp/tools_cpp.wasm', window.location.origin).href;
           Log.Info('ToolsWorker', 'Resolved WASM URL', { wasmUrl });
           return wasmUrl;
         }

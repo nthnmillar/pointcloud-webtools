@@ -2,6 +2,7 @@ import { BaseService } from "../../BaseService";
 import { Log } from "../../../utils/Log";
 import type { ServiceManager } from '../../ServiceManager';
 import { VoxelDownsamplingWASMCPP } from './VoxelDownsamplingWASMCPP';
+import { VoxelDownsamplingWASMRust } from './VoxelDownsamplingWASMRust';
 import { VoxelDownsamplingTS } from './VoxelDownsamplingTS';
 import { VoxelDownsamplingBECPP } from './VoxelDownsamplingBECPP';
 import { VoxelDownsampleDebug } from './VoxelDownsampleDebug';
@@ -37,6 +38,7 @@ export class VoxelDownsampleService extends BaseService {
   private pendingBatches = new Map<string, (result: VoxelBatchResult) => void>();
   
   public voxelDownsamplingWASMCPP: VoxelDownsamplingWASMCPP;
+  public voxelDownsamplingWASMRust: VoxelDownsamplingWASMRust;
   public voxelDownsamplingTS: VoxelDownsamplingTS;
   public voxelDownsamplingBECPP: VoxelDownsamplingBECPP;
   public voxelDownsampleDebug: VoxelDownsampleDebug | null = null;
@@ -44,6 +46,7 @@ export class VoxelDownsampleService extends BaseService {
   constructor(serviceManager: ServiceManager) {
     super();
     this.voxelDownsamplingWASMCPP = new VoxelDownsamplingWASMCPP(serviceManager);
+    this.voxelDownsamplingWASMRust = new VoxelDownsamplingWASMRust(serviceManager);
     this.voxelDownsamplingTS = new VoxelDownsamplingTS(serviceManager);
     this.voxelDownsamplingBECPP = new VoxelDownsamplingBECPP(serviceManager);
     
@@ -111,6 +114,11 @@ export class VoxelDownsampleService extends BaseService {
       Log.InfoClass(this, 'Initializing WASM module...');
       await this.voxelDownsamplingWASMCPP.initialize();
       Log.InfoClass(this, 'WASM module initialized successfully');
+
+      // Initialize WASM Rust module
+      Log.InfoClass(this, 'Initializing WASM Rust module...');
+      await this.voxelDownsamplingWASMRust.initialize();
+      Log.InfoClass(this, 'WASM Rust module initialized successfully');
 
       Log.InfoClass(this, 'Worker initialized successfully');
     } catch (error) {
@@ -226,11 +234,20 @@ export class VoxelDownsampleService extends BaseService {
     return this.isProcessing;
   }
 
+  async voxelDownsampleWASMRust(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
+    return this.voxelDownsamplingWASMRust.performVoxelDownsampling(
+      params.pointCloudData,
+      params.voxelSize,
+      params.globalBounds
+    );
+  }
+
   dispose(): void {
     if (this.worker) {
       this.worker.terminate();
       this.worker = null;
     }
+    this.voxelDownsamplingWASMRust?.dispose();
     this._isInitialized = false;
     this.isProcessing = false;
     this.pendingBatches.clear();

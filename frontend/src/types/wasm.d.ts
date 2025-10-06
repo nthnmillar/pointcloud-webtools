@@ -1,24 +1,9 @@
-declare module '*.wasm' {
-  const value: any;
-  export default value;
-}
-
-declare module '*/tools.js' {
-  interface Point3D {
-    x: number;
-    y: number;
-    z: number;
+declare module '*/public/wasm/rust/tools_rust.js' {
+  export default function init(): Promise<void>;
+  export class PointCloudToolsRust {
+    constructor();
+    voxel_downsample(points: Float64Array, voxelSize: number, minX: number, minY: number, minZ: number): Float64Array;
+    point_cloud_smooth(points: Float64Array, radius: number, iterations: number): Float64Array;
+    generate_voxel_centers(points: Float64Array, voxelSize: number, minX: number, minY: number, minZ: number): Float64Array;
   }
-
-  interface ToolsModule {
-    voxelDownsample(points: Float32Array, voxelSize: number, minX?: number, minY?: number, minZ?: number): Point3D[];
-    showVoxelDebug(points: Float32Array, voxelSize: number): void;
-    hideVoxelDebug(): void;
-    getVoxelDebugCenters(): Float32Array;
-    getVoxelDebugSize(): number;
-    isVoxelDebugVisible(): boolean;
-  }
-
-  const factory: () => Promise<ToolsModule>;
-  export default factory;
 }

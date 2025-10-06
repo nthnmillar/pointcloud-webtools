@@ -74,7 +74,7 @@ async function initializeWasmModule() {
   WorkerLog.info('Loading WASM JS code...');
   
   // Load WASM module using fetch and eval
-  const response = await fetch('/wasm/tools.js');
+  const response = await fetch('/wasm/cpp/tools_cpp.js');
   if (!response.ok) {
     throw new Error(`Failed to fetch WASM JS: ${response.status} ${response.statusText}`);
   }
@@ -101,7 +101,7 @@ async function initializeWasmModule() {
   toolsModule = await ToolsModuleFactory({
     locateFile: (path: string) => {
       WorkerLog.info('locateFile called with path', { path });
-      return path.endsWith('.wasm') ? '/wasm/tools.wasm' : path;
+      return path.endsWith('.wasm') ? '/wasm/cpp/tools_cpp.wasm' : path;
     },
   });
   

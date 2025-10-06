@@ -30,60 +30,41 @@ export class PointCloudSmoothingBECPP extends BaseService {
     try {
       const startTime = performance.now();
       
-      const pointCount = params.points.length / 3;
-      let smoothedPoints = new Float32Array(params.points);
-      
-      // Simple smoothing implementation
-      for (let iter = 0; iter < params.iterations; iter++) {
-        const tempPoints = new Float32Array(smoothedPoints);
-        
-        for (let i = 0; i < pointCount; i++) {
-          const x = smoothedPoints[i * 3];
-          const y = smoothedPoints[i * 3 + 1];
-          const z = smoothedPoints[i * 3 + 2];
-          
-          let sumX = 0, sumY = 0, sumZ = 0;
-          let count = 0;
-          
-          // Find neighbors within smoothing radius
-          for (let j = 0; j < pointCount; j++) {
-            if (i === j) continue;
-            
-            const dx = smoothedPoints[j * 3] - x;
-            const dy = smoothedPoints[j * 3 + 1] - y;
-            const dz = smoothedPoints[j * 3 + 2] - z;
-            const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            
-            if (distance <= params.smoothingRadius) {
-              sumX += smoothedPoints[j * 3];
-              sumY += smoothedPoints[j * 3 + 1];
-              sumZ += smoothedPoints[j * 3 + 2];
-              count++;
-            }
-          }
-          
-          // Apply smoothing if neighbors found
-          if (count > 0) {
-            tempPoints[i * 3] = (x + sumX) / (count + 1);
-            tempPoints[i * 3 + 1] = (y + sumY) / (count + 1);
-            tempPoints[i * 3 + 2] = (z + sumZ) / (count + 1);
-          }
-        }
-        
-        smoothedPoints = tempPoints;
-      }
-      
-      const processingTime = performance.now() - startTime;
+      // Make HTTP request to actual C++ backend for real benchmarking
+      const response = await fetch('http://localhost:3003/api/point-smooth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          points: Array.from(params.points),
+          smoothingRadius: params.smoothingRadius,
+          iterations: params.iterations
+        })
+      });
 
+      if (!response.ok) {
+        throw new Error(`Backend request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      const processingTime = performance.now() - startTime;
+      
+      Log.Info('PointCloudSmoothingBECPP', 'Point cloud smoothing completed using real C++ backend', {
+        originalCount: result.originalCount,
+        smoothedCount: result.smoothedCount,
+        processingTime: `${processingTime.toFixed(2)}ms`
+      });
+      
       return {
         success: true,
-        smoothedPoints,
-        originalCount: pointCount,
-        smoothedCount: pointCount,
-        processingTime
+        smoothedPoints: new Float32Array(result.smoothedPoints),
+        originalCount: result.originalCount,
+        smoothedCount: result.smoothedCount,
+        processingTime: processingTime
       };
     } catch (error) {
-      Log.Error('PointCloudSmoothingBECPP', 'Point cloud smoothing failed', error);
+      Log.Error('PointCloudSmoothingBECPP', 'Real C++ backend point cloud smoothing failed', error);
       return {
         success: false,
         originalCount: 0,

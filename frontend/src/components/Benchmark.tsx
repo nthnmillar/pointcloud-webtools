@@ -32,11 +32,28 @@ interface BenchmarkProps {
     smoothingRadius?: number;
     iterations?: number;
   } | null;
+  wasmRustResults?: {
+    originalCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
+    processingTime: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
+  } | null;
   currentTool?: 'voxel' | 'smoothing';
 }
 
-export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, tsResults, beResults, currentTool = 'voxel' }) => {
+export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, tsResults, beResults, wasmRustResults, currentTool = 'voxel' }) => {
   const [isVisible, setIsVisible] = useState(false);
+
+  // Debug logging for WASM Rust results
+  React.useEffect(() => {
+    if (wasmRustResults) {
+      console.log('🔧 Benchmark: WASM Rust results received:', wasmRustResults);
+    }
+  }, [wasmRustResults]);
 
   // Determine if we're showing voxel downsampling or smoothing results
   const isVoxelTool = currentTool === 'voxel' || (wasmResults && wasmResults.downsampledCount !== undefined);
@@ -187,6 +204,69 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                       <span className="metric-label">Iterations:</span>
                       <span className="metric-value">
                         {wasmResults ? wasmResults.iterations?.toString() || '--' : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* WASM Rust Column */}
+            <div className="benchmark-column">
+              <h4>WASM Rust</h4>
+              <div className="benchmark-metrics">
+                <div className="metric-item">
+                  <span className="metric-label">Time Taken:</span>
+                  <span className="metric-value">
+                    {wasmRustResults ? `${wasmRustResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                  </span>
+                </div>
+                <div className="metric-item">
+                  <span className="metric-label">Original Points:</span>
+                  <span className="metric-value">
+                    {wasmRustResults ? wasmRustResults.originalCount.toLocaleString() : '--'}
+                  </span>
+                </div>
+                {isVoxelTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Downsampled:</span>
+                      <span className="metric-value">
+                        {wasmRustResults ? wasmRustResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Reduction:</span>
+                      <span className="metric-value">
+                        {wasmRustResults && wasmRustResults.reductionRatio ? `${((wasmRustResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Voxels:</span>
+                      <span className="metric-value">
+                        {wasmRustResults ? wasmRustResults.voxelCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {isSmoothingTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Smoothed:</span>
+                      <span className="metric-value">
+                        {wasmRustResults ? wasmRustResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Radius:</span>
+                      <span className="metric-value">
+                        {wasmRustResults ? `${wasmRustResults.smoothingRadius?.toFixed(2) || '--'}m` : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Iterations:</span>
+                      <span className="metric-value">
+                        {wasmRustResults ? wasmRustResults.iterations?.toLocaleString() || '--' : '--'}
                       </span>
                     </div>
                   </>
