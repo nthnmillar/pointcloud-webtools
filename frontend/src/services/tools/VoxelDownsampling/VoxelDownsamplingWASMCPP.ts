@@ -25,7 +25,7 @@ export interface VoxelDownsampleResult {
   error?: string;
 }
 
-export class VoxelDownsamplingWASM extends BaseService {
+export class VoxelDownsamplingWASMCPP extends BaseService {
   private module: any = null;
   private _serviceManager: ServiceManager;
 

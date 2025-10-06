@@ -147,7 +147,8 @@ export class VoxelDownsampleDebug {
       voxelCentersLength: voxelCenters.length,
       voxelSize,
       sceneAvailable: !!this._scene,
-      color
+      color,
+      firstFewCenters: Array.from(voxelCenters.slice(0, 9))
     });
 
     if (!this._scene) {
@@ -197,6 +198,18 @@ export class VoxelDownsampleDebug {
       z: voxelCenters[i * 3 + 2]
     }));
     Log.InfoClass(this, 'First 5 voxel centers', { firstCenters });
+    
+    // Debug: Check if voxel centers are all zeros or invalid
+    const hasValidCenters = firstCenters.some(center => 
+      center.x !== 0 || center.y !== 0 || center.z !== 0
+    );
+    if (!hasValidCenters) {
+      Log.WarnClass(this, 'All voxel centers appear to be zero or invalid!', {
+        voxelCentersLength: voxelCenters.length,
+        firstCenters: firstCenters,
+        rawVoxelCenters: Array.from(voxelCenters).slice(0, 12)
+      });
+    }
     
     // Check if all centers are the same (indicates a problem)
     const uniqueCenters = new Set(firstCenters.map(c => `${c.x},${c.y},${c.z}`));

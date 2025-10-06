@@ -25,7 +25,7 @@ export interface VoxelDownsampleResult {
   error?: string;
 }
 
-export class VoxelDownsamplingBackend extends BaseService {
+export class VoxelDownsamplingBECPP extends BaseService {
   constructor(serviceManager: ServiceManager) {
     super();
   }

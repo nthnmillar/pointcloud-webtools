@@ -1,9 +1,9 @@
 import { BaseService } from "../../BaseService";
 import { Log } from "../../../utils/Log";
 import type { ServiceManager } from '../../ServiceManager';
-import { VoxelDownsamplingWASM } from './VoxelDownsamplingWASM';
+import { VoxelDownsamplingWASMCPP } from './VoxelDownsamplingWASMCPP';
 import { VoxelDownsamplingTS } from './VoxelDownsamplingTS';
-import { VoxelDownsamplingBackend } from './VoxelDownsamplingBackend';
+import { VoxelDownsamplingBECPP } from './VoxelDownsamplingBECPP';
 import { VoxelDownsampleDebug } from './VoxelDownsampleDebug';
 
 export interface VoxelBatchData {
@@ -36,16 +36,16 @@ export class VoxelDownsampleService extends BaseService {
   private isProcessing = false;
   private pendingBatches = new Map<string, (result: VoxelBatchResult) => void>();
   
-  public voxelDownsamplingWASM: VoxelDownsamplingWASM;
+  public voxelDownsamplingWASMCPP: VoxelDownsamplingWASMCPP;
   public voxelDownsamplingTS: VoxelDownsamplingTS;
-  public voxelDownsamplingBackend: VoxelDownsamplingBackend;
+  public voxelDownsamplingBECPP: VoxelDownsamplingBECPP;
   public voxelDownsampleDebug: VoxelDownsampleDebug | null = null;
 
   constructor(serviceManager: ServiceManager) {
     super();
-    this.voxelDownsamplingWASM = new VoxelDownsamplingWASM(serviceManager);
+    this.voxelDownsamplingWASMCPP = new VoxelDownsamplingWASMCPP(serviceManager);
     this.voxelDownsamplingTS = new VoxelDownsamplingTS(serviceManager);
-    this.voxelDownsamplingBackend = new VoxelDownsamplingBackend(serviceManager);
+    this.voxelDownsamplingBECPP = new VoxelDownsamplingBECPP(serviceManager);
     
     // Initialize debug visualization after a short delay to ensure scene is ready
     setTimeout(() => {
@@ -109,7 +109,7 @@ export class VoxelDownsampleService extends BaseService {
 
       // Initialize WASM module
       Log.InfoClass(this, 'Initializing WASM module...');
-      await this.voxelDownsamplingWASM.initialize();
+      await this.voxelDownsamplingWASMCPP.initialize();
       Log.InfoClass(this, 'WASM module initialized successfully');
 
       Log.InfoClass(this, 'Worker initialized successfully');

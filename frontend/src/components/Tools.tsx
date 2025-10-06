@@ -751,13 +751,13 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Process with the appropriate service method
       let result;
       if (method === 'WASM') {
-        result = await serviceManager.toolsService.performPointCloudSmoothingWASM({
+        result = await serviceManager.toolsService.performPointCloudSmoothingWASMCPP({
           points: pointCloudData,
           smoothingRadius,
           iterations: smoothingIterations
         });
       } else if (method === 'BE') {
-        result = await serviceManager.toolsService.performPointCloudSmoothingBackend({
+        result = await serviceManager.toolsService.performPointCloudSmoothingBECPP({
           points: pointCloudData,
           smoothingRadius,
           iterations: smoothingIterations
@@ -907,8 +907,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                 <div className="tools-col-1">Tool</div>
                 <div className="tools-col-2">Controls</div>
                 <div className="tools-col-3">TS</div>
-                <div className="tools-col-4">WASM</div>
-                <div className="tools-col-5">BE</div>
+                <div className="tools-col-4">WASM C++</div>
+                <div className="tools-col-5">BE C++</div>
               </div>
 
               {tools.map((tool, index) => (
@@ -1008,7 +1008,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                         >
                           {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
                             ? 'Processing...'
-                            : 'WASM'}
+                            : 'WASM C++'}
                         </button>
                         {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing') && (
                           <button
@@ -1042,7 +1042,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                       >
                         {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
                           ? 'Processing...'
-                          : 'BE'}
+                          : 'BE C++'}
                       </button>
                     </div>
                   </div>
@@ -1115,7 +1115,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           onClick={handleWasmVoxelDebug}
                           disabled={!showVoxelDebug || isProcessing}
                         >
-                          {isProcessing ? 'Processing...' : 'WASM'}
+                          {isProcessing ? 'Processing...' : 'WASM C++'}
                         </button>
                       </div>
                       <div className="tools-col-5">
@@ -1124,7 +1124,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           onClick={handleBeVoxelDebug}
                           disabled={!showVoxelDebug || isProcessing}
                         >
-                          {isProcessing ? 'Processing...' : 'BE'}
+                          {isProcessing ? 'Processing...' : 'BE C++'}
                         </button>
                       </div>
                     </div>

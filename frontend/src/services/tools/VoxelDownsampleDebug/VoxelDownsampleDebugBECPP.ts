@@ -23,14 +23,14 @@ export interface VoxelDebugResult {
   error?: string;
 }
 
-export class VoxelDownsampleDebugBackend extends BaseService {
+export class VoxelDownsampleDebugBECPP extends BaseService {
   constructor(_serviceManager: ServiceManager) {
     super();
   }
 
   async initialize(): Promise<void> {
     this.isInitialized = true;
-    Log.Info('VoxelDownsampleDebugBackend', 'Backend debug service initialized for C++ processing');
+    Log.Info('VoxelDownsampleDebugBECPP', 'Backend debug service initialized for C++ processing');
   }
 
   async generateVoxelCenters(params: VoxelDebugParams): Promise<VoxelDebugResult> {
@@ -72,10 +72,13 @@ export class VoxelDownsampleDebugBackend extends BaseService {
       
       console.log('🔧 Backend Debug: Real C++ backend result', {
         voxelCount: result.voxelCount || 0,
+        voxelCentersLength: result.voxelCenters?.length || 0,
+        firstFewCenters: result.voxelCenters?.slice(0, 9) || [],
+        voxelCentersArray: Array.from(voxelCenters).slice(0, 9),
         processingTime: processingTime.toFixed(2) + 'ms'
       });
       
-      Log.Info('VoxelDownsampleDebugBackend', 'Voxel centers generated using real C++ backend', {
+      Log.Info('VoxelDownsampleDebugBECPP', 'Voxel centers generated using real C++ backend', {
         voxelCount: result.voxelCount || 0,
         processingTime: processingTime.toFixed(2) + 'ms'
       });
@@ -87,7 +90,7 @@ export class VoxelDownsampleDebugBackend extends BaseService {
         processingTime
       };
     } catch (error) {
-      Log.Error('VoxelDownsampleDebugBackend', 'Real C++ backend voxel centers generation failed', error);
+      Log.Error('VoxelDownsampleDebugBECPP', 'Real C++ backend voxel centers generation failed', error);
       
       // No fallback - BE must use real C++ processing for benchmarking
       console.log('🔧 Backend Debug: No fallback allowed - BE must use real C++ processing');

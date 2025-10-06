@@ -17,7 +17,7 @@ export interface PointCloudSmoothingResult {
   error?: string;
 }
 
-export class PointCloudSmoothingWASM extends BaseService {
+export class PointCloudSmoothingWASMCPP extends BaseService {
   private module: any = null;
 
   constructor(serviceManager: ServiceManager) {
@@ -26,11 +26,11 @@ export class PointCloudSmoothingWASM extends BaseService {
 
   async initialize(): Promise<void> {
     try {
-      Log.Info('PointCloudSmoothingWASM', 'Starting WASM initialization...');
+      Log.Info('PointCloudSmoothingWASMCPP', 'Starting WASM initialization...');
       
       // Load the unified WASM module
       const toolsPath = new URL('/wasm/tools.js', window.location.origin);
-      Log.Info('PointCloudSmoothingWASM', 'Fetching WASM JS from:', toolsPath.href);
+      Log.Info('PointCloudSmoothingWASMCPP', 'Fetching WASM JS from:', toolsPath.href);
       
       const response = await fetch(toolsPath.href);
       if (!response.ok) {
@@ -38,36 +38,36 @@ export class PointCloudSmoothingWASM extends BaseService {
       }
       
       const jsCode = await response.text();
-      Log.Info('PointCloudSmoothingWASM', 'WASM JS code loaded, length:', jsCode.length);
+      Log.Info('PointCloudSmoothingWASMCPP', 'WASM JS code loaded, length:', jsCode.length);
       
       // Create a function from the WASM code - handle Emscripten format
-      Log.Info('PointCloudSmoothingWASM', 'Creating WASM function...');
+      Log.Info('PointCloudSmoothingWASMCPP', 'Creating WASM function...');
       const wasmFunction = new Function(jsCode + '; return ToolsModule;')();
       
-      Log.Info('PointCloudSmoothingWASM', 'Calling WASM function with locateFile...');
+      Log.Info('PointCloudSmoothingWASMCPP', 'Calling WASM function with locateFile...');
       this.module = await wasmFunction({
         locateFile: (path: string) => {
-          Log.Info('PointCloudSmoothingWASM', 'locateFile called with path:', path);
+          Log.Info('PointCloudSmoothingWASMCPP', 'locateFile called with path:', path);
           if (path.endsWith('.wasm')) {
             const wasmUrl = new URL('/wasm/tools.wasm', window.location.origin).href;
-            Log.Info('PointCloudSmoothingWASM', 'Resolved WASM URL:', wasmUrl);
+            Log.Info('PointCloudSmoothingWASMCPP', 'Resolved WASM URL:', wasmUrl);
             return wasmUrl;
           }
           return path;
         },
       });
       
-      Log.Info('PointCloudSmoothingWASM', 'WASM module loaded successfully');
+      Log.Info('PointCloudSmoothingWASMCPP', 'WASM module loaded successfully');
       this.isInitialized = true;
     } catch (error) {
-      Log.Error('PointCloudSmoothingWASM', 'Failed to initialize WASM module:', error);
+      Log.Error('PointCloudSmoothingWASMCPP', 'Failed to initialize WASM module:', error);
       throw error;
     }
   }
 
   async pointCloudSmoothing(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
     if (!this.isInitialized || !this.module) {
-      Log.Error('PointCloudSmoothingWASM', 'WASM module not available');
+      Log.Error('PointCloudSmoothingWASMCPP', 'WASM module not available');
       return {
         success: false,
         error: 'WASM module not available'
@@ -94,7 +94,7 @@ export class PointCloudSmoothingWASM extends BaseService {
         processingTime
       };
     } catch (error) {
-      Log.Error('PointCloudSmoothingWASM', 'Point cloud smoothing failed', error);
+      Log.Error('PointCloudSmoothingWASMCPP', 'Point cloud smoothing failed', error);
       return {
         success: false,
         originalCount: 0,

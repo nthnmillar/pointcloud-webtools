@@ -23,7 +23,7 @@ export interface VoxelDebugResult {
   error?: string;
 }
 
-export class VoxelDownsampleDebugWASM extends BaseService {
+export class VoxelDownsampleDebugWASMCPP extends BaseService {
   private module: any = null;
 
   constructor(_serviceManager: ServiceManager) {
@@ -37,12 +37,12 @@ export class VoxelDownsampleDebugWASM extends BaseService {
       if (typeof window !== 'undefined' && (window as any).ToolsModule) {
         this.module = await (window as any).ToolsModule();
         this.isInitialized = true;
-        Log.Info('VoxelDownsampleDebugWASM', 'C++ WASM module loaded successfully for real benchmarking');
+        Log.Info('VoxelDownsampleDebugWASMCPP', 'C++ WASM module loaded successfully for real benchmarking');
       } else {
         throw new Error('ToolsModule not found on window object');
       }
     } catch (error) {
-      Log.Error('VoxelDownsampleDebugWASM', 'Failed to load C++ WASM module', error);
+      Log.Error('VoxelDownsampleDebugWASMCPP', 'Failed to load C++ WASM module', error);
       this.isInitialized = false;
       throw new Error('C++ WASM module required for benchmarking - no fallback allowed');
     }
@@ -57,7 +57,7 @@ export class VoxelDownsampleDebugWASM extends BaseService {
     
     if (!this.isInitialized || !this.module) {
       console.error('❌ C++ WASM module not available');
-      Log.Error('VoxelDownsampleDebugWASM', 'C++ WASM module required for benchmarking');
+      Log.Error('VoxelDownsampleDebugWASMCPP', 'C++ WASM module required for benchmarking');
       return {
         success: false,
         error: 'C++ WASM module required for benchmarking - no fallback allowed'
@@ -96,7 +96,7 @@ export class VoxelDownsampleDebugWASM extends BaseService {
         centersArray = new Float32Array(voxelCenters);
       }
       
-      Log.Info('VoxelDownsampleDebugWASM', 'Voxel centers generated using C++ WASM', {
+      Log.Info('VoxelDownsampleDebugWASMCPP', 'Voxel centers generated using C++ WASM', {
         voxelCount: centersArray.length / 3,
         processingTime: processingTime.toFixed(2) + 'ms'
       });
@@ -108,7 +108,7 @@ export class VoxelDownsampleDebugWASM extends BaseService {
         processingTime
       };
     } catch (error) {
-      Log.Error('VoxelDownsampleDebugWASM', 'C++ WASM voxel centers generation failed', error);
+      Log.Error('VoxelDownsampleDebugWASMCPP', 'C++ WASM voxel centers generation failed', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'

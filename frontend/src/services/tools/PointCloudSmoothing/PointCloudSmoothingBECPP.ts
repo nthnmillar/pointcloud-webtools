@@ -17,7 +17,7 @@ export interface PointCloudSmoothingResult {
   error?: string;
 }
 
-export class PointCloudSmoothingBackend extends BaseService {
+export class PointCloudSmoothingBECPP extends BaseService {
   constructor(_serviceManager: ServiceManager) {
     super();
   }
@@ -83,7 +83,7 @@ export class PointCloudSmoothingBackend extends BaseService {
         processingTime
       };
     } catch (error) {
-      Log.Error('PointCloudSmoothingBackend', 'Point cloud smoothing failed', error);
+      Log.Error('PointCloudSmoothingBECPP', 'Point cloud smoothing failed', error);
       return {
         success: false,
         originalCount: 0,

@@ -133,7 +133,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
 
             {/* WASM Column */}
             <div className="benchmark-column">
-              <h4>WASM</h4>
+              <h4>WASM C++</h4>
               <div className="benchmark-metrics">
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
@@ -196,7 +196,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
 
             {/* Backend Column */}
             <div className="benchmark-column">
-              <h4>BACKEND</h4>
+              <h4>BE C++</h4>
               <div className="benchmark-metrics">
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>

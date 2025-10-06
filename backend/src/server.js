@@ -1,6 +1,14 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
+import { spawn } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 const PORT = process.env.PORT || 3003;
 
@@ -253,9 +261,6 @@ app.post('/api/voxel-debug', async (req, res) => {
     // Use real C++ backend processing
     console.log('🔧 Backend: Using real C++ backend processing for voxel debug');
     
-    const { spawn } = require('child_process');
-    const path = require('path');
-    
     // Path to the C++ executable
     const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug');
     
@@ -271,25 +276,49 @@ app.post('/api/voxel-debug', async (req, res) => {
     
     const fullInput = input + pointData;
     
+    // Debug: Log first few lines of input to C++ executable
+    console.log('🔧 Backend: C++ input (first 5 lines):');
+    const lines = fullInput.split('\n');
+    for (let i = 0; i < Math.min(5, lines.length); i++) {
+      console.log(`  Line ${i}: ${lines[i]}`);
+    }
+    
     // Execute C++ program
     const cppProcess = spawn(cppExecutable);
     
     let voxelCount = 0;
+    let originalCount = 0;
     let voxelGridPositions = [];
     
+    let outputBuffer = '';
+    
     cppProcess.stdout.on('data', (data) => {
-      const output = data.toString();
-      const lines = output.trim().split('\n');
+      outputBuffer += data.toString();
+      console.log('🔧 Backend: C++ stdout chunk:', data.toString());
+    });
+    
+    cppProcess.stdout.on('end', () => {
+      console.log('🔧 Backend: C++ stdout complete:', outputBuffer);
       
-      if (lines.length >= 2) {
-        voxelCount = parseInt(lines[0]);
-        const positions = lines[1].trim().split(' ').map(parseFloat);
-        voxelGridPositions = positions;
+      // Split by whitespace to get all numbers
+      const allNumbers = outputBuffer.trim().split(/\s+/).map(parseFloat).filter(n => !isNaN(n));
+      
+      if (allNumbers.length > 0) {
+        // First number is the voxel count
+        voxelCount = allNumbers[0];
+        originalCount = pointCount;
+        
+        // Rest are the voxel center coordinates
+        if (allNumbers.length > 1) {
+          voxelGridPositions = allNumbers.slice(1);
+        }
       }
+      
+      console.log('🔧 Backend: Parsed voxelCount:', voxelCount, 'positions:', voxelGridPositions.length);
     });
     
     cppProcess.stderr.on('data', (data) => {
-      console.error('C++ process error:', data.toString());
+      console.error('🔧 Backend: C++ stderr:', data.toString());
     });
     
     // Send input to C++ process
@@ -318,6 +347,7 @@ app.post('/api/voxel-debug', async (req, res) => {
       success: true,
       voxelCenters: voxelGridPositions,
       voxelCount: voxelCount,
+      originalCount: originalCount,
       processingTime: processingTime,
       method: 'Backend C++ (real)'
     });
