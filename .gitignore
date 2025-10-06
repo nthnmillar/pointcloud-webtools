@@ -30,3 +30,5 @@ src/wasm/*.wasm
 src/wasm/*.js
 # Build artifacts
 build/
+**/build/
+**/frontend/frontend/

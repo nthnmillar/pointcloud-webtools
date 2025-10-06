@@ -17,7 +17,7 @@ fi
 
 # Compile unified tools WASM module
 echo "Compiling unified tools WASM module..."
-emcc src/wasm/tools.cpp \
+emcc src/wasm/cpp/tools.cpp \
   -o public/wasm/cpp/tools_cpp.js \
   -s MODULARIZE=1 \
   -s EXPORT_NAME="ToolsModule" \
@@ -32,7 +32,7 @@ emcc src/wasm/tools.cpp \
 
 # Compile COPC loader WASM module
 echo "Compiling COPC loader WASM module..."
-emcc src/wasm/copc_loader.cpp \
+emcc src/wasm/cpp/copc_loader.cpp \
   -o public/wasm/copc_loader.js \
   -s MODULARIZE=1 \
   -s EXPORT_NAME="COPCModule" \
@@ -49,8 +49,8 @@ if ! command -v wasm-pack &> /dev/null; then
     curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 fi
 
-# Navigate to wasm/rust directory and build to build directory first
-cd wasm/rust
+# Navigate to src/wasm/rust directory and build to build directory first
+cd src/wasm/rust
 wasm-pack build --target web --out-dir ../../build/wasm/rust --out-name tools_rust
 cd ../..
 
