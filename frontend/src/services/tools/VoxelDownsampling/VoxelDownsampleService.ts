@@ -6,6 +6,7 @@ import { VoxelDownsamplingWASMRust } from './VoxelDownsamplingWASMRust';
 import { VoxelDownsamplingTS } from './VoxelDownsamplingTS';
 import { VoxelDownsamplingBECPP } from './VoxelDownsamplingBECPP';
 import { VoxelDownsampleDebug } from './VoxelDownsampleDebug';
+import type { VoxelDownsampleParams, VoxelDownsampleResult } from './VoxelDownsamplingTS';
 
 export interface VoxelBatchData {
   batchId: string;
@@ -110,15 +111,23 @@ export class VoxelDownsampleService extends BaseService {
         this.worker?.addEventListener('message', handleInit);
       });
 
-      // Initialize WASM module
+      // Initialize all services
       Log.InfoClass(this, 'Initializing WASM module...');
       await this.voxelDownsamplingWASMCPP.initialize();
       Log.InfoClass(this, 'WASM module initialized successfully');
-
-      // Initialize WASM Rust module
-      Log.InfoClass(this, 'Initializing WASM Rust module...');
+      
+      Log.InfoClass(this, 'Initializing TS service...');
+      await this.voxelDownsamplingTS.initialize();
+      Log.InfoClass(this, 'TS service initialized successfully');
+      
+      Log.InfoClass(this, 'Initializing Rust WASM service...');
       await this.voxelDownsamplingWASMRust.initialize();
-      Log.InfoClass(this, 'WASM Rust module initialized successfully');
+      Log.InfoClass(this, 'Rust WASM service initialized successfully');
+      
+      Log.InfoClass(this, 'Initializing BE C++ service...');
+      await this.voxelDownsamplingBECPP.initialize();
+      Log.InfoClass(this, 'BE C++ service initialized successfully');
+
 
       Log.InfoClass(this, 'Worker initialized successfully');
     } catch (error) {

@@ -643,8 +643,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Set current tool for benchmark display
       onCurrentToolChange?.('voxel');
 
-      // Process with Backend service
-      const result = await serviceManager.toolsService.voxelDownsampleBackend({
+      // Process with TypeScript service
+      const result = await serviceManager.toolsService.voxelDownsampleTS({
         pointCloudData,
         voxelSize,
         globalBounds: {
