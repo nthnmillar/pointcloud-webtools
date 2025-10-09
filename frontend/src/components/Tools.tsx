@@ -783,7 +783,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     smoothingRadius?: number;
     iterations?: number;
   } | null> => {
-    Log.Info('Tools', '=== Starting WASM Point Cloud Smoothing ===');
+    Log.Info('Tools', '=== Starting WASM Point Cloud Smoothing ===', { method, timestamp: Date.now() });
     
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
@@ -868,6 +868,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
               iterations: smoothingIterations
             });
           } else {
+            Log.Info('Tools', 'Workers are ready, using worker for C++ WASM');
             Log.Info('Tools', `Calling worker for ${method} point cloud smoothing`);
             const workerResult = await workerManager.current.processPointCloudSmoothing(
               'WASM_CPP',
@@ -876,12 +877,20 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
               smoothingIterations
             );
 
+            Log.Info('Tools', 'Worker result received', { 
+              type: workerResult.type, 
+              hasData: !!workerResult.data,
+              dataKeys: workerResult.data ? Object.keys(workerResult.data) : 'no data',
+              hasSmoothedPoints: !!workerResult.data?.smoothedPoints
+            });
+
             if (workerResult.type !== 'SUCCESS' || !workerResult.data?.smoothedPoints) {
               Log.Error('Tools', `${method} point cloud smoothing failed in worker`, workerResult.error);
               return null;
             }
 
             result = {
+              success: true,
               smoothedPoints: workerResult.data.smoothedPoints,
               originalCount: workerResult.data.originalCount,
               smoothedCount: workerResult.data.smoothedCount,
@@ -916,6 +925,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
               return null;
             }
             
+            Log.Info('Tools', 'Worker result check passed, proceeding to conversion');
+            
             // Convert worker result to service result format
             result = {
               success: true,
@@ -924,6 +935,10 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
               smoothedCount: workerResult.data.smoothedCount,
               processingTime: workerResult.data.processingTime
             };
+            Log.Info('Tools', 'Worker result converted successfully', { 
+              success: result.success, 
+              hasSmoothedPoints: !!result.smoothedPoints 
+            });
           }
         } else {
           Log.Error('Tools', `Unknown WASM method: ${method}`);
@@ -931,6 +946,13 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         }
       }
 
+      Log.Info('Tools', 'Checking result before processing', { 
+        hasResult: !!result, 
+        resultSuccess: result?.success, 
+        hasSmoothedPoints: !!result?.smoothedPoints,
+        resultKeys: result ? Object.keys(result) : 'no result'
+      });
+      
       if (result.success && result.smoothedPoints) {
         // Convert smoothed points to PointCloudPoint array
         const smoothedPoints = [];
@@ -1006,169 +1028,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
-  // Processing functions
-  // Processing functions - using worker approach for WASM implementations
-  /*
-    if (!serviceManager?.toolsService) {
-      Log.Error('Tools', 'Tools service not available');
-      return null;
-    }
-
-    try {
-      // Get all point cloud IDs
-      const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
-      
-      if (allPointCloudIds.length === 0) {
-        Log.Error('Tools', 'No point clouds found in scene');
-        return null;
-      }
-
-      // Collect all points from all point clouds
-      const allPositions: number[] = [];
-      let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
-      let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
-
-      for (const pointCloudId of allPointCloudIds) {
-        const pointCloud = serviceManager.pointService?.getPointCloud(pointCloudId);
-        if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
-          for (const point of pointCloud.points) {
-            allPositions.push(point.position.x, point.position.y, point.position.z);
-            
-            globalMinX = Math.min(globalMinX, point.position.x);
-            globalMinY = Math.min(globalMinY, point.position.y);
-            globalMinZ = Math.min(globalMinZ, point.position.z);
-            globalMaxX = Math.max(globalMaxX, point.position.x);
-            globalMaxY = Math.max(globalMaxY, point.position.y);
-            globalMaxZ = Math.max(globalMaxZ, point.position.z);
-          }
-        }
-      }
-
-      if (allPositions.length === 0) {
-        Log.Error('Tools', 'No valid points found for voxel downsampling');
-        return null;
-      }
-
-      const pointCloudData = new Float32Array(allPositions);
-      const globalBounds = {
-        minX: globalMinX,
-        minY: globalMinY,
-        minZ: globalMinZ,
-        maxX: globalMaxX,
-        maxY: globalMaxY,
-        maxZ: globalMaxZ
-      };
-
-      const startTime = performance.now();
-      let result;
-
-      // Use appropriate threading based on implementation
-      if (implementation === 'TS' || implementation === 'BE') {
-        // TS and BE run on main thread (TS is lightweight, BE is separate process)
-        switch (implementation) {
-          case 'TS':
-            result = await serviceManager.toolsService.voxelDownsampleTS({
-              pointCloudData,
-              voxelSize,
-              globalBounds
-            });
-            break;
-          case 'BE':
-            result = await serviceManager.toolsService.voxelDownsampleBackend({
-              pointCloudData,
-              voxelSize,
-              globalBounds
-            });
-            break;
-        }
-      } else {
-        // WASM implementations run in worker threads for fair benchmarking
-        if (!workerManager.current) {
-          Log.Error('Tools', 'Worker manager not available for WASM');
-          return null;
-        }
-
-        // WASM implementations run in worker threads for fair benchmarking
-        if (!workerManager.current.isReady) {
-          Log.Error('Tools', 'Workers not initialized yet - falling back to direct service calls');
-          // Fallback to direct service calls if worker is not available
-          switch (implementation) {
-            case 'WASM':
-              result = await serviceManager.toolsService.voxelDownsampleWASM({
-                pointCloudData,
-                voxelSize,
-                globalBounds
-              });
-              break;
-            case 'WASM_RUST':
-              result = await serviceManager.toolsService.voxelDownsampleWASMRust({
-                pointCloudData,
-                voxelSize,
-                globalBounds
-              });
-              break;
-            default:
-              Log.Error('Tools', `Unknown implementation for fallback: ${implementation}`);
-              return null;
-          }
-          
-          if (result.success && result.downsampledPoints) {
-            return {
-              originalCount: result.originalCount,
-              downsampledCount: result.downsampledCount || 0,
-              processingTime: result.processingTime || 0,
-              reductionRatio: result.originalCount / (result.downsampledCount || 1),
-              voxelCount: result.voxelCount || 0
-            };
-          }
-          return null;
-        }
-
-        Log.Info('Tools', `Calling worker for ${implementation} voxel downsampling`);
-        const workerResult = await workerManager.current.processVoxelDownsampling(
-          implementation as 'WASM_CPP' | 'WASM_RUST',
-          pointCloudData,
-          voxelSize,
-          globalBounds
-        );
-
-        if (workerResult.type !== 'SUCCESS' || !workerResult.data?.downsampledPoints) {
-          Log.Error('Tools', `${implementation} voxel downsampling failed in worker`, workerResult.error);
-          return null;
-        }
-        
-        // Convert worker result to service result format
-        result = {
-          success: true,
-          downsampledPoints: workerResult.data.downsampledPoints,
-          originalCount: workerResult.data.originalCount,
-          downsampledCount: workerResult.data.downsampledCount,
-          voxelCount: workerResult.data.voxelCount,
-          processingTime: workerResult.data.processingTime
-        };
-      }
-
-      const processingTime = performance.now() - startTime;
-
-      if (result.success && result.downsampledPoints) {
-        return {
-          originalCount: pointCloudData.length / 3,
-          downsampledCount: result.downsampledPoints.length / 3,
-          processingTime,
-          reductionRatio: (pointCloudData.length / 3) / (result.downsampledPoints.length / 3),
-          voxelCount: result.voxelCount
-        };
-      }
-
-      return null;
-    } catch (error) {
-      Log.Error('Tools', `${implementation} voxel downsampling error`, error);
-      return null;
-    }
-  };
-  */
-
-
+  
   // Point Cloud Smoothing Handlers
   const handleWasmPointCloudSmoothing = async () => {
     const results = await processPointCloudSmoothing('WASM');

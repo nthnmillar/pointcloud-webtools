@@ -171,11 +171,17 @@ async function processPointCloudSmoothing(data: {
     iterations
   });
 
-  const smoothedPoints = toolsModule.pointCloudSmoothing(
-    pointCloudData,
-    smoothingRadius,
-    iterations
-  );
+  let smoothedPoints: Float32Array;
+  try {
+    smoothedPoints = toolsModule.pointCloudSmoothing(
+      pointCloudData,
+      smoothingRadius,
+      iterations
+    );
+  } catch (error) {
+    WorkerLog.error('C++ WASM pointCloudSmoothing function failed', error);
+    throw new Error(`C++ WASM pointCloudSmoothing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 
   const processingTime = performance.now() - startTime;
   
