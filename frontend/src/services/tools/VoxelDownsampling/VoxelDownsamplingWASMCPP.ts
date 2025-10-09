@@ -39,7 +39,7 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
       Log.Info('VoxelDownsamplingWASM', 'Starting WASM initialization...');
       
       // Load the unified WASM module
-      const toolsPath = new URL('/wasm/cpp/tools_cpp.js', window.location.origin);
+      const toolsPath = new URL('/wasm/cpp/tools_cpp.js', self.location.origin);
       Log.Info('VoxelDownsamplingWASM', 'Fetching WASM JS from:', toolsPath.href);
       
       const response = await fetch(toolsPath.href);
@@ -59,7 +59,7 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
         locateFile: (path: string) => {
           Log.Info('VoxelDownsamplingWASM', 'locateFile called with path:', path);
           if (path.endsWith('.wasm')) {
-            const wasmUrl = new URL('/wasm/cpp/tools_cpp.wasm', window.location.origin).href;
+            const wasmUrl = new URL('/wasm/cpp/tools_cpp.wasm', self.location.origin).href;
             Log.Info('VoxelDownsamplingWASM', 'Resolved WASM URL:', wasmUrl);
             return wasmUrl;
           }

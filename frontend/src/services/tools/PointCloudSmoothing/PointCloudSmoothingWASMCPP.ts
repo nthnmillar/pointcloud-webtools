@@ -29,7 +29,7 @@ export class PointCloudSmoothingWASMCPP extends BaseService {
       Log.Info('PointCloudSmoothingWASMCPP', 'Starting WASM initialization...');
       
       // Load the unified WASM module
-      const toolsPath = new URL('/wasm/cpp/tools_cpp.js', window.location.origin);
+      const toolsPath = new URL('/wasm/cpp/tools_cpp.js', self.location.origin);
       Log.Info('PointCloudSmoothingWASMCPP', 'Fetching WASM JS from:', toolsPath.href);
       
       const response = await fetch(toolsPath.href);
@@ -49,7 +49,7 @@ export class PointCloudSmoothingWASMCPP extends BaseService {
         locateFile: (path: string) => {
           Log.Info('PointCloudSmoothingWASMCPP', 'locateFile called with path:', path);
           if (path.endsWith('.wasm')) {
-            const wasmUrl = new URL('/wasm/cpp/tools_cpp.wasm', window.location.origin).href;
+            const wasmUrl = new URL('/wasm/cpp/tools_cpp.wasm', self.location.origin).href;
             Log.Info('PointCloudSmoothingWASMCPP', 'Resolved WASM URL:', wasmUrl);
             return wasmUrl;
           }

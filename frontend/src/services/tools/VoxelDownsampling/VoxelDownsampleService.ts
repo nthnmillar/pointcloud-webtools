@@ -67,49 +67,18 @@ export class VoxelDownsampleService extends BaseService {
     }
 
     try {
-      Log.InfoClass(this, 'Creating worker...');
+      Log.InfoClass(this, 'VoxelDownsampleService worker disabled - using WorkerManager instead');
       
-      // Create worker from the VoxelDownsampleWorker.ts file
-      this.worker = new Worker(
-        new URL('./VoxelDownsampleWorker.ts', import.meta.url),
-        { type: 'module' }
-      );
+      // DISABLED: Create worker from the VoxelDownsampleWorker.ts file
+      // This was causing conflicts with CppWasmWorker loading the same WASM module
+      // this.worker = new Worker(
+      //   new URL('./VoxelDownsampleWorker.ts', import.meta.url),
+      //   { type: 'module' }
+      // );
 
-      Log.InfoClass(this, 'Worker created, setting up event handlers...');
-
-      this.worker.onmessage = this.handleWorkerMessage.bind(this);
-      this.worker.onerror = this.handleWorkerError.bind(this);
-
-      // Initialize the worker
-      Log.InfoClass(this, 'Sending INITIALIZE message to worker...');
-      this.worker.postMessage({ type: 'INITIALIZE' });
-
-      // Wait for initialization
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          Log.ErrorClass(this, 'Worker initialization timeout');
-          reject(new Error('Worker initialization timeout'));
-        }, 10000);
-
-        const handleInit = (event: MessageEvent) => {
-          Log.DebugClass(this, 'Received message from worker', event.data);
-          
-          if (event.data.type === 'WORKER_INITIALIZED') {
-            clearTimeout(timeout);
-            this.worker?.removeEventListener('message', handleInit);
-            this._isInitialized = true;
-            Log.InfoClass(this, 'Worker initialization completed successfully');
-            resolve();
-          } else if (event.data.type === 'ERROR') {
-            clearTimeout(timeout);
-            this.worker?.removeEventListener('message', handleInit);
-            Log.ErrorClass(this, 'Worker reported error during initialization', event.data.data.error);
-            reject(new Error(event.data.data.error));
-          }
-        };
-
-        this.worker?.addEventListener('message', handleInit);
-      });
+      // Skip worker setup since worker is disabled
+      this._isInitialized = true;
+      Log.InfoClass(this, 'VoxelDownsampleService initialized (worker disabled)');
 
       // Initialize all services
       Log.InfoClass(this, 'Initializing WASM module...');

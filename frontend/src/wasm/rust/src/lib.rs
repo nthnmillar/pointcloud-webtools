@@ -136,13 +136,20 @@ impl PointCloudToolsRust {
         console_log!("Rust WASM: Starting point cloud smoothing with {} points, radius: {}, iterations: {}", 
                     points.len() / 3, smoothing_radius, iterations);
         
+        // Validate input
+        if points.len() % 3 != 0 {
+            console_log!("Rust WASM: Error - points array length {} is not divisible by 3", points.len());
+            return points.to_vec();
+        }
+        
         let mut smoothed_points = points.to_vec();
+        let points_len = smoothed_points.len();
         
         for iteration in 0..iterations {
             let mut new_points = smoothed_points.clone();
             
-            for i in (0..points.len()).step_by(3) {
-                if i + 2 < points.len() {
+            for i in (0..points_len).step_by(3) {
+                if i + 2 < points_len {
                     let current_x = smoothed_points[i];
                     let current_y = smoothed_points[i + 1];
                     let current_z = smoothed_points[i + 2];
@@ -153,8 +160,8 @@ impl PointCloudToolsRust {
                     let mut sum_z = current_z;
                     
                     // Find neighbors within smoothing radius
-                    for j in (0..points.len()).step_by(3) {
-                        if j != i && j + 2 < points.len() {
+                    for j in (0..points_len).step_by(3) {
+                        if j != i && j + 2 < points_len {
                             let neighbor_x = smoothed_points[j];
                             let neighbor_y = smoothed_points[j + 1];
                             let neighbor_z = smoothed_points[j + 2];

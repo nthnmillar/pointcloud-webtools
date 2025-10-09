@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ServiceManager } from '../services/ServiceManager';
 import { Log } from '../utils/Log';
+import { WorkerManager } from '../services/tools/WorkerManager';
 
 interface ToolsProps {
   serviceManager: ServiceManager | null;
@@ -63,6 +64,46 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   
   // Use ref to track processing state for event handlers
   const isProcessingRef = useRef(false);
+
+  // Processing worker for WASM implementations (separate threads)
+  const workerManager = useRef<WorkerManager | null>(null);
+  const isInitializing = useRef(false);
+
+  // Initialize workers for WASM threading
+  useEffect(() => {
+    const initWorkers = async () => {
+      try {
+        // Prevent double initialization
+        if (workerManager.current || isInitializing.current) {
+          Log.Info('Tools', 'WorkerManager already exists or initializing, skipping');
+          return;
+        }
+        
+        isInitializing.current = true;
+        Log.Info('Tools', 'Creating WorkerManager...');
+        workerManager.current = new WorkerManager();
+        Log.Info('Tools', 'Initializing WorkerManager...');
+        await workerManager.current.initialize();
+        Log.Info('Tools', 'Workers initialized for WASM threading');
+        isInitializing.current = false;
+      } catch (error) {
+        Log.Error('Tools', 'Failed to initialize workers - will use direct service calls', error);
+        isInitializing.current = false;
+        // Don't set workerManager.current to null - let it stay as failed instance
+        // This will trigger fallback to direct service calls
+      }
+    };
+
+    initWorkers();
+
+    return () => {
+      if (workerManager.current && !isInitializing.current) {
+        Log.Info('Tools', 'Cleaning up WorkerManager...');
+        workerManager.current.dispose();
+        workerManager.current = null;
+      }
+    };
+  }, []);
 
   // Note: Using component default values instead of service defaults
 
@@ -792,33 +833,102 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Set current tool for benchmark display
       onCurrentToolChange?.('smoothing');
 
-      // Process with the appropriate service method
+      // Use appropriate threading based on method
       let result;
-      if (method === 'WASM') {
-        result = await serviceManager.toolsService.performPointCloudSmoothingWASMCPP({
-          points: pointCloudData,
-          smoothingRadius,
-          iterations: smoothingIterations
-        });
-      } else if (method === 'WASM_RUST') {
-        result = await serviceManager.toolsService.performPointCloudSmoothingWASMRust({
-          points: pointCloudData,
-          smoothingRadius,
-          iterations: smoothingIterations
-        });
-      } else if (method === 'BE') {
-        result = await serviceManager.toolsService.performPointCloudSmoothingBECPP({
-          points: pointCloudData,
-          smoothingRadius,
-          iterations: smoothingIterations
-        });
+      
+      if (method === 'TS' || method === 'BE') {
+        // TS and BE run on main thread (TS is lightweight, BE is separate process)
+        if (method === 'TS') {
+          result = await serviceManager.toolsService.performPointCloudSmoothingTS({
+            points: pointCloudData,
+            smoothingRadius,
+            iterations: smoothingIterations
+          });
+        } else {
+          result = await serviceManager.toolsService.performPointCloudSmoothingBECPP({
+            points: pointCloudData,
+            smoothingRadius,
+            iterations: smoothingIterations
+          });
+        }
       } else {
-        // TS method
-        result = await serviceManager.toolsService.performPointCloudSmoothingTS({
-          points: pointCloudData,
-          smoothingRadius,
-          iterations: smoothingIterations
-        });
+        // WASM implementations - both C++ and Rust WASM use workers
+        if (method === 'WASM') {
+          // C++ WASM uses worker thread for fair benchmarking
+          if (!workerManager.current) {
+            Log.Error('Tools', 'Worker manager not available for C++ WASM');
+            return null;
+          }
+
+          if (!workerManager.current.isReady) {
+            Log.Error('Tools', 'Workers not initialized - falling back to direct service calls');
+            result = await serviceManager.toolsService.performPointCloudSmoothingWASMCPP({
+              points: pointCloudData,
+              smoothingRadius,
+              iterations: smoothingIterations
+            });
+          } else {
+            Log.Info('Tools', `Calling worker for ${method} point cloud smoothing`);
+            const workerResult = await workerManager.current.processPointCloudSmoothing(
+              'WASM_CPP',
+              pointCloudData,
+              smoothingRadius,
+              smoothingIterations
+            );
+
+            if (workerResult.type !== 'SUCCESS' || !workerResult.data?.smoothedPoints) {
+              Log.Error('Tools', `${method} point cloud smoothing failed in worker`, workerResult.error);
+              return null;
+            }
+
+            result = {
+              smoothedPoints: workerResult.data.smoothedPoints,
+              originalCount: workerResult.data.originalCount,
+              smoothedCount: workerResult.data.smoothedCount,
+              processingTime: workerResult.data.processingTime
+            };
+          }
+        } else if (method === 'WASM_RUST') {
+          // Rust WASM uses worker thread for fair benchmarking
+          if (!workerManager.current) {
+            Log.Error('Tools', 'Worker manager not available for Rust WASM');
+            return null;
+          }
+
+          if (!workerManager.current.isReady) {
+            Log.Error('Tools', 'Workers not initialized - falling back to direct service calls');
+            result = await serviceManager.toolsService.performPointCloudSmoothingWASMRust({
+              points: pointCloudData,
+              smoothingRadius,
+              iterations: smoothingIterations
+            });
+          } else {
+            Log.Info('Tools', `Calling worker for ${method} point cloud smoothing`);
+            const workerResult = await workerManager.current.processPointCloudSmoothing(
+              'WASM_RUST',
+              pointCloudData,
+              smoothingRadius,
+              smoothingIterations
+            );
+
+            if (workerResult.type !== 'SUCCESS' || !workerResult.data?.smoothedPoints) {
+              Log.Error('Tools', `${method} point cloud smoothing failed in worker`, workerResult.error);
+              return null;
+            }
+            
+            // Convert worker result to service result format
+            result = {
+              success: true,
+              smoothedPoints: workerResult.data.smoothedPoints,
+              originalCount: workerResult.data.originalCount,
+              smoothedCount: workerResult.data.smoothedCount,
+              processingTime: workerResult.data.processingTime
+            };
+          }
+        } else {
+          Log.Error('Tools', `Unknown WASM method: ${method}`);
+          return null;
+        }
       }
 
       if (result.success && result.smoothedPoints) {
@@ -897,7 +1007,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   };
 
   // Processing functions
-  const processVoxelDownsampling = async (implementation: 'TS' | 'WASM' | 'WASM_RUST' | 'BE') => {
+  // Processing functions - using worker approach for WASM implementations
+  /*
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
       return null;
@@ -951,37 +1062,90 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       const startTime = performance.now();
       let result;
 
-      switch (implementation) {
-        case 'TS':
-          result = await serviceManager.toolsService.voxelDownsampleTS({
-            pointCloudData,
-            voxelSize,
-            globalBounds
-          });
-          break;
-        case 'WASM':
-          result = await serviceManager.toolsService.voxelDownsampleWASM({
-            pointCloudData,
-            voxelSize,
-            globalBounds
-          });
-          break;
-        case 'WASM_RUST':
-          result = await serviceManager.toolsService.voxelDownsampleWASMRust({
-            pointCloudData,
-            voxelSize,
-            globalBounds
-          });
-          break;
-        case 'BE':
-          result = await serviceManager.toolsService.voxelDownsampleBackend({
-            pointCloudData,
-            voxelSize,
-            globalBounds
-          });
-          break;
-        default:
-          throw new Error(`Unknown implementation: ${implementation}`);
+      // Use appropriate threading based on implementation
+      if (implementation === 'TS' || implementation === 'BE') {
+        // TS and BE run on main thread (TS is lightweight, BE is separate process)
+        switch (implementation) {
+          case 'TS':
+            result = await serviceManager.toolsService.voxelDownsampleTS({
+              pointCloudData,
+              voxelSize,
+              globalBounds
+            });
+            break;
+          case 'BE':
+            result = await serviceManager.toolsService.voxelDownsampleBackend({
+              pointCloudData,
+              voxelSize,
+              globalBounds
+            });
+            break;
+        }
+      } else {
+        // WASM implementations run in worker threads for fair benchmarking
+        if (!workerManager.current) {
+          Log.Error('Tools', 'Worker manager not available for WASM');
+          return null;
+        }
+
+        // WASM implementations run in worker threads for fair benchmarking
+        if (!workerManager.current.isReady) {
+          Log.Error('Tools', 'Workers not initialized yet - falling back to direct service calls');
+          // Fallback to direct service calls if worker is not available
+          switch (implementation) {
+            case 'WASM':
+              result = await serviceManager.toolsService.voxelDownsampleWASM({
+                pointCloudData,
+                voxelSize,
+                globalBounds
+              });
+              break;
+            case 'WASM_RUST':
+              result = await serviceManager.toolsService.voxelDownsampleWASMRust({
+                pointCloudData,
+                voxelSize,
+                globalBounds
+              });
+              break;
+            default:
+              Log.Error('Tools', `Unknown implementation for fallback: ${implementation}`);
+              return null;
+          }
+          
+          if (result.success && result.downsampledPoints) {
+            return {
+              originalCount: result.originalCount,
+              downsampledCount: result.downsampledCount || 0,
+              processingTime: result.processingTime || 0,
+              reductionRatio: result.originalCount / (result.downsampledCount || 1),
+              voxelCount: result.voxelCount || 0
+            };
+          }
+          return null;
+        }
+
+        Log.Info('Tools', `Calling worker for ${implementation} voxel downsampling`);
+        const workerResult = await workerManager.current.processVoxelDownsampling(
+          implementation as 'WASM_CPP' | 'WASM_RUST',
+          pointCloudData,
+          voxelSize,
+          globalBounds
+        );
+
+        if (workerResult.type !== 'SUCCESS' || !workerResult.data?.downsampledPoints) {
+          Log.Error('Tools', `${implementation} voxel downsampling failed in worker`, workerResult.error);
+          return null;
+        }
+        
+        // Convert worker result to service result format
+        result = {
+          success: true,
+          downsampledPoints: workerResult.data.downsampledPoints,
+          originalCount: workerResult.data.originalCount,
+          downsampledCount: workerResult.data.downsampledCount,
+          voxelCount: workerResult.data.voxelCount,
+          processingTime: workerResult.data.processingTime
+        };
       }
 
       const processingTime = performance.now() - startTime;
@@ -1002,6 +1166,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       return null;
     }
   };
+  */
 
 
   // Point Cloud Smoothing Handlers
@@ -1075,12 +1240,44 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Set current tool for benchmark display
       onCurrentToolChange?.('voxel');
 
-      // Process with WASM Rust service
-      const result = await serviceManager.toolsService.voxelDownsampleWASMRust({
-        pointCloudData,
-        voxelSize,
-        globalBounds
-      });
+      // Process with WASM Rust worker for fair benchmarking
+      let result;
+      
+      if (!workerManager.current) {
+        Log.Error('Tools', 'Worker manager not available for Rust WASM');
+        return;
+      }
+
+      if (!workerManager.current.isReady) {
+        Log.Error('Tools', 'Workers not initialized - falling back to direct service calls');
+        result = await serviceManager.toolsService.voxelDownsampleWASMRust({
+          pointCloudData,
+          voxelSize,
+          globalBounds
+        });
+      } else {
+        Log.Info('Tools', 'Calling worker for WASM Rust voxel downsampling');
+        const workerResult = await workerManager.current.processVoxelDownsampling(
+          'WASM_RUST',
+          pointCloudData,
+          voxelSize,
+          globalBounds
+        );
+
+        if (workerResult.type !== 'SUCCESS' || !workerResult.data?.downsampledPoints) {
+          Log.Error('Tools', 'WASM Rust voxel downsampling failed in worker', workerResult.error);
+          return;
+        }
+        
+        // Convert worker result to service result format
+        result = {
+          success: true,
+          downsampledPoints: workerResult.data.downsampledPoints,
+          originalCount: workerResult.data.originalCount,
+          downsampledCount: workerResult.data.downsampledCount,
+          processingTime: workerResult.data.processingTime
+        };
+      }
 
       console.log('🔧 Tools: processVoxelDownsampling result:', result);
 

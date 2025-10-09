@@ -28,6 +28,10 @@ export default defineConfig({
       }
     }
   ],
+  worker: {
+    plugins: () => [wasm(), topLevelAwait()],
+    format: 'es'
+  },
   server: {
     port: 3000,
   },
