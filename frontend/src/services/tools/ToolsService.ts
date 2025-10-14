@@ -70,44 +70,20 @@ export class ToolsService extends BaseService {
   }
 
   async initialize(): Promise<void> {
-    try {
-      // Initialize all individual tool services with error handling
-      const initPromises = [
-        this.voxelDownsampleService.initialize().catch(err => {
-          Log.Error('ToolsService', 'VoxelDownsampleService initialization failed:', err);
-          return null;
-        }),
-        this.pointCloudSmoothingWASMCPP.initialize().catch(err => {
-          Log.Error('ToolsService', 'PointCloudSmoothingWASMCPP initialization failed:', err);
-          return null;
-        }),
-        this.pointCloudSmoothingWASMRust.initialize().catch(err => {
-          Log.Error('ToolsService', 'PointCloudSmoothingWASMRust initialization failed:', err);
-          return null;
-        }),
-        this.pointCloudSmoothingTS.initialize().catch(err => {
-          Log.Error('ToolsService', 'PointCloudSmoothingTS initialization failed:', err);
-          return null;
-        }),
-        this.pointCloudSmoothingBECPP.initialize().catch(err => {
-          Log.Error('ToolsService', 'PointCloudSmoothingBECPP initialization failed:', err);
-          return null;
-        }),
-        this.voxelDownsampleDebugService.initialize().catch(err => {
-          Log.Error('ToolsService', 'VoxelDownsampleDebugService initialization failed:', err);
-          return null;
-        })
-      ];
-      
-      await Promise.all(initPromises);
-      
-      this.isInitialized = true;
-      Log.Info('ToolsService', 'ToolsService initialized successfully');
-    } catch (error) {
-      Log.Error('ToolsService', 'ToolsService initialization failed:', error);
-      // Don't throw the error, just log it and continue
-      this.isInitialized = true;
-    }
+    // Initialize all individual tool services - NO FALLBACKS
+    const initPromises = [
+      this.voxelDownsampleService.initialize(),
+      this.pointCloudSmoothingWASMCPP.initialize(),
+      this.pointCloudSmoothingWASMRust.initialize(),
+      this.pointCloudSmoothingTS.initialize(),
+      this.pointCloudSmoothingBECPP.initialize(),
+      this.voxelDownsampleDebugService.initialize()
+    ];
+    
+    await Promise.all(initPromises);
+    
+    this.isInitialized = true;
+    Log.Info('ToolsService', 'ToolsService initialized successfully');
   }
 
   // Voxel downsampling methods
@@ -117,6 +93,14 @@ export class ToolsService extends BaseService {
 
   async performVoxelDownsamplingWASMCPP(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
     return this.voxelDownsampleWASM(params);
+  }
+
+  async performVoxelDownsamplingRustWasmMain(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
+    return this.voxelDownsampleWASMRust(params);
+  }
+
+  async performPointCloudSmoothingRustWasmMain(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
+    return this.performPointCloudSmoothingWASMRust(params);
   }
 
   async voxelDownsampleWASMRust(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
@@ -153,7 +137,7 @@ export class ToolsService extends BaseService {
   }
 
   // Voxel debug methods
-  async showVoxelDebug(voxelSize: number, implementation?: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'BE', maxVoxels?: number): Promise<{ voxelCount: number; processingTime: number } | null> {
+  async showVoxelDebug(voxelSize: number, implementation?: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE', maxVoxels?: number): Promise<{ voxelCount: number; processingTime: number } | null> {
     console.log('🔍 Debug voxel generation started', { implementation, voxelSize });
     
     // Clear any existing debug visualization first
@@ -162,7 +146,7 @@ export class ToolsService extends BaseService {
     if (!this.voxelDownsampleService.voxelDownsampleDebug) {
       console.error('❌ Voxel debug service not available');
       Log.Error('ToolsService', 'Voxel debug service not available');
-      return null;
+      throw new Error('Voxel debug service not available');
     }
 
     try {
@@ -183,7 +167,7 @@ export class ToolsService extends BaseService {
       if (!pointClouds || pointClouds.length === 0) {
         console.warn('⚠️ No point clouds available for debug visualization');
         Log.Warn('ToolsService', 'No point clouds available for debug visualization');
-        return null;
+        throw new Error('No point clouds available for debug visualization');
       }
 
       // Convert to Float32Array
@@ -252,6 +236,9 @@ export class ToolsService extends BaseService {
         } else if (implementation === 'WASM_RUST') {
           // Orange/red to match .tools-wasm-rust-btn: rgba(255, 99, 71, 0.8)
           color = { r: 255/255, g: 99/255, b: 71/255 };
+        } else if (implementation === 'RUST_WASM_MAIN') {
+          // Darker orange/red to match .tools-rust-wasm-main-btn: rgba(255, 69, 0, 0.8)
+          color = { r: 255/255, g: 69/255, b: 0/255 };
         } else if (implementation === 'BE') {
           // Orange to match .tools-be-btn: rgba(255, 165, 0, 0.8)
           color = { r: 255/255, g: 165/255, b: 0/255 };
@@ -272,11 +259,11 @@ export class ToolsService extends BaseService {
         };
       } else {
         Log.Error('ToolsService', `${implementation || 'TS'} debug voxel generation failed`, result.error);
-        return null;
+        throw new Error(`Debug voxel generation failed: ${result.error}`);
       }
     } catch (error) {
       Log.Error('ToolsService', 'Debug voxel generation failed', error);
-      return null;
+      throw error;
     }
   }
 
