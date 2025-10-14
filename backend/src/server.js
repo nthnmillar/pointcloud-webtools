@@ -69,56 +69,77 @@ app.post('/api/voxel-downsample', async (req, res) => {
     let downsampledCount = 0;
     let downsampledPoints = [];
     
+    let outputBuffer = '';
+    
     cppProcess.stdout.on('data', (data) => {
-      const output = data.toString();
-      const lines = output.trim().split('\n');
+      outputBuffer += data.toString();
+    });
+    
+    cppProcess.stdout.on('end', () => {
+      console.log('🔧 Backend: C++ stdout complete:', outputBuffer);
+      const lines = outputBuffer.trim().split('\n');
       
       if (lines.length >= 4) {
         voxelCount = parseInt(lines[0]);
         originalCount = parseInt(lines[1]);
         downsampledCount = parseInt(lines[2]);
-        const points = lines[3].trim().split(' ').map(parseFloat);
+        const pointsString = lines[3].trim();
+        const points = pointsString.split(' ').map(parseFloat).filter(p => !isNaN(p));
         downsampledPoints = points;
+        console.log('🔧 Backend: Parsed downsampledPoints:', downsampledPoints.length / 3, 'points');
       }
+      
+      // Send response after processing stdout
+      const processingTime = Date.now() - startTime;
+      const reductionRatio = originalCount / downsampledCount;
+      
+      console.log('🔧 Backend: C++ voxel downsampling processing completed', {
+        voxelCount: voxelCount,
+        processingTime: processingTime + 'ms'
+      });
+      
+      res.json({
+        success: true,
+        downsampledPoints: downsampledPoints,
+        originalCount: originalCount,
+        downsampledCount: downsampledCount,
+        voxelCount: voxelCount,
+        reductionRatio: reductionRatio,
+        processingTime: processingTime,
+        method: 'Backend C++ (real)'
+      });
     });
     
     cppProcess.stderr.on('data', (data) => {
       console.error('C++ process error:', data.toString());
     });
     
+    // Handle process errors
+    cppProcess.on('error', (error) => {
+      console.error('C++ process error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          success: false, 
+          error: 'C++ process failed to start' 
+        });
+      }
+    });
+    
+    cppProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`C++ process exited with code ${code}`);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            error: `C++ process exited with code ${code}` 
+          });
+        }
+      }
+    });
+    
     // Send input to C++ process
     cppProcess.stdin.write(fullInput);
     cppProcess.stdin.end();
-    
-    // Wait for C++ process to complete
-    await new Promise((resolve, reject) => {
-      cppProcess.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`C++ process exited with code ${code}`));
-        }
-      });
-    });
-    
-    const processingTime = Date.now() - startTime;
-    const reductionRatio = originalCount / downsampledCount;
-    
-    console.log('🔧 Backend: C++ voxel downsampling processing completed', {
-      voxelCount: voxelCount,
-      processingTime: processingTime + 'ms'
-    });
-    
-    res.json({
-      success: true,
-      downsampledPoints: downsampledPoints,
-      originalCount: originalCount,
-      downsampledCount: downsampledCount,
-      voxelCount: voxelCount,
-      reductionRatio: reductionRatio,
-      processingTime: processingTime,
-      method: 'Backend C++ (real)'
-    });
     
   } catch (error) {
     console.error('Voxel downsampling error:', error);
@@ -187,7 +208,8 @@ app.post('/api/point-smooth', async (req, res) => {
       
       if (lines.length >= 2) {
         const pointCount = parseInt(lines[0]);
-        const points = lines[1].trim().split(' ').map(parseFloat);
+        const pointsString = lines[1].trim();
+        const points = pointsString.split(' ').map(parseFloat).filter(p => !isNaN(p));
         smoothedPoints = points;
         console.log('🔧 Backend: Parsed smoothedPoints:', smoothedPoints.length / 3, 'points');
       }
@@ -212,20 +234,34 @@ app.post('/api/point-smooth', async (req, res) => {
       console.error('C++ process error:', data.toString());
     });
     
+    // Handle process errors
+    cppProcess.on('error', (error) => {
+      console.error('C++ process error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          success: false, 
+          error: 'C++ process failed to start' 
+        });
+      }
+    });
+    
+    cppProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`C++ process exited with code ${code}`);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            error: `C++ process exited with code ${code}` 
+          });
+        }
+      }
+    });
+    
     // Send input to C++ process
+    console.log('🔧 Backend: Sending input to C++ process...');
     cppProcess.stdin.write(fullInput);
     cppProcess.stdin.end();
-    
-    // Wait for C++ process to complete
-    await new Promise((resolve, reject) => {
-      cppProcess.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`C++ process exited with code ${code}`));
-        }
-      });
-    });
+    console.log('🔧 Backend: Input sent, waiting for response...');
     
   } catch (error) {
     console.error('Point cloud smoothing error:', error);
@@ -340,20 +376,32 @@ app.post('/api/voxel-debug', async (req, res) => {
       console.error('🔧 Backend: C++ stderr:', data.toString());
     });
     
+    // Handle process errors
+    cppProcess.on('error', (error) => {
+      console.error('C++ process error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          success: false, 
+          error: 'C++ process failed to start' 
+        });
+      }
+    });
+    
+    cppProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`C++ process exited with code ${code}`);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            error: `C++ process exited with code ${code}` 
+          });
+        }
+      }
+    });
+    
     // Send input to C++ process
     cppProcess.stdin.write(fullInput);
     cppProcess.stdin.end();
-    
-    // Wait for C++ process to complete
-    await new Promise((resolve, reject) => {
-      cppProcess.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`C++ process exited with code ${code}`));
-        }
-      });
-    });
     
   } catch (error) {
     console.error('Voxel debug error:', error);
@@ -379,5 +427,6 @@ app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
   console.log(`Voxel downsampling: http://localhost:${PORT}/api/voxel-downsample`);
+  console.log(`Point smoothing: http://localhost:${PORT}/api/point-smooth`);
   console.log(`Voxel debug: http://localhost:${PORT}/api/voxel-debug`);
 });

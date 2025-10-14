@@ -87,10 +87,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         Log.Info('Tools', 'Workers initialized for WASM threading');
         isInitializing.current = false;
       } catch (error) {
-        Log.Error('Tools', 'Failed to initialize workers - will use direct service calls', error);
+        Log.Error('Tools', 'Failed to initialize workers - FAILING', error);
         isInitializing.current = false;
-        // Don't set workerManager.current to null - let it stay as failed instance
-        // This will trigger fallback to direct service calls
+        // Set workerManager to null to indicate complete failure
+        workerManager.current = null;
+        throw error; // Re-throw to make the failure visible
       }
     };
 
@@ -382,11 +383,23 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Set current tool for benchmark display
       onCurrentToolChange?.('voxel');
 
-      // Process with WASM service
-      const result = await serviceManager.toolsService.voxelDownsampleWASM({
+      // Process with WASM C++ worker - NO FALLBACKS
+      if (!workerManager.current) {
+        Log.Error('Tools', 'Worker manager not available for C++ WASM');
+        throw new Error('Worker manager not available for C++ WASM');
+      }
+
+      if (!workerManager.current.isReady) {
+        Log.Error('Tools', 'Workers not initialized - FAILING');
+        throw new Error('Workers not initialized - C++ WASM worker system failed');
+      }
+
+      Log.Info('Tools', 'Calling worker for WASM C++ voxel downsampling');
+      const workerResult = await workerManager.current.processVoxelDownsampling(
+        'WASM_CPP',
         pointCloudData,
         voxelSize,
-        globalBounds: {
+        {
           minX: globalMinX,
           minY: globalMinY,
           minZ: globalMinZ,
@@ -394,89 +407,105 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           maxY: globalMaxY,
           maxZ: globalMaxZ,
         }
-      });
+      );
+
+      if (workerResult.type !== 'SUCCESS' || !workerResult.data?.downsampledPoints) {
+        Log.Error('Tools', 'WASM C++ voxel downsampling failed in worker', workerResult.error);
+        throw new Error(`WASM C++ voxel downsampling failed: ${workerResult.error}`);
+      }
+
+      // Convert worker result to expected format
+      const result = {
+        success: true,
+        downsampledPoints: workerResult.data.downsampledPoints,
+        originalCount: workerResult.data.originalCount,
+        downsampledCount: workerResult.data.downsampledCount,
+        processingTime: workerResult.data.processingTime,
+        voxelCount: workerResult.data.downsampledCount
+      };
 
       if (result.success && result.downsampledPoints) {
-        Log.Info('Tools', 'WASM result received', {
-          success: result.success,
-          downsampledPointsLength: result.downsampledPoints.length,
-          originalCount: result.originalCount,
-          downsampledCount: result.downsampledCount
-        });
-        
-        // Convert downsampled points to PointCloudPoint array
-        const downsampledPoints = [];
-        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
-          downsampledPoints.push({
-            position: {
-              x: result.downsampledPoints[i],
-              y: result.downsampledPoints[i + 1],
-              z: result.downsampledPoints[i + 2],
-            },
-            color: { r: 0, g: 1, b: 0 }, // Green color for WASM processed points
-            intensity: 1,
-            classification: 0,
-          });
-        }
-        
-        Log.Info('Tools', 'Converted downsampled points', {
-          downsampledPointsArrayLength: downsampledPoints.length
-        });
-
-        // Create point cloud for WASM result
-        const wasmPointCloud = {
-          points: downsampledPoints,
-          metadata: {
-            name: 'WASM Downsampled Point Cloud',
-            totalPoints: downsampledPoints.length,
-            bounds: {
-              min: {
-                x: Math.min(...downsampledPoints.map(p => p.position.x)),
-                y: Math.min(...downsampledPoints.map(p => p.position.y)),
-                z: Math.min(...downsampledPoints.map(p => p.position.z))
-              },
-              max: {
-                x: Math.max(...downsampledPoints.map(p => p.position.x)),
-                y: Math.max(...downsampledPoints.map(p => p.position.y)),
-                z: Math.max(...downsampledPoints.map(p => p.position.z))
-              }
-            },
-            hasColor: true,
-            hasIntensity: true,
-            hasClassification: true,
+          Log.Info('Tools', 'WASM result received', {
+            success: result.success,
+            downsampledPointsLength: result.downsampledPoints.length,
             originalCount: result.originalCount,
-            downsampledCount: result.downsampledCount,
-            voxelSize: voxelSize,
-            processingTime: result.processingTime || 0
-          },
-        };
+            downsampledCount: result.downsampledCount
+          });
+          
+          // Convert downsampled points to PointCloudPoint array
+          const downsampledPoints = [];
+          for (let i = 0; i < result.downsampledPoints.length; i += 3) {
+            downsampledPoints.push({
+              position: {
+                x: result.downsampledPoints[i],
+                y: result.downsampledPoints[i + 1],
+                z: result.downsampledPoints[i + 2],
+              },
+              color: { r: 0, g: 1, b: 0 }, // Green color for WASM processed points
+              intensity: 1,
+              classification: 0,
+            });
+          }
+          
+          Log.Info('Tools', 'Converted downsampled points', {
+            downsampledPointsArrayLength: downsampledPoints.length
+          });
 
-        // Add WASM result to the scene
-        const wasmId = `wasm_downsampled_${Date.now()}`;
-        await serviceManager.pointService?.loadPointCloud(wasmId, wasmPointCloud, false);
+          // Create point cloud for WASM result
+          const wasmPointCloud = {
+            points: downsampledPoints,
+            metadata: {
+              name: 'WASM Downsampled Point Cloud',
+              totalPoints: downsampledPoints.length,
+              bounds: {
+                min: {
+                  x: Math.min(...downsampledPoints.map(p => p.position.x)),
+                  y: Math.min(...downsampledPoints.map(p => p.position.y)),
+                  z: Math.min(...downsampledPoints.map(p => p.position.z))
+                },
+                max: {
+                  x: Math.max(...downsampledPoints.map(p => p.position.x)),
+                  y: Math.max(...downsampledPoints.map(p => p.position.y)),
+                  z: Math.max(...downsampledPoints.map(p => p.position.z))
+                }
+              },
+              hasColor: true,
+              hasIntensity: true,
+              hasClassification: true,
+              originalCount: result.originalCount,
+              downsampledCount: result.downsampledCount,
+              voxelSize: voxelSize,
+              processingTime: result.processingTime || 0
+            },
+          };
 
-        Log.Info('Tools', 'WASM voxel downsampling completed', {
-          originalCount: result.originalCount || 0,
-          downsampledCount: result.downsampledCount || 0,
-          reduction: result.originalCount && result.downsampledCount ? ((result.originalCount - result.downsampledCount) / result.originalCount * 100).toFixed(2) + '%' : '--',
-          processingTime: result.processingTime ? result.processingTime.toFixed(2) + 'ms' : '--'
-        });
+          // Add WASM result to the scene
+          const wasmId = `wasm_downsampled_${Date.now()}`;
+          await serviceManager.pointService?.loadPointCloud(wasmId, wasmPointCloud, false);
 
-        // Emit results to parent component
-        if (onWasmResults) {
-          onWasmResults({
+          Log.Info('Tools', 'WASM voxel downsampling completed', {
             originalCount: result.originalCount || 0,
             downsampledCount: result.downsampledCount || 0,
-            processingTime: result.processingTime || 0,
-            reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
-            voxelCount: result.voxelCount || 0
+            reduction: result.originalCount && result.downsampledCount ? ((result.originalCount - result.downsampledCount) / result.originalCount * 100).toFixed(2) + '%' : '--',
+            processingTime: result.processingTime ? result.processingTime.toFixed(2) + 'ms' : '--'
           });
+
+          // Emit results to parent component
+          if (onWasmResults) {
+            onWasmResults({
+              originalCount: result.originalCount || 0,
+              downsampledCount: result.downsampledCount || 0,
+              processingTime: result.processingTime || 0,
+              reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
+              voxelCount: result.downsampledCount || 0
+            });
+          }
         }
-      } else {
-        Log.Error('Tools', 'WASM voxel downsampling failed', result.error);
-      }
     } catch (error) {
       Log.Error('Tools', 'WASM voxel downsampling error', error);
+    } finally {
+      setIsProcessing(false);
+      isProcessingRef.current = false;
     }
   };
 
@@ -852,94 +881,86 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           });
         }
       } else {
-        // WASM implementations - both C++ and Rust WASM use workers
+        // WASM implementations - both C++ and Rust WASM use workers - NO FALLBACKS
         if (method === 'WASM') {
           // C++ WASM uses worker thread for fair benchmarking
           if (!workerManager.current) {
             Log.Error('Tools', 'Worker manager not available for C++ WASM');
-            return null;
+            throw new Error('Worker manager not available for C++ WASM');
           }
 
           if (!workerManager.current.isReady) {
-            Log.Error('Tools', 'Workers not initialized - falling back to direct service calls');
-            result = await serviceManager.toolsService.performPointCloudSmoothingWASMCPP({
-              points: pointCloudData,
-              smoothingRadius,
-              iterations: smoothingIterations
-            });
-          } else {
-            Log.Info('Tools', 'Workers are ready, using worker for C++ WASM');
-            Log.Info('Tools', `Calling worker for ${method} point cloud smoothing`);
-            const workerResult = await workerManager.current.processPointCloudSmoothing(
-              'WASM_CPP',
-              pointCloudData,
-              smoothingRadius,
-              smoothingIterations
-            );
-
-            Log.Info('Tools', 'Worker result received', { 
-              type: workerResult.type, 
-              hasData: !!workerResult.data,
-              dataKeys: workerResult.data ? Object.keys(workerResult.data) : 'no data',
-              hasSmoothedPoints: !!workerResult.data?.smoothedPoints
-            });
-
-            if (workerResult.type !== 'SUCCESS' || !workerResult.data?.smoothedPoints) {
-              Log.Error('Tools', `${method} point cloud smoothing failed in worker`, workerResult.error);
-              return null;
-            }
-
-            result = {
-              success: true,
-              smoothedPoints: workerResult.data.smoothedPoints,
-              originalCount: workerResult.data.originalCount,
-              smoothedCount: workerResult.data.smoothedCount,
-              processingTime: workerResult.data.processingTime
-            };
+            Log.Error('Tools', 'Workers not initialized - FAILING');
+            throw new Error('Workers not initialized - C++ WASM worker system failed');
           }
+
+          Log.Info('Tools', 'Workers are ready, using worker for C++ WASM');
+          Log.Info('Tools', `Calling worker for ${method} point cloud smoothing`);
+          const workerResult = await workerManager.current.processPointCloudSmoothing(
+            'WASM_CPP',
+            pointCloudData,
+            smoothingRadius,
+            smoothingIterations
+          );
+
+          Log.Info('Tools', 'Worker result received', { 
+            type: workerResult.type, 
+            hasData: !!workerResult.data,
+            dataKeys: workerResult.data ? Object.keys(workerResult.data) : 'no data',
+            hasSmoothedPoints: !!workerResult.data?.smoothedPoints
+          });
+
+          if (workerResult.type !== 'SUCCESS' || !workerResult.data?.smoothedPoints) {
+            Log.Error('Tools', `${method} point cloud smoothing failed in worker`, workerResult.error);
+            throw new Error(`WASM C++ point cloud smoothing failed: ${workerResult.error}`);
+          }
+
+          result = {
+            success: true,
+            smoothedPoints: workerResult.data.smoothedPoints,
+            originalCount: workerResult.data.originalCount,
+            smoothedCount: workerResult.data.smoothedCount,
+            processingTime: workerResult.data.processingTime
+          };
         } else if (method === 'WASM_RUST') {
-          // Rust WASM uses worker thread for fair benchmarking
+          // Rust WASM uses worker thread for fair benchmarking - NO FALLBACKS
           if (!workerManager.current) {
             Log.Error('Tools', 'Worker manager not available for Rust WASM');
-            return null;
+            throw new Error('Worker manager not available for Rust WASM');
           }
 
           if (!workerManager.current.isReady) {
-            Log.Error('Tools', 'Workers not initialized - falling back to direct service calls');
-            result = await serviceManager.toolsService.performPointCloudSmoothingWASMRust({
-              points: pointCloudData,
-              smoothingRadius,
-              iterations: smoothingIterations
-            });
-          } else {
-            Log.Info('Tools', `Calling worker for ${method} point cloud smoothing`);
-            const workerResult = await workerManager.current.processPointCloudSmoothing(
-              'WASM_RUST',
-              pointCloudData,
-              smoothingRadius,
-              smoothingIterations
-            );
-
-            if (workerResult.type !== 'SUCCESS' || !workerResult.data?.smoothedPoints) {
-              Log.Error('Tools', `${method} point cloud smoothing failed in worker`, workerResult.error);
-              return null;
-            }
-            
-            Log.Info('Tools', 'Worker result check passed, proceeding to conversion');
-            
-            // Convert worker result to service result format
-            result = {
-              success: true,
-              smoothedPoints: workerResult.data.smoothedPoints,
-              originalCount: workerResult.data.originalCount,
-              smoothedCount: workerResult.data.smoothedCount,
-              processingTime: workerResult.data.processingTime
-            };
-            Log.Info('Tools', 'Worker result converted successfully', { 
-              success: result.success, 
-              hasSmoothedPoints: !!result.smoothedPoints 
-            });
+            Log.Error('Tools', 'Workers not initialized - FAILING');
+            throw new Error('Workers not initialized - Rust WASM worker system failed');
           }
+
+          Log.Info('Tools', `Calling worker for ${method} point cloud smoothing`);
+          const workerResult = await workerManager.current.processPointCloudSmoothing(
+            'WASM_RUST',
+            pointCloudData,
+            smoothingRadius,
+            smoothingIterations
+          );
+
+          if (workerResult.type !== 'SUCCESS' || !workerResult.data?.smoothedPoints) {
+            Log.Error('Tools', `${method} point cloud smoothing failed in worker`, workerResult.error);
+            throw new Error(`WASM Rust point cloud smoothing failed: ${workerResult.error}`);
+          }
+          
+          Log.Info('Tools', 'Worker result check passed, proceeding to conversion');
+          
+          // Convert worker result to service result format
+          result = {
+            success: true,
+            smoothedPoints: workerResult.data.smoothedPoints,
+            originalCount: workerResult.data.originalCount,
+            smoothedCount: workerResult.data.smoothedCount,
+            processingTime: workerResult.data.processingTime
+          };
+          Log.Info('Tools', 'Worker result converted successfully', { 
+            success: result.success, 
+            hasSmoothedPoints: !!result.smoothedPoints 
+          });
         } else {
           Log.Error('Tools', `Unknown WASM method: ${method}`);
           return null;
@@ -1100,122 +1121,114 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Set current tool for benchmark display
       onCurrentToolChange?.('voxel');
 
-      // Process with WASM Rust worker for fair benchmarking
-      let result;
-      
+      // Process with WASM Rust worker for fair benchmarking - NO FALLBACKS
       if (!workerManager.current) {
         Log.Error('Tools', 'Worker manager not available for Rust WASM');
-        return;
+        throw new Error('Worker manager not available for Rust WASM');
       }
 
       if (!workerManager.current.isReady) {
-        Log.Error('Tools', 'Workers not initialized - falling back to direct service calls');
-        result = await serviceManager.toolsService.voxelDownsampleWASMRust({
-          pointCloudData,
-          voxelSize,
-          globalBounds
-        });
-      } else {
-        Log.Info('Tools', 'Calling worker for WASM Rust voxel downsampling');
-        const workerResult = await workerManager.current.processVoxelDownsampling(
-          'WASM_RUST',
-          pointCloudData,
-          voxelSize,
-          globalBounds
-        );
-
-        if (workerResult.type !== 'SUCCESS' || !workerResult.data?.downsampledPoints) {
-          Log.Error('Tools', 'WASM Rust voxel downsampling failed in worker', workerResult.error);
-          return;
-        }
-        
-        // Convert worker result to service result format
-        result = {
-          success: true,
-          downsampledPoints: workerResult.data.downsampledPoints,
-          originalCount: workerResult.data.originalCount,
-          downsampledCount: workerResult.data.downsampledCount,
-          processingTime: workerResult.data.processingTime
-        };
+        Log.Error('Tools', 'Workers not initialized - FAILING');
+        throw new Error('Workers not initialized - Rust WASM worker system failed');
       }
+
+      Log.Info('Tools', 'Calling worker for WASM Rust voxel downsampling');
+      const workerResult = await workerManager.current.processVoxelDownsampling(
+        'WASM_RUST',
+        pointCloudData,
+        voxelSize,
+        globalBounds
+      );
+
+      if (workerResult.type !== 'SUCCESS' || !workerResult.data?.downsampledPoints) {
+        Log.Error('Tools', 'WASM Rust voxel downsampling failed in worker', workerResult.error);
+        throw new Error(`WASM Rust voxel downsampling failed: ${workerResult.error}`);
+      }
+      
+      // Convert worker result to service result format
+      const result = {
+        success: true,
+        downsampledPoints: workerResult.data.downsampledPoints,
+        originalCount: workerResult.data.originalCount,
+        downsampledCount: workerResult.data.downsampledCount,
+        processingTime: workerResult.data.processingTime
+      };
 
       console.log('🔧 Tools: processVoxelDownsampling result:', result);
 
       if (result.success && result.downsampledPoints) {
-        // Convert downsampled points to PointCloudPoint array
-        const downsampledPoints = [];
-        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
-          downsampledPoints.push({
-            position: {
-              x: result.downsampledPoints[i],
-              y: result.downsampledPoints[i + 1],
-              z: result.downsampledPoints[i + 2],
-            },
-            color: { r: 1, g: 0.4, b: 0.28 }, // Orange/red color for WASM Rust processed points
-            intensity: 1,
-            classification: 0,
-          });
-        }
-
-        // Create point cloud for WASM Rust result
-        const wasmRustPointCloud = {
-          points: downsampledPoints,
-          metadata: {
-            name: 'WASM Rust Downsampled Point Cloud',
-            totalPoints: downsampledPoints.length,
-            bounds: {
-              min: {
-                x: Math.min(...downsampledPoints.map(p => p.position.x)),
-                y: Math.min(...downsampledPoints.map(p => p.position.y)),
-                z: Math.min(...downsampledPoints.map(p => p.position.z))
+          // Convert downsampled points to PointCloudPoint array
+          const downsampledPoints = [];
+          for (let i = 0; i < result.downsampledPoints.length; i += 3) {
+            downsampledPoints.push({
+              position: {
+                x: result.downsampledPoints[i],
+                y: result.downsampledPoints[i + 1],
+                z: result.downsampledPoints[i + 2],
               },
-              max: {
-                x: Math.max(...downsampledPoints.map(p => p.position.x)),
-                y: Math.max(...downsampledPoints.map(p => p.position.y)),
-                z: Math.max(...downsampledPoints.map(p => p.position.z))
-              }
+              color: { r: 1, g: 0.4, b: 0.28 }, // Orange/red color for WASM Rust processed points
+              intensity: 1,
+              classification: 0,
+            });
+          }
+
+          // Create point cloud for WASM Rust result
+          const wasmRustPointCloud = {
+            points: downsampledPoints,
+            metadata: {
+              name: 'WASM Rust Downsampled Point Cloud',
+              totalPoints: downsampledPoints.length,
+              bounds: {
+                min: {
+                  x: Math.min(...downsampledPoints.map(p => p.position.x)),
+                  y: Math.min(...downsampledPoints.map(p => p.position.y)),
+                  z: Math.min(...downsampledPoints.map(p => p.position.z))
+                },
+                max: {
+                  x: Math.max(...downsampledPoints.map(p => p.position.x)),
+                  y: Math.max(...downsampledPoints.map(p => p.position.y)),
+                  z: Math.max(...downsampledPoints.map(p => p.position.z))
+                }
+              },
+              hasColor: true,
+              hasIntensity: true,
+              hasClassification: true,
+              originalCount: result.originalCount,
+              downsampledCount: result.downsampledCount,
+              voxelSize: voxelSize,
+              processingTime: result.processingTime || 0
             },
-            hasColor: true,
-            hasIntensity: true,
-            hasClassification: true,
-            originalCount: result.originalCount,
-            downsampledCount: result.downsampledCount,
-            voxelSize: voxelSize,
-            processingTime: result.processingTime || 0
-          },
-        };
+          };
 
-        // Add WASM Rust result to the scene
-        const wasmRustId = `wasm_rust_downsampled_${Date.now()}`;
-        await serviceManager.pointService?.loadPointCloud(wasmRustId, wasmRustPointCloud, false);
+          // Add WASM Rust result to the scene
+          const wasmRustId = `wasm_rust_downsampled_${Date.now()}`;
+          await serviceManager.pointService?.loadPointCloud(wasmRustId, wasmRustPointCloud, false);
 
-        Log.Info('Tools', 'WASM Rust voxel downsampling completed', {
-          originalCount: result.originalCount || 0,
-          downsampledCount: result.downsampledCount || 0,
-          reduction: result.originalCount && result.downsampledCount ? ((result.originalCount - result.downsampledCount) / result.originalCount * 100).toFixed(2) + '%' : '--',
-          processingTime: result.processingTime ? result.processingTime.toFixed(2) + 'ms' : '--'
-        });
-
-        // Emit results to parent component
-        if (onWasmRustResults) {
-          console.log('🔧 Tools: Calling onWasmRustResults with:', {
+          Log.Info('Tools', 'WASM Rust voxel downsampling completed', {
             originalCount: result.originalCount || 0,
             downsampledCount: result.downsampledCount || 0,
-            processingTime: result.processingTime || 0,
-            reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
-            voxelCount: result.voxelCount || 0
+            reduction: result.originalCount && result.downsampledCount ? ((result.originalCount - result.downsampledCount) / result.originalCount * 100).toFixed(2) + '%' : '--',
+            processingTime: result.processingTime ? result.processingTime.toFixed(2) + 'ms' : '--'
           });
-          onWasmRustResults({
-            originalCount: result.originalCount || 0,
-            downsampledCount: result.downsampledCount || 0,
-            processingTime: result.processingTime || 0,
-            reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
-            voxelCount: result.voxelCount || 0
-          });
+
+          // Emit results to parent component
+          if (onWasmRustResults) {
+            console.log('🔧 Tools: Calling onWasmRustResults with:', {
+              originalCount: result.originalCount || 0,
+              downsampledCount: result.downsampledCount || 0,
+              processingTime: result.processingTime || 0,
+              reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
+              voxelCount: result.downsampledCount || 0
+            });
+            onWasmRustResults({
+              originalCount: result.originalCount || 0,
+              downsampledCount: result.downsampledCount || 0,
+              processingTime: result.processingTime || 0,
+              reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
+              voxelCount: result.downsampledCount || 0
+            });
+          }
         }
-      } else {
-        Log.Error('Tools', 'WASM Rust voxel downsampling failed', result.error);
-      }
     } catch (error) {
       Log.Error('Tools', 'WASM Rust voxel downsampling error', error);
     } finally {
