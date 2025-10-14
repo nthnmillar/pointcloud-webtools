@@ -51,7 +51,7 @@ export class VoxelDownsampleDebugService extends BaseService {
     this.isInitialized = true;
   }
 
-  async generateVoxelCenters(params: VoxelDebugParams, implementation: 'TS' | 'WASM' | 'WASM_RUST' | 'BE'): Promise<VoxelDebugResult> {
+  async generateVoxelCenters(params: VoxelDebugParams, implementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'BE'): Promise<VoxelDebugResult> {
     try {
       let result: VoxelDebugResult;
       
@@ -60,6 +60,9 @@ export class VoxelDownsampleDebugService extends BaseService {
           result = await this.voxelDownsampleDebugTS.generateVoxelCenters(params);
           break;
         case 'WASM':
+          result = await this.voxelDownsampleDebugWASMCPP.generateVoxelCenters(params);
+          break;
+        case 'WASM_MAIN':
           result = await this.voxelDownsampleDebugWASMCPP.generateVoxelCenters(params);
           break;
         case 'WASM_RUST':

@@ -115,6 +115,10 @@ export class ToolsService extends BaseService {
     return this.voxelDownsampleService.voxelDownsamplingWASMCPP.voxelDownsample(params);
   }
 
+  async performVoxelDownsamplingWASMCPP(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
+    return this.voxelDownsampleWASM(params);
+  }
+
   async voxelDownsampleWASMRust(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
     return this.voxelDownsampleService.voxelDownsampleWASMRust(params);
   }
@@ -149,7 +153,7 @@ export class ToolsService extends BaseService {
   }
 
   // Voxel debug methods
-  async showVoxelDebug(voxelSize: number, implementation?: 'TS' | 'WASM' | 'WASM_RUST' | 'BE', maxVoxels?: number): Promise<{ voxelCount: number; processingTime: number } | null> {
+  async showVoxelDebug(voxelSize: number, implementation?: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'BE', maxVoxels?: number): Promise<{ voxelCount: number; processingTime: number } | null> {
     console.log('🔍 Debug voxel generation started', { implementation, voxelSize });
     
     // Clear any existing debug visualization first
@@ -242,6 +246,9 @@ export class ToolsService extends BaseService {
         if (implementation === 'WASM') {
           // Light blue/cyan to match .tools-wasm-btn: rgba(97, 218, 251, 0.8)
           color = { r: 97/255, g: 218/255, b: 251/255 };
+        } else if (implementation === 'WASM_MAIN') {
+          // Green to match .tools-wasm-main-btn: rgba(50, 205, 50, 0.8)
+          color = { r: 50/255, g: 205/255, b: 50/255 };
         } else if (implementation === 'WASM_RUST') {
           // Orange/red to match .tools-wasm-rust-btn: rgba(255, 99, 71, 0.8)
           color = { r: 255/255, g: 99/255, b: 71/255 };

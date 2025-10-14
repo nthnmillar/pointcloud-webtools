@@ -16,6 +16,16 @@ interface ToolsProps {
     smoothingRadius?: number;
     iterations?: number;
   }) => void;
+  onWasmCppMainResults?: (results: {
+    originalCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
+    processingTime: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
+  }) => void;
   onTsResults?: (results: {
     originalCount: number;
     downsampledCount?: number;
@@ -49,7 +59,7 @@ interface ToolsProps {
   onCurrentToolChange?: (tool: 'voxel' | 'smoothing') => void;
 }
 
-export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onTsResults, onBeResults, onWasmRustResults, onCurrentToolChange }) => {
+export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onTsResults, onBeResults, onWasmRustResults, onWasmCppMainResults, onCurrentToolChange }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [voxelSize, setVoxelSize] = useState(2.0);
   const [maxVoxels, setMaxVoxels] = useState(2000);
@@ -247,6 +257,32 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       }
     } catch (error) {
       Log.Error('Tools', 'WASM Debug Voxel generation failed', error);
+    }
+  };
+
+  const handleWasmCppMainVoxelDebug = async () => {
+    if (!serviceManager?.toolsService) return;
+    
+    const startTime = performance.now();
+    try {
+      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'WASM_MAIN', maxVoxels);
+      const processingTime = performance.now() - startTime;
+      
+      Log.Info('Tools', 'WASM C++ Main Debug Voxel generation completed', {
+        processingTime: processingTime.toFixed(2) + 'ms',
+        voxelCount: result?.voxelCount || 0
+      });
+
+      // Emit benchmark results for debug voxel generation
+      if (onWasmCppMainResults) {
+        onWasmCppMainResults({
+          originalCount: 0, // Debug voxels don't have original point count
+          processingTime: processingTime,
+          voxelCount: result?.voxelCount || 0,
+        });
+      }
+    } catch (error) {
+      Log.Error('Tools', 'WASM C++ Main Debug Voxel generation failed', error);
     }
   };
 
@@ -805,7 +841,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   };
 
   // Point Cloud Smoothing - Core processing function
-  const processPointCloudSmoothing = async (method: 'TS' | 'WASM' | 'WASM_RUST' | 'BE'): Promise<{
+  const processPointCloudSmoothing = async (method: 'TS' | 'WASM' | 'WASM_CPP_MAIN' | 'WASM_RUST' | 'BE'): Promise<{
     originalCount: number;
     smoothedCount?: number;
     processingTime: number;
@@ -865,16 +901,23 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Use appropriate threading based on method
       let result;
       
-      if (method === 'TS' || method === 'BE') {
-        // TS and BE run on main thread (TS is lightweight, BE is separate process)
+      if (method === 'TS' || method === 'BE' || method === 'WASM_CPP_MAIN') {
+        // TS, BE, and WASM_CPP_MAIN run on main thread (TS is lightweight, BE is separate process, WASM_CPP_MAIN is main thread WASM)
         if (method === 'TS') {
           result = await serviceManager.toolsService.performPointCloudSmoothingTS({
             points: pointCloudData,
             smoothingRadius,
             iterations: smoothingIterations
           });
-        } else {
+        } else if (method === 'BE') {
           result = await serviceManager.toolsService.performPointCloudSmoothingBECPP({
+            points: pointCloudData,
+            smoothingRadius,
+            iterations: smoothingIterations
+          });
+        } else {
+          // WASM_CPP_MAIN - use main thread WASM C++
+          result = await serviceManager.toolsService.performPointCloudSmoothingWASMCPP({
             points: pointCloudData,
             smoothingRadius,
             iterations: smoothingIterations
@@ -1055,6 +1098,165 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     const results = await processPointCloudSmoothing('WASM');
     if (results) {
       onWasmResults?.(results);
+    }
+  };
+
+  // WASM C++ Main Thread Processing Functions
+  const handleWasmCppMainVoxelDownsampling = async () => {
+    Log.Info('Tools', '=== Starting WASM C++ Main Thread Voxel Downsampling ===');
+    
+    if (!serviceManager?.toolsService) {
+      Log.Error('Tools', 'Tools service not available');
+      return;
+    }
+
+    // Set processing state immediately
+    setIsProcessing(true);
+    isProcessingRef.current = true;
+
+    try {
+      // Get all point cloud IDs
+      const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
+      
+      if (allPointCloudIds.length === 0) {
+        Log.Error('Tools', 'No point clouds found in scene');
+        return;
+      }
+
+      // Collect all points from all point clouds
+      const allPositions: number[] = [];
+      let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
+      let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
+
+      for (const pointCloudId of allPointCloudIds) {
+        const pointCloud = serviceManager.pointService?.getPointCloud(pointCloudId);
+        if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
+          for (const point of pointCloud.points) {
+            allPositions.push(point.position.x, point.position.y, point.position.z);
+            
+            // Calculate global bounding box
+            globalMinX = Math.min(globalMinX, point.position.x);
+            globalMinY = Math.min(globalMinY, point.position.y);
+            globalMinZ = Math.min(globalMinZ, point.position.z);
+            globalMaxX = Math.max(globalMaxX, point.position.x);
+            globalMaxY = Math.max(globalMaxY, point.position.y);
+            globalMaxZ = Math.max(globalMaxZ, point.position.z);
+          }
+        }
+      }
+
+      if (allPositions.length === 0) {
+        Log.Error('Tools', 'No point data found');
+        return;
+      }
+
+      const pointCloudData = new Float32Array(allPositions);
+
+      Log.Info('Tools', 'Starting WASM C++ Main voxel downsampling', {
+        pointCount: pointCloudData.length / 3,
+        voxelSize,
+        bounds: { minX: globalMinX, minY: globalMinY, minZ: globalMinZ, maxX: globalMaxX, maxY: globalMaxY, maxZ: globalMaxZ }
+      });
+
+      // Clear the scene
+      serviceManager.pointService?.clearAllPointClouds();
+
+      // Set current tool for benchmark display
+      onCurrentToolChange?.('voxel');
+
+      // Use WASM C++ Main Thread (no worker)
+      const result = await serviceManager.toolsService.performVoxelDownsamplingWASMCPP({
+        pointCloudData,
+        voxelSize,
+        globalBounds: {
+          minX: globalMinX,
+          minY: globalMinY,
+          minZ: globalMinZ,
+          maxX: globalMaxX,
+          maxY: globalMaxY,
+          maxZ: globalMaxZ,
+        }
+      });
+
+      if (result.success && result.downsampledPoints) {
+        // Convert Float32Array to point cloud format
+        const downsampledPoints = [];
+        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
+          downsampledPoints.push({
+            position: {
+              x: result.downsampledPoints[i],
+              y: result.downsampledPoints[i + 1],
+              z: result.downsampledPoints[i + 2],
+            },
+            color: { r: 0, g: 1, b: 0 }, // Green color for WASM C++ Main processed points
+            intensity: 1,
+            classification: 0,
+          });
+        }
+
+        // Create point cloud for WASM C++ Main result
+        const wasmCppMainPointCloud = {
+          points: downsampledPoints,
+          metadata: {
+            name: 'WASM C++ Main Downsampled Point Cloud',
+            totalPoints: downsampledPoints.length,
+            bounds: {
+              min: {
+                x: Math.min(...downsampledPoints.map(p => p.position.x)),
+                y: Math.min(...downsampledPoints.map(p => p.position.y)),
+                z: Math.min(...downsampledPoints.map(p => p.position.z))
+              },
+              max: {
+                x: Math.max(...downsampledPoints.map(p => p.position.x)),
+                y: Math.max(...downsampledPoints.map(p => p.position.y)),
+                z: Math.max(...downsampledPoints.map(p => p.position.z))
+              }
+            },
+            hasColor: true,
+            hasIntensity: true,
+            hasClassification: true,
+            originalCount: result.originalCount,
+            downsampledCount: result.downsampledCount,
+            voxelSize: voxelSize,
+            processingTime: result.processingTime || 0
+          },
+        };
+
+        // Add WASM C++ Main result to the scene
+        const wasmCppMainId = `wasm_cpp_main_downsampled_${Date.now()}`;
+        await serviceManager.pointService?.loadPointCloud(wasmCppMainId, wasmCppMainPointCloud, false);
+
+        if (wasmCppMainPointCloud) {
+          // Update benchmark results
+          onWasmCppMainResults?.({
+            originalCount: result.originalCount || 0,
+            downsampledCount: result.downsampledCount || 0,
+            processingTime: result.processingTime || 0
+          });
+
+          Log.Info('Tools', 'WASM C++ Main voxel downsampling completed', {
+            originalCount: result.originalCount,
+            downsampledCount: result.downsampledCount,
+            processingTime: result.processingTime
+          });
+        }
+      } else {
+        Log.Error('Tools', 'WASM C++ Main voxel downsampling failed', result.error);
+      }
+    } catch (error) {
+      Log.Error('Tools', 'WASM C++ Main voxel downsampling error', error);
+    } finally {
+      setIsProcessing(false);
+      isProcessingRef.current = false;
+    }
+  };
+
+  const handleWasmCppMainPointCloudSmoothing = async () => {
+    console.log('🔧 Tools: handleWasmCppMainPointCloudSmoothing called');
+    const results = await processPointCloudSmoothing('WASM_CPP_MAIN');
+    console.log('🔧 Tools: processPointCloudSmoothing WASM_CPP_MAIN result:', results);
+    if (results) {
+      onWasmCppMainResults?.(results);
     }
   };
 
@@ -1299,9 +1501,10 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                 <div className="tools-col-1">Tool</div>
                 <div className="tools-col-2">Controls</div>
                 <div className="tools-col-3">TS</div>
-                <div className="tools-col-4">WASM C++</div>
-                <div className="tools-col-5">WASM Rust</div>
-                <div className="tools-col-6">BE C++</div>
+                <div className="tools-col-4">WASM C++ Main</div>
+                <div className="tools-col-5">WASM C++ Worker</div>
+                <div className="tools-col-6">WASM Rust</div>
+                <div className="tools-col-7">BE C++</div>
               </div>
 
               {tools.map((tool, index) => (
@@ -1389,19 +1592,19 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                     <div className="tools-col-4">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <button
-                          className="tools-wasm-btn"
+                          className="tools-wasm-main-btn"
                           onClick={
                             tool.name === 'Voxel Downsampling'
-                              ? handleWasmVoxelDownsampling
+                              ? handleWasmCppMainVoxelDownsampling
                               : tool.name === 'Point Cloud Smoothing'
-                              ? handleWasmPointCloudSmoothing
+                              ? handleWasmCppMainPointCloudSmoothing
                               : undefined
                           }
                           disabled={isProcessing}
                         >
                           {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
                             ? 'Processing...'
-                            : 'WASM C++'}
+                            : 'WASM C++ Main'}
                         </button>
                         {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing') && (
                           <button
@@ -1424,6 +1627,41 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                     <div className="tools-col-5">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <button
+                          className="tools-wasm-btn"
+                          onClick={
+                            tool.name === 'Voxel Downsampling'
+                              ? handleWasmVoxelDownsampling
+                              : tool.name === 'Point Cloud Smoothing'
+                              ? handleWasmPointCloudSmoothing
+                              : undefined
+                          }
+                          disabled={isProcessing}
+                        >
+                          {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                            ? 'Processing...'
+                            : 'WASM C++ Worker'}
+                        </button>
+                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing') && (
+                          <button
+                            className="tools-cancel-btn"
+                            onClick={handleCancelProcessing}
+                            style={{
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="tools-col-6">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
                           className="tools-wasm-rust-btn"
                           onClick={
                             tool.name === 'Voxel Downsampling'
@@ -1438,9 +1676,25 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                             ? 'Processing...'
                             : 'WASM Rust'}
                         </button>
+                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing') && (
+                          <button
+                            className="tools-cancel-btn"
+                            onClick={handleCancelProcessing}
+                            style={{
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="tools-col-6">
+                    <div className="tools-col-7">
                       <button
                         className="tools-be-btn"
                         onClick={
@@ -1523,14 +1777,23 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                       </div>
                       <div className="tools-col-4">
                         <button
+                          className="tools-wasm-main-btn"
+                          onClick={handleWasmCppMainVoxelDebug}
+                          disabled={!showVoxelDebug || isProcessing}
+                        >
+                          {isProcessing ? 'Processing...' : 'WASM C++ Main'}
+                        </button>
+                      </div>
+                      <div className="tools-col-5">
+                        <button
                           className="tools-wasm-btn"
                           onClick={handleWasmVoxelDebug}
                           disabled={!showVoxelDebug || isProcessing}
                         >
-                          {isProcessing ? 'Processing...' : 'WASM C++'}
+                          {isProcessing ? 'Processing...' : 'WASM C++ Worker'}
                         </button>
                       </div>
-                      <div className="tools-col-5">
+                      <div className="tools-col-6">
                         <button
                           className="tools-wasm-rust-btn"
                           onClick={handleWasmRustVoxelDebug}
@@ -1539,7 +1802,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           {isProcessing ? 'Processing...' : 'WASM Rust'}
                         </button>
                       </div>
-                      <div className="tools-col-6">
+                      <div className="tools-col-7">
                         <button
                           className="tools-be-btn"
                           onClick={handleBeVoxelDebug}

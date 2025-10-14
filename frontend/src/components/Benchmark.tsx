@@ -42,10 +42,20 @@ interface BenchmarkProps {
     smoothingRadius?: number;
     iterations?: number;
   } | null;
+  wasmCppMainResults?: {
+    originalCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
+    processingTime: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
+  } | null;
   currentTool?: 'voxel' | 'smoothing';
 }
 
-export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, tsResults, beResults, wasmRustResults, currentTool = 'voxel' }) => {
+export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, tsResults, beResults, wasmRustResults, wasmCppMainResults, currentTool = 'voxel' }) => {
   const [isVisible, setIsVisible] = useState(false);
 
   // Debug logging for WASM Rust results
@@ -148,9 +158,66 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
               </div>
             </div>
 
-            {/* WASM Column */}
+            {/* WASM C++ Main Column */}
             <div className="benchmark-column">
-              <h4>WASM C++</h4>
+              <h4>WASM C++ Main</h4>
+              <div className="benchmark-metrics">
+                <div className="metric-item">
+                  <span className="metric-label">Time Taken:</span>
+                  <span className="metric-value">
+                    {wasmCppMainResults ? `${wasmCppMainResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                  </span>
+                </div>
+                <div className="metric-item">
+                  <span className="metric-label">Original Points:</span>
+                  <span className="metric-value">
+                    {wasmCppMainResults ? wasmCppMainResults.originalCount.toLocaleString() : '--'}
+                  </span>
+                </div>
+                {isVoxelTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Downsampled:</span>
+                      <span className="metric-value">
+                        {wasmCppMainResults ? wasmCppMainResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Reduction:</span>
+                      <span className="metric-value">
+                        {wasmCppMainResults && wasmCppMainResults.reductionRatio ? `${((wasmCppMainResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {isSmoothingTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Smoothed:</span>
+                      <span className="metric-value">
+                        {wasmCppMainResults ? wasmCppMainResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Radius:</span>
+                      <span className="metric-value">
+                        {wasmCppMainResults ? `${wasmCppMainResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Iterations:</span>
+                      <span className="metric-value">
+                        {wasmCppMainResults ? wasmCppMainResults.iterations || '--' : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* WASM C++ Worker Column */}
+            <div className="benchmark-column">
+              <h4>WASM C++ Worker</h4>
               <div className="benchmark-metrics">
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
