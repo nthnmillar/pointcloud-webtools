@@ -1588,6 +1588,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
+
   const handleWasmRustVoxelDownsampling = async () => {
     console.log('🔧 Tools: handleWasmRustVoxelDownsampling called');
     
