@@ -8,17 +8,17 @@ export class PointCloudToolsRust {
    * Voxel downsampling implementation in Rust
    * This matches the algorithm used in TS, WASM C++, and BE C++
    */
-  voxel_downsample(points: Float64Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float64Array;
+  voxel_downsample(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
   /**
    * Point cloud smoothing implementation in Rust
    * This matches the algorithm used in TS, WASM C++, and BE C++
    */
-  point_cloud_smooth(points: Float64Array, smoothing_radius: number, iterations: number): Float64Array;
+  point_cloud_smooth(points: Float32Array, smoothing_radius: number, iterations: number): Float32Array;
   /**
    * Generate voxel centers for debug visualization
    * This matches the algorithm used in other implementations
    */
-  generate_voxel_centers(points: Float64Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float64Array;
+  generate_voxel_centers(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
 }
 export class Voxel {
   private constructor();
@@ -33,13 +33,12 @@ export interface InitOutput {
   readonly __wbg_voxel_free: (a: number, b: number) => void;
   readonly __wbg_pointcloudtoolsrust_free: (a: number, b: number) => void;
   readonly pointcloudtoolsrust_new: () => number;
-  readonly pointcloudtoolsrust_voxel_downsample: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
-  readonly pointcloudtoolsrust_point_cloud_smooth: (a: number, b: number, c: number, d: number, e: number) => [number, number];
-  readonly pointcloudtoolsrust_generate_voxel_centers: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
-  readonly __wbindgen_export_0: WebAssembly.Table;
-  readonly __wbindgen_malloc: (a: number, b: number) => number;
-  readonly __wbindgen_free: (a: number, b: number, c: number) => void;
-  readonly __wbindgen_start: () => void;
+  readonly pointcloudtoolsrust_voxel_downsample: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+  readonly pointcloudtoolsrust_point_cloud_smooth: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+  readonly pointcloudtoolsrust_generate_voxel_centers: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+  readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
+  readonly __wbindgen_export_0: (a: number, b: number) => number;
+  readonly __wbindgen_export_1: (a: number, b: number, c: number) => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;
