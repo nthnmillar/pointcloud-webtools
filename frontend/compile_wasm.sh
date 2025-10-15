@@ -7,12 +7,13 @@ echo "Compiling WASM modules..."
 mkdir -p public/wasm/cpp
 mkdir -p public/wasm/rust
 
-# Copy laz-perf.wasm from node_modules to wasm folder
+# Copy laz-perf.wasm from node_modules to wasm folder (optional)
 if [ -f "node_modules/laz-perf/lib/laz-perf.wasm" ]; then
     cp node_modules/laz-perf/lib/laz-perf.wasm public/wasm/
     echo "Copied laz-perf.wasm to public/wasm/"
 else
-    echo "Warning: laz-perf.wasm not found in node_modules/laz-perf/lib/"
+    # Silently skip if laz-perf is not available (optional dependency)
+    :
 fi
 
 # Compile unified tools WASM module

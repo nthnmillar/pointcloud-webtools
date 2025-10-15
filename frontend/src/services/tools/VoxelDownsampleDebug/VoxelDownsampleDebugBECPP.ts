@@ -33,6 +33,37 @@ export class VoxelDownsampleDebugBECPP extends BaseService {
     Log.Info('VoxelDownsampleDebugBECPP', 'Backend debug service initialized for C++ processing');
   }
 
+  private async retryBackendRequest<T>(
+    requestFn: () => Promise<T>,
+    maxRetries: number = 5,
+    delayMs: number = 1000
+  ): Promise<T> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await requestFn();
+      } catch (error) {
+        lastError = error as Error;
+        
+        // Check if this is a network error (backend not ready)
+        const isNetworkError = error instanceof TypeError && 
+          (error.message.includes('fetch') || error.message.includes('CORS'));
+        
+        if (isNetworkError && attempt < maxRetries) {
+          Log.Info('VoxelDownsampleDebugBECPP', `Backend not ready, retrying in ${delayMs}ms (attempt ${attempt}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          continue;
+        }
+        
+        // If it's not a network error or we've exhausted retries, throw
+        throw error;
+      }
+    }
+    
+    throw lastError;
+  }
+
   async generateVoxelCenters(params: VoxelDebugParams): Promise<VoxelDebugResult> {
     console.log('🔧 Backend Debug: Using real C++ backend processing for voxel debug generation', {
       pointCount: params.pointCloudData.length / 3,
@@ -43,28 +74,32 @@ export class VoxelDownsampleDebugBECPP extends BaseService {
     try {
       const startTime = performance.now();
       
-      // Make HTTP request to actual C++ backend for real benchmarking
-      const response = await fetch('http://localhost:3003/api/voxel-debug', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          pointCloudData: Array.from(params.pointCloudData),
-          voxelSize: params.voxelSize,
-          globalBounds: params.globalBounds
-        })
+      // Use retry mechanism for backend request
+      const result = await this.retryBackendRequest(async () => {
+        const response = await fetch('http://localhost:3003/api/voxel-debug', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            pointCloudData: Array.from(params.pointCloudData),
+            voxelSize: params.voxelSize,
+            globalBounds: params.globalBounds
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Backend request failed: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Backend processing failed');
+        }
+        
+        return result;
       });
-      
-      if (!response.ok) {
-        throw new Error(`Backend request failed: ${response.status} ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Backend processing failed');
-      }
       
       // Convert backend result to Float32Array
       const voxelCenters = new Float32Array(result.voxelCenters || []);
@@ -90,7 +125,7 @@ export class VoxelDownsampleDebugBECPP extends BaseService {
         processingTime
       };
     } catch (error) {
-      Log.Error('VoxelDownsampleDebugBECPP', 'Real C++ backend voxel centers generation failed', error);
+      Log.Error('VoxelDownsampleDebugBECPP', 'Real C++ backend voxel centers generation failed after retries', error);
       
       // No fallback - BE must use real C++ processing for benchmarking
       console.log('🔧 Backend Debug: No fallback allowed - BE must use real C++ processing');

@@ -145,7 +145,7 @@ impl PointCloudToolsRust {
         let mut smoothed_points = points.to_vec();
         let points_len = smoothed_points.len();
         
-        for iteration in 0..iterations {
+        for _iteration in 0..iterations {
             let mut new_points = smoothed_points.clone();
             
             for i in (0..points_len).step_by(3) {

@@ -423,10 +423,22 @@ app.get('/api/health', (req, res) => {
 
 
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
   console.log(`Voxel downsampling: http://localhost:${PORT}/api/voxel-downsample`);
   console.log(`Point smoothing: http://localhost:${PORT}/api/point-smooth`);
   console.log(`Voxel debug: http://localhost:${PORT}/api/voxel-debug`);
+});
+
+// Handle port conflicts gracefully
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`Port ${PORT} is already in use. Backend server may already be running.`);
+    console.log(`If you need to restart, kill the existing process first.`);
+    process.exit(0); // Exit gracefully instead of crashing
+  } else {
+    console.error('Server error:', err);
+    process.exit(1);
+  }
 });
