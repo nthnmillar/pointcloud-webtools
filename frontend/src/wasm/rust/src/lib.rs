@@ -16,9 +16,9 @@ macro_rules! console_log {
 #[wasm_bindgen]
 pub struct Voxel {
     count: i32,
-    sum_x: f64,
-    sum_y: f64,
-    sum_z: f64,
+    sum_x: f32,
+    sum_y: f32,
+    sum_z: f32,
 }
 
 impl Voxel {
@@ -31,19 +31,19 @@ impl Voxel {
         }
     }
 
-    fn add_point(&mut self, x: f64, y: f64, z: f64) {
+    fn add_point(&mut self, x: f32, y: f32, z: f32) {
         self.count += 1;
         self.sum_x += x;
         self.sum_y += y;
         self.sum_z += z;
     }
 
-    fn get_average(&self) -> (f64, f64, f64) {
+    fn get_average(&self) -> (f32, f32, f32) {
         if self.count > 0 {
             (
-                self.sum_x / self.count as f64,
-                self.sum_y / self.count as f64,
-                self.sum_z / self.count as f64,
+                self.sum_x / self.count as f32,
+                self.sum_y / self.count as f32,
+                self.sum_z / self.count as f32,
             )
         } else {
             (0.0, 0.0, 0.0)
@@ -72,12 +72,12 @@ impl PointCloudToolsRust {
     #[wasm_bindgen]
     pub fn voxel_downsample(
         &mut self,
-        points: &[f64],
-        voxel_size: f64,
-        min_x: f64,
-        min_y: f64,
-        min_z: f64,
-    ) -> Vec<f64> {
+        points: &[f32],
+        voxel_size: f32,
+        min_x: f32,
+        min_y: f32,
+        min_z: f32,
+    ) -> Vec<f32> {
         console_log!("🔧 RUST CODE: Starting voxel downsampling with {} points, voxel_size: {}", 
                     points.len() / 3, voxel_size);
         console_log!("🔧 RUST CODE: Bounds - min_x: {}, min_y: {}, min_z: {}", min_x, min_y, min_z);
@@ -129,10 +129,10 @@ impl PointCloudToolsRust {
     #[wasm_bindgen]
     pub fn point_cloud_smooth(
         &self,
-        points: &[f64],
-        smoothing_radius: f64,
+        points: &[f32],
+        smoothing_radius: f32,
         iterations: i32,
-    ) -> Vec<f64> {
+    ) -> Vec<f32> {
         console_log!("Rust WASM: Starting O(n) spatial hashing point cloud smoothing with {} points, radius: {}, iterations: {}", 
                     points.len() / 3, smoothing_radius, iterations);
         
@@ -147,7 +147,7 @@ impl PointCloudToolsRust {
         let mut smoothed_points = points.to_vec();
         let radius_squared = smoothing_radius * smoothing_radius;
         let cell_size = smoothing_radius;
-        let inv_cell_size = 1.0 / cell_size;
+        let inv_cell_size = 1.0f32 / cell_size;
         
         // Find bounding box - single pass
         let mut min_x = points[0];
@@ -175,39 +175,42 @@ impl PointCloudToolsRust {
         // Pre-allocate grid with capacity estimation
         let mut grid: Vec<Vec<usize>> = vec![Vec::with_capacity(8); grid_size];
         
-        // Hash function to get grid index (same as C++ WASM)
-        let get_grid_index = |x: f64, y: f64, z: f64| -> usize {
-            let gx = ((x - min_x) * inv_cell_size) as usize;
-            let gy = ((y - min_y) * inv_cell_size) as usize;
-            let gz = ((z - min_z) * inv_cell_size) as usize;
-            gx + gy * grid_width + gz * grid_width * grid_height
+        // Hash function to get grid index (same as C++ WASM - truncate toward zero)
+        let get_grid_index = |x: f32, y: f32, z: f32| -> i32 {
+            let gx = ((x - min_x) * inv_cell_size) as i32;
+            let gy = ((y - min_y) * inv_cell_size) as i32;
+            let gz = ((z - min_z) * inv_cell_size) as i32;
+            gx + gy * grid_width as i32 + gz * grid_width as i32 * grid_height as i32
         };
         
         // Smoothing iterations using spatial hashing (same as C++ WASM)
         for _iter in 0..iterations {
+            // Copy current state to temp buffer (same as C++ WASM)
+            let temp_points = smoothed_points.clone();
+            
             // Clear grid efficiently
             for cell in &mut grid {
                 cell.clear();
             }
             
-            // Populate grid with current point positions
+            // Populate grid with PREVIOUS iteration's point positions (same as C++ WASM)
             for i in 0..point_count {
                 let i3 = i * 3;
-                let x = smoothed_points[i3];
-                let y = smoothed_points[i3 + 1];
-                let z = smoothed_points[i3 + 2];
+                let x = temp_points[i3];
+                let y = temp_points[i3 + 1];
+                let z = temp_points[i3 + 2];
                 let grid_index = get_grid_index(x, y, z);
-                if grid_index < grid_size {
-                    grid[grid_index].push(i);
+                if grid_index >= 0 && grid_index < grid_size as i32 {
+                    grid[grid_index as usize].push(i);
                 }
             }
             
             // Process each point using spatial hash (same as C++ WASM)
             for i in 0..point_count {
                 let i3 = i * 3;
-                let x = smoothed_points[i3];
-                let y = smoothed_points[i3 + 1];
-                let z = smoothed_points[i3 + 2];
+                let x = temp_points[i3];
+                let y = temp_points[i3 + 1];
+                let z = temp_points[i3 + 2];
                 
                 let mut sum_x = 0.0;
                 let mut sum_y = 0.0;
@@ -219,19 +222,19 @@ impl PointCloudToolsRust {
                     for dy in -1..=1 {
                         for dz in -1..=1 {
                             let grid_index = get_grid_index(
-                                x + dx as f64 * cell_size,
-                                y + dy as f64 * cell_size,
-                                z + dz as f64 * cell_size
+                                x + dx as f32 * cell_size,
+                                y + dy as f32 * cell_size,
+                                z + dz as f32 * cell_size
                             );
                             
-                            if grid_index < grid_size {
-                                for &j in &grid[grid_index] {
+                            if grid_index >= 0 && grid_index < grid_size as i32 {
+                                for &j in &grid[grid_index as usize] {
                                     if i == j { continue; }
                                     
                                     let j3 = j * 3;
-                                    let jx = smoothed_points[j3];
-                                    let jy = smoothed_points[j3 + 1];
-                                    let jz = smoothed_points[j3 + 2];
+                                    let jx = temp_points[j3];
+                                    let jy = temp_points[j3 + 1];
+                                    let jz = temp_points[j3 + 2];
                                     
                                     let dx2 = jx - x;
                                     let dy2 = jy - y;
@@ -253,9 +256,9 @@ impl PointCloudToolsRust {
                 
                 // Apply smoothing if neighbors found (same as C++ WASM)
                 if count > 0 {
-                    smoothed_points[i3] = (x + sum_x) / (count + 1) as f64;
-                    smoothed_points[i3 + 1] = (y + sum_y) / (count + 1) as f64;
-                    smoothed_points[i3 + 2] = (z + sum_z) / (count + 1) as f64;
+                    smoothed_points[i3] = (x + sum_x) / (count + 1) as f32;
+                    smoothed_points[i3 + 1] = (y + sum_y) / (count + 1) as f32;
+                    smoothed_points[i3 + 2] = (z + sum_z) / (count + 1) as f32;
                 }
             }
         }
@@ -269,12 +272,12 @@ impl PointCloudToolsRust {
     #[wasm_bindgen]
     pub fn generate_voxel_centers(
         &mut self,
-        points: &[f64],
-        voxel_size: f64,
-        min_x: f64,
-        min_y: f64,
-        min_z: f64,
-    ) -> Vec<f64> {
+        points: &[f32],
+        voxel_size: f32,
+        min_x: f32,
+        min_y: f32,
+        min_z: f32,
+    ) -> Vec<f32> {
         console_log!("Rust WASM: Generating voxel centers for debug visualization");
         
         self.voxel_map.clear();
@@ -312,9 +315,9 @@ impl PointCloudToolsRust {
                     (parts[0].parse::<i32>(), parts[1].parse::<i32>(), parts[2].parse::<i32>()) {
                     
                     // Calculate grid center position (same as C++ implementation)
-                    let center_x = (voxel_x as f64 + 0.5) * voxel_size + min_x;
-                    let center_y = (voxel_y as f64 + 0.5) * voxel_size + min_y;
-                    let center_z = (voxel_z as f64 + 0.5) * voxel_size + min_z;
+                    let center_x = (voxel_x as f32 + 0.5) * voxel_size + min_x;
+                    let center_y = (voxel_y as f32 + 0.5) * voxel_size + min_y;
+                    let center_z = (voxel_z as f32 + 0.5) * voxel_size + min_z;
                     
                     centers.push(center_x);
                     centers.push(center_y);

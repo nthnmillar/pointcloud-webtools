@@ -58,8 +58,8 @@ export class PointCloudSmoothingWASMRust extends BaseService {
         iterations
       });
 
-      // Convert Float32Array to Float64Array for Rust WASM
-      const pointsArray = new Float64Array(pointCloudData);
+      // Use Float32Array directly for Rust WASM (now uses f32)
+      const pointsArray = pointCloudData;
 
       // Call Rust WASM point cloud smoothing
       console.log('🔧 RUST SMOOTHING: Calling point_cloud_smooth with:', {
@@ -86,8 +86,8 @@ export class PointCloudSmoothingWASMRust extends BaseService {
         processingTime: processingTime.toFixed(2) + 'ms'
       });
 
-      // Convert result back to Float32Array
-      const smoothedPoints = new Float32Array(result);
+      // Result is already Float32Array (Rust WASM now returns f32)
+      const smoothedPoints = result;
 
       return {
         success: true,
