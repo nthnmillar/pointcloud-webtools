@@ -23,12 +23,14 @@ dist-ssr
 *.sln
 *.sw?
 
-# WebAssembly compiled files
-public/wasm/*.wasm
-public/wasm/*.js
-src/wasm/*.wasm
-src/wasm/*.js
-# Build artifacts
-build/
+# WebAssembly compiled files and build artifacts
+public/wasm/
+src/build/
 **/build/
-**/frontend/frontend/
+**/target/
+*.wasm
+*.wasm.d.ts
+# Keep source files but ignore compiled outputs
+!src/wasm/*/src/
+!src/wasm/*/Cargo.toml
+!src/wasm/*/package.json
