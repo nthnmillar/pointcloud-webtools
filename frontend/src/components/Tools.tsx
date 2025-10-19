@@ -635,14 +635,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           voxelCount: result?.voxelCount || 0,
         });
       }
-      
-      if (onWasmRustResults) {
-        onWasmRustResults({
-          originalCount: 0, // Debug voxels don't have original point count
-          processingTime: processingTime,
-          voxelCount: result?.voxelCount || 0,
-        });
-      }
     } catch (error) {
       Log.Error('Tools', 'BE Debug Voxel generation failed', error);
     }

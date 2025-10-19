@@ -32,44 +32,62 @@ int main() {
         std::cin >> inputData[i * 3] >> inputData[i * 3 + 1] >> inputData[i * 3 + 2];
     }
     
-    // Ultra-optimized voxel downsampling using direct memory access (same as WASM)
-    std::unordered_map<uint64_t, Voxel> voxelMap;
+    // ULTRA OPTIMIZED C++ voxel downsampling - matches WASM version exactly
+    // OPTIMIZATION 1: Pre-calculate inverse voxel size to avoid division
+    float invVoxelSize = 1.0f / voxelSize;
     
-    // Process each point directly from memory - same algorithm as WASM
-    for (int i = 0; i < pointCount; i++) {
-        int i3 = i * 3;
-        float x = inputData[i3];
-        float y = inputData[i3 + 1];
-        float z = inputData[i3 + 2];
+    // OPTIMIZATION 2: Use HashMap with integer keys and direct coordinate storage (same as WASM)
+    std::unordered_map<uint64_t, std::tuple<float, float, float, int>> voxelMap;
+    voxelMap.reserve(pointCount / 4); // Reserve space to avoid rehashing
+    
+    // OPTIMIZATION 3: Process points in chunks for better cache locality (same as WASM)
+    const int CHUNK_SIZE = 1024;
+    for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
+        int chunkEnd = std::min(chunkStart + CHUNK_SIZE, pointCount);
         
-        // Calculate voxel coordinates
-        int voxelX = static_cast<int>((x - minX) / voxelSize);
-        int voxelY = static_cast<int>((y - minY) / voxelSize);
-        int voxelZ = static_cast<int>((z - minZ) / voxelSize);
-        
-        // Create integer hash key - much faster than string concatenation
-        uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
-                           (static_cast<uint64_t>(voxelY) << 16) |
-                           static_cast<uint64_t>(voxelZ);
-        
-        // Direct access with [] operator - much faster than find()
-        Voxel& voxel = voxelMap[voxelKey];
-        voxel.count++;
-        voxel.sumX += x;
-        voxel.sumY += y;
-        voxel.sumZ += z;
+        for (int i = chunkStart; i < chunkEnd; i++) {
+            int i3 = i * 3;
+            float x = inputData[i3];
+            float y = inputData[i3 + 1];
+            float z = inputData[i3 + 2];
+            
+            // OPTIMIZATION 4: Use multiplication instead of division (same as WASM)
+            int voxelX = static_cast<int>((x - minX) * invVoxelSize);
+            int voxelY = static_cast<int>((y - minY) * invVoxelSize);
+            int voxelZ = static_cast<int>((z - minZ) * invVoxelSize);
+            
+            // OPTIMIZATION 5: Use integer hash key (same as WASM)
+            uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
+                               (static_cast<uint64_t>(voxelY) << 16) |
+                               static_cast<uint64_t>(voxelZ);
+            
+            // OPTIMIZATION 6: Store sums directly (no coordinate storage needed for downsampling)
+            auto it = voxelMap.find(voxelKey);
+            if (it != voxelMap.end()) {
+                auto& [sumX, sumY, sumZ, count] = it->second;
+                sumX += x;
+                sumY += y;
+                sumZ += z;
+                count++;
+            } else {
+                voxelMap.emplace(voxelKey, std::make_tuple(x, y, z, 1));
+            }
+        }
     }
     
-    // Calculate downsampled points using direct memory access (same as WASM)
+    // OPTIMIZATION 7: Pre-allocate result vector (same as WASM)
     int outputCount = voxelMap.size();
     float* outputData = (float*)malloc(outputCount * 3 * sizeof(float));
     
+    // OPTIMIZATION 8: Single pass conversion with direct average calculation (same as WASM)
     int outputIndex = 0;
-    for (const auto& [voxelKey, voxel] : voxelMap) {
+    for (const auto& [voxelKey, voxelData] : voxelMap) {
+        const auto& [sumX, sumY, sumZ, count] = voxelData;
+        
         // Calculate average position (voxel center) - direct memory write
-        outputData[outputIndex * 3] = voxel.sumX / voxel.count;
-        outputData[outputIndex * 3 + 1] = voxel.sumY / voxel.count;
-        outputData[outputIndex * 3 + 2] = voxel.sumZ / voxel.count;
+        outputData[outputIndex * 3] = sumX / count;
+        outputData[outputIndex * 3 + 1] = sumY / count;
+        outputData[outputIndex * 3 + 2] = sumZ / count;
         outputIndex++;
     }
     
