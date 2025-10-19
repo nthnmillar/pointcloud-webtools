@@ -104,16 +104,28 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
         bounds: params.globalBounds
       });
       
-      // Call the unified WASM module's voxelDownsample function
+      // Try optimized function first, fallback to original if not available
       let result;
       try {
-        result = this.module.voxelDownsample(
-          pointArray,
-          params.voxelSize,
-          params.globalBounds.minX,
-          params.globalBounds.minY,
-          params.globalBounds.minZ
-        );
+        if (this.module.voxelDownsampleOptimized) {
+          Log.Info('VoxelDownsamplingWASM', 'Using optimized voxel downsampling');
+          result = this.module.voxelDownsampleOptimized(
+            params.pointCloudData, // Use Float32Array directly
+            params.voxelSize,
+            params.globalBounds.minX,
+            params.globalBounds.minY,
+            params.globalBounds.minZ
+          );
+        } else {
+          Log.Info('VoxelDownsamplingWASM', 'Using original voxel downsampling');
+          result = this.module.voxelDownsample(
+            pointArray,
+            params.voxelSize,
+            params.globalBounds.minX,
+            params.globalBounds.minY,
+            params.globalBounds.minZ
+          );
+        }
       } catch (error) {
         Log.Error('VoxelDownsamplingWASM', 'WASM function threw error', error);
         throw error;
@@ -123,24 +135,23 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
       
       Log.Info('VoxelDownsamplingWASM', 'WASM function returned', {
         resultType: typeof result,
-        resultLength: result ? result.size() : 'undefined',
+        resultLength: result ? (result.size ? result.size() : result.length) : 'undefined',
         result: result,
         resultIsArray: Array.isArray(result),
         resultConstructor: result ? result.constructor.name : 'undefined'
       });
 
       // Convert result to Float32Array
-      // The WASM function returns a vector of Point3D objects
       let downsampledPoints: Float32Array;
-      const resultSize = result ? result.size() : 0;
-      if (resultSize === 0) {
-        Log.Warn('VoxelDownsamplingWASM', 'WASM function returned empty result', {
-          voxelSize: params.voxelSize,
-          bounds: params.globalBounds,
-          pointCount: params.pointCloudData.length / 3
-        });
-        downsampledPoints = new Float32Array(0);
+      let resultSize: number;
+      
+      if (result instanceof Float32Array) {
+        // Optimized function returns Float32Array directly
+        downsampledPoints = result;
+        resultSize = result.length / 3;
       } else {
+        // Original function returns a vector of Point3D objects
+        resultSize = result ? result.size() : 0;
         downsampledPoints = new Float32Array(resultSize * 3);
         for (let i = 0; i < resultSize; i++) {
           const point = result.get(i);
@@ -148,6 +159,19 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
           downsampledPoints[i * 3 + 1] = point.y;
           downsampledPoints[i * 3 + 2] = point.z;
         }
+      }
+      
+      if (resultSize === 0) {
+        Log.Warn('VoxelDownsamplingWASM', 'WASM function returned empty result', {
+          voxelSize: params.voxelSize,
+          bounds: params.globalBounds,
+          pointCount: params.pointCloudData.length / 3
+        });
+        return {
+          success: false,
+          processingTime,
+          error: 'WASM function returned empty result'
+        };
       }
       
       Log.Info('VoxelDownsamplingWASM', 'Converted to Float32Array', {

@@ -241,6 +241,76 @@ extern "C" {
         // Free temporary buffer
         free(tempBuffer);
     }
+    
+    // Ultra-optimized voxel downsampling with direct memory access
+    int voxelDownsampleDirect(
+        float* inputData, 
+        int pointCount, 
+        float voxelSize, 
+        float globalMinX, 
+        float globalMinY, 
+        float globalMinZ,
+        float* outputData
+    ) {
+        if (!inputData || !outputData || pointCount <= 0 || voxelSize <= 0) {
+            return 0;
+        }
+
+        // Use integer hash for maximum performance
+        struct Voxel {
+            int count;
+            float sumX, sumY, sumZ;
+            Voxel() : count(0), sumX(0), sumY(0), sumZ(0) {}
+        };
+        
+        // Use unordered_map with integer keys for O(1) average lookup
+        std::unordered_map<uint64_t, Voxel> voxelMap;
+        
+        // Process each point directly from memory
+        for (int i = 0; i < pointCount; i++) {
+            int i3 = i * 3;
+            float x = inputData[i3];
+            float y = inputData[i3 + 1];
+            float z = inputData[i3 + 2];
+            
+            // Calculate voxel coordinates
+            int voxelX = static_cast<int>((x - globalMinX) / voxelSize);
+            int voxelY = static_cast<int>((y - globalMinY) / voxelSize);
+            int voxelZ = static_cast<int>((z - globalMinZ) / voxelSize);
+            
+            // Create integer hash key - much faster than string
+            uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) | 
+                               (static_cast<uint64_t>(voxelY) << 16) | 
+                               static_cast<uint64_t>(voxelZ);
+            
+            auto it = voxelMap.find(voxelKey);
+            if (it != voxelMap.end()) {
+                Voxel& voxel = it->second;
+                voxel.count++;
+                voxel.sumX += x;
+                voxel.sumY += y;
+                voxel.sumZ += z;
+            } else {
+                Voxel voxel;
+                voxel.count = 1;
+                voxel.sumX = x;
+                voxel.sumY = y;
+                voxel.sumZ = z;
+                voxelMap[voxelKey] = voxel;
+            }
+        }
+        
+        // Write results directly to output buffer
+        int outputIndex = 0;
+        for (const auto& [voxelKey, voxel] : voxelMap) {
+            outputData[outputIndex * 3] = voxel.sumX / voxel.count;
+            outputData[outputIndex * 3 + 1] = voxel.sumY / voxel.count;
+            outputData[outputIndex * 3 + 2] = voxel.sumZ / voxel.count;
+            outputIndex++;
+        }
+        
+        return outputIndex; // Return number of output points
+    }
 }
 
 // Ultra-optimized wrapper using direct memory access
@@ -277,6 +347,54 @@ emscripten::val pointCloudSmoothing(
     
     // Use direct memory copy instead of individual set() calls
     for (int i = 0; i < length; i++) {
+        result.set(i, outputPtr[i]);
+    }
+    
+    // Free allocated memory
+    free(inputPtr);
+    free(outputPtr);
+    
+    return result;
+}
+
+// Ultra-optimized voxel downsampling wrapper using direct memory access
+emscripten::val voxelDownsampleOptimized(
+    const emscripten::val& inputPoints, 
+    float voxelSize,
+    float globalMinX = 0.0f,
+    float globalMinY = 0.0f,
+    float globalMinZ = 0.0f
+) {
+    if (inputPoints.isNull() || inputPoints.isUndefined() || voxelSize <= 0) {
+        return emscripten::val::array();
+    }
+    
+    int length = inputPoints["length"].as<int>();
+    int pointCount = length / 3;
+    
+    // Allocate memory for input and output data
+    float* inputPtr = (float*)malloc(length * sizeof(float));
+    float* outputPtr = (float*)malloc(length * sizeof(float));
+    
+    // Copy input data to WASM memory
+    for (int i = 0; i < length; i++) {
+        inputPtr[i] = inputPoints.call<float>("at", i);
+    }
+    
+    // Call the optimized direct function
+    int outputCount = voxelDownsampleDirect(
+        inputPtr, 
+        pointCount, 
+        voxelSize, 
+        globalMinX, 
+        globalMinY, 
+        globalMinZ, 
+        outputPtr
+    );
+    
+    // Create result array
+    emscripten::val result = emscripten::val::global("Float32Array").new_(outputCount * 3);
+    for (int i = 0; i < outputCount * 3; i++) {
         result.set(i, outputPtr[i]);
     }
     
@@ -376,6 +494,7 @@ EMSCRIPTEN_BINDINGS(tools_module) {
     emscripten::register_vector<Point3D>("Point3DVector");
     
     emscripten::function("voxelDownsample", &voxelDownsample);
+    emscripten::function("voxelDownsampleOptimized", &voxelDownsampleOptimized);
     emscripten::function("pointCloudSmoothing", &pointCloudSmoothing);
     emscripten::function("showVoxelDebug", &showVoxelDebug);
     emscripten::function("hideVoxelDebug", &hideVoxelDebug);
