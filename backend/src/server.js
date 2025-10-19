@@ -3,19 +3,241 @@ import cors from 'cors';
 import multer from 'multer';
 import { spawn } from 'child_process';
 import path from 'path';
+import { WebSocketServer } from 'ws';
+import { createServer } from 'http';
+
+// Process pool for C++ executables
+class ProcessPool {
+  constructor(executablePath, poolSize = 4) {
+    this.executablePath = executablePath;
+    this.poolSize = poolSize;
+    this.available = [];
+    this.busy = new Set();
+    this.initialize();
+  }
+
+  async initialize() {
+    for (let i = 0; i < this.poolSize; i++) {
+      const process = this.createProcess();
+      this.available.push(process);
+    }
+    console.log(`🔧 ProcessPool: Initialized ${this.poolSize} processes for ${this.executablePath}`);
+  }
+
+  createProcess() {
+    const process = spawn(this.executablePath);
+    process.isReady = false;
+    process.isBusy = false;
+    
+    process.on('error', (error) => {
+      console.error('Process error:', error);
+      this.removeProcess(process);
+    });
+
+    process.on('exit', (code) => {
+      console.log(`Process exited with code ${code}`);
+      this.removeProcess(process);
+    });
+
+    return process;
+  }
+
+  removeProcess(process) {
+    this.available = this.available.filter(p => p !== process);
+    this.busy.delete(process);
+    
+    // Create a new process to maintain pool size
+    if (this.available.length + this.busy.size < this.poolSize) {
+      const newProcess = this.createProcess();
+      this.available.push(newProcess);
+    }
+  }
+
+  async getProcess() {
+    return new Promise((resolve) => {
+      const checkForAvailable = () => {
+        if (this.available.length > 0) {
+          const process = this.available.pop();
+          this.busy.add(process);
+          process.isBusy = true;
+          resolve(process);
+        } else {
+          setTimeout(checkForAvailable, 10);
+        }
+      };
+      checkForAvailable();
+    });
+  }
+
+  releaseProcess(process) {
+    this.busy.delete(process);
+    process.isBusy = false;
+    this.available.push(process);
+  }
+}
+
 import { fileURLToPath } from 'url';
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Initialize process pools - increase size for better parallelization
+const voxelDownsamplePool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'voxel_downsample'), 8);
+const voxelDebugPool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'voxel_debug'), 4);
+const pointSmoothPool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'point_smooth'), 4);
+
 const app = express();
+const server = createServer(app);
 const PORT = process.env.PORT || 3003;
+
+// WebSocket server for simple single-request processing
+const wss = new WebSocketServer({ server });
+
+wss.on('connection', (ws) => {
+  console.log('🔧 WebSocket client connected');
+  
+  let pendingHeader = null;
+  
+  ws.on('message', async (data) => {
+    try {
+      // Check if this is binary data or JSON header
+      if (data instanceof Buffer) {
+        // This is binary point cloud data
+        if (pendingHeader) {
+          const { voxelSize, globalBounds, requestId } = pendingHeader;
+          
+          // Convert binary data to Float32Array
+          const points = new Float32Array(data.buffer, data.byteOffset, data.byteLength / 4);
+          
+          console.log('🔧 WebSocket: Processing voxel downsampling with binary data', {
+            pointCount: points.length / 3,
+            voxelSize,
+            requestId
+          });
+          
+          const startTime = Date.now();
+          
+          // Get process from pool
+          const cppProcess = await voxelDownsamplePool.getProcess();
+          
+          // Prepare input for C++ program
+          const pointCount = points.length / 3;
+          const input = `${pointCount} ${voxelSize} ${globalBounds.minX} ${globalBounds.minY} ${globalBounds.minZ} ${globalBounds.maxX} ${globalBounds.maxY} ${globalBounds.maxZ}\n`;
+          
+          // Add point cloud data - optimized with array join
+          const pointDataArray = [];
+          for (let i = 0; i < points.length; i += 3) {
+            pointDataArray.push(`${points[i]} ${points[i + 1]} ${points[i + 2]}`);
+          }
+          
+          const fullInput = input + pointDataArray.join('\n') + '\n';
+          
+          let outputBuffer = '';
+          
+          cppProcess.stdout.on('data', (data) => {
+            outputBuffer += data.toString();
+          });
+          
+          cppProcess.stdout.on('end', () => {
+            const lines = outputBuffer.trim().split('\n');
+            
+            let voxelCount = 0;
+            let originalCount = 0;
+            let downsampledCount = 0;
+            let downsampledPoints = [];
+            
+            if (lines.length >= 4) {
+              voxelCount = parseInt(lines[0]);
+              originalCount = parseInt(lines[1]);
+              downsampledCount = parseInt(lines[2]);
+              const pointsString = lines[3].trim();
+              const points = pointsString.split(' ').map(parseFloat).filter(p => !isNaN(p));
+              downsampledPoints = points;
+            }
+            
+            const processingTime = Date.now() - startTime;
+            
+            // Release process back to pool
+            voxelDownsamplePool.releaseProcess(cppProcess);
+            
+            // Send result back via WebSocket
+            ws.send(JSON.stringify({
+              type: 'voxel_downsample_result',
+              requestId,
+              success: true,
+              downsampledPoints,
+              originalCount,
+              downsampledCount,
+              voxelCount,
+              processingTime
+            }));
+          });
+          
+          cppProcess.stderr.on('data', (data) => {
+            console.error('C++ process error:', data.toString());
+          });
+          
+          cppProcess.on('error', (error) => {
+            console.error('C++ process error:', error);
+            voxelDownsamplePool.releaseProcess(cppProcess);
+            ws.send(JSON.stringify({
+              type: 'voxel_downsample_result',
+              requestId,
+              success: false,
+              error: 'C++ process failed to start'
+            }));
+          });
+          
+          cppProcess.on('close', (code) => {
+            if (code !== 0) {
+              console.error(`C++ process exited with code ${code}`);
+              voxelDownsamplePool.releaseProcess(cppProcess);
+              ws.send(JSON.stringify({
+                type: 'voxel_downsample_result',
+                requestId,
+                success: false,
+                error: `C++ process exited with code ${code}`
+              }));
+            }
+          });
+          
+          // Send input to C++ process
+          cppProcess.stdin.write(fullInput);
+          cppProcess.stdin.end();
+          
+          pendingHeader = null; // Reset for next request
+        }
+      } else {
+        // This is a JSON header
+        const message = JSON.parse(data.toString());
+        
+        if (message.type === 'voxel_downsample') {
+          // Store header and wait for binary data
+          pendingHeader = message;
+        }
+      }
+    } catch (error) {
+      console.error('WebSocket message error:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        error: error.message
+      }));
+    }
+  });
+  
+  ws.on('close', () => {
+    console.log('🔧 WebSocket client disconnected');
+  });
+});
 
 // C++ executables are now in services/tools/ directory
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'],
+  credentials: true
+}));
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
@@ -53,16 +275,16 @@ app.post('/api/voxel-downsample', async (req, res) => {
     const pointCount = points.length / 3;
     const input = `${pointCount} ${voxelSize} ${globalBounds.minX} ${globalBounds.minY} ${globalBounds.minZ} ${globalBounds.maxX} ${globalBounds.maxY} ${globalBounds.maxZ}\n`;
     
-    // Add point cloud data
-    let pointData = '';
+    // Add point cloud data - optimized with array join (much faster than string concatenation)
+    const pointDataArray = [];
     for (let i = 0; i < points.length; i += 3) {
-      pointData += `${points[i]} ${points[i + 1]} ${points[i + 2]}\n`;
+      pointDataArray.push(`${points[i]} ${points[i + 1]} ${points[i + 2]}`);
     }
     
-    const fullInput = input + pointData;
+    const fullInput = input + pointDataArray.join('\n') + '\n';
     
-    // Execute C++ program
-    const cppProcess = spawn(cppExecutable);
+    // Get process from pool
+    const cppProcess = await voxelDownsamplePool.getProcess();
     
     let voxelCount = 0;
     let originalCount = 0;
@@ -98,6 +320,9 @@ app.post('/api/voxel-downsample', async (req, res) => {
         processingTime: processingTime + 'ms'
       });
       
+      // Release process back to pool
+      voxelDownsamplePool.releaseProcess(cppProcess);
+      
       res.json({
         success: true,
         downsampledPoints: downsampledPoints,
@@ -117,6 +342,7 @@ app.post('/api/voxel-downsample', async (req, res) => {
     // Handle process errors
     cppProcess.on('error', (error) => {
       console.error('C++ process error:', error);
+      voxelDownsamplePool.releaseProcess(cppProcess);
       if (!res.headersSent) {
         res.status(500).json({ 
           success: false, 
@@ -128,6 +354,7 @@ app.post('/api/voxel-downsample', async (req, res) => {
     cppProcess.on('close', (code) => {
       if (code !== 0) {
         console.error(`C++ process exited with code ${code}`);
+        voxelDownsamplePool.releaseProcess(cppProcess);
         if (!res.headersSent) {
           res.status(500).json({ 
             success: false, 
@@ -184,13 +411,13 @@ app.post('/api/point-smooth', async (req, res) => {
     const pointCount = points.length / 3;
     const input = `${pointCount} ${smoothingRadius} ${iterations}\n`;
     
-    // Add point cloud data
-    let pointData = '';
+    // Add point cloud data - optimized with array join (much faster than string concatenation)
+    const pointDataArray = [];
     for (let i = 0; i < points.length; i += 3) {
-      pointData += `${points[i]} ${points[i + 1]} ${points[i + 2]}\n`;
+      pointDataArray.push(`${points[i]} ${points[i + 1]} ${points[i + 2]}`);
     }
     
-    const fullInput = input + pointData;
+    const fullInput = input + pointDataArray.join('\n') + '\n';
     
     // Execute C++ program
     const cppProcess = spawn(cppExecutable);
@@ -306,13 +533,13 @@ app.post('/api/voxel-debug', async (req, res) => {
     const pointCount = pointCloudData.length / 3;
     const input = `${pointCount} ${voxelSize} ${globalBounds.minX} ${globalBounds.minY} ${globalBounds.minZ} ${globalBounds.maxX} ${globalBounds.maxY} ${globalBounds.maxZ}\n`;
     
-    // Add point cloud data
-    let pointData = '';
+    // Add point cloud data - optimized with array join (much faster than string concatenation)
+    const pointDataArray = [];
     for (let i = 0; i < pointCloudData.length; i += 3) {
-      pointData += `${pointCloudData[i]} ${pointCloudData[i + 1]} ${pointCloudData[i + 2]}\n`;
+      pointDataArray.push(`${pointCloudData[i]} ${pointCloudData[i + 1]} ${pointCloudData[i + 2]}`);
     }
     
-    const fullInput = input + pointData;
+    const fullInput = input + pointDataArray.join('\n') + '\n';
     
     // Debug: Log first few lines of input to C++ executable
     console.log('🔧 Backend: C++ input (first 5 lines):');
@@ -423,8 +650,9 @@ app.get('/api/health', (req, res) => {
 
 
 // Start server
-const server = app.listen(PORT, () => {
-  console.log(`Backend server running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`🔧 Backend server running on port ${PORT}`);
+  console.log(`🔧 WebSocket server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
   console.log(`Voxel downsampling: http://localhost:${PORT}/api/voxel-downsample`);
   console.log(`Point smoothing: http://localhost:${PORT}/api/point-smooth`);
