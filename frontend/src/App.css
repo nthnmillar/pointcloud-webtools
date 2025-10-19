@@ -378,7 +378,7 @@
   position: absolute;
   bottom: 20px;
   right: 20px;
-  width: 900px;
+  max-width: 90vw;
   max-height: 400px;
   background: rgba(0, 0, 0, 0.8);
   color: #fff;

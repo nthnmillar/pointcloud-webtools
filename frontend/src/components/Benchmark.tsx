@@ -198,6 +198,12 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                         {wasmCppMainResults && wasmCppMainResults.reductionRatio ? `${((wasmCppMainResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
                       </span>
                     </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Voxels:</span>
+                      <span className="metric-value">
+                        {wasmCppMainResults ? wasmCppMainResults.voxelCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
                   </>
                 )}
                 {isSmoothingTool && (
