@@ -1,6 +1,7 @@
 #include <vector>
 #include <unordered_map>
 #include <cmath>
+#include <cstdint>
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
 
@@ -262,6 +263,113 @@ void showVoxelDebug() {
     g_voxelDebug.isVisible = true;
 }
 
+// Process voxel debug with point array and voxel size
+void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize) {
+    if (inputPoints.isNull() || inputPoints.isUndefined() || voxelSize <= 0) {
+        g_voxelDebug.voxelCenters.clear();
+        return;
+    }
+    
+    int length = inputPoints["length"].as<int>();
+    int pointCount = length / 3;
+    
+    if (pointCount <= 0) {
+        g_voxelDebug.voxelCenters.clear();
+        return;
+    }
+    
+    // Allocate memory for input data
+    float* inputPtr = (float*)malloc(length * sizeof(float));
+    
+    // Copy input data to WASM memory
+    for (int i = 0; i < length; i++) {
+        inputPtr[i] = inputPoints.call<float>("at", i);
+    }
+    
+    // Calculate global bounds
+    float minX = inputPtr[0], minY = inputPtr[1], minZ = inputPtr[2];
+    float maxX = inputPtr[0], maxY = inputPtr[1], maxZ = inputPtr[2];
+    
+    for (int i = 0; i < pointCount; i++) {
+        int i3 = i * 3;
+        float x = inputPtr[i3];
+        float y = inputPtr[i3 + 1];
+        float z = inputPtr[i3 + 2];
+        
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (z < minZ) minZ = z;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+        if (z > maxZ) maxZ = z;
+    }
+    
+    // Use integer hash for voxel centers
+    struct VoxelCenter {
+        int voxelX, voxelY, voxelZ;
+        int count;
+        float sumX, sumY, sumZ;
+    };
+    
+    std::unordered_map<uint64_t, VoxelCenter> voxelMap;
+    
+    // Process each point
+    for (int i = 0; i < pointCount; i++) {
+        int i3 = i * 3;
+        float x = inputPtr[i3];
+        float y = inputPtr[i3 + 1];
+        float z = inputPtr[i3 + 2];
+        
+        // Calculate voxel coordinates
+        int voxelX = static_cast<int>((x - minX) / voxelSize);
+        int voxelY = static_cast<int>((y - minY) / voxelSize);
+        int voxelZ = static_cast<int>((z - minZ) / voxelSize);
+        
+        // Create integer hash key
+        uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
+                           (static_cast<uint64_t>(voxelY) << 16) |
+                           static_cast<uint64_t>(voxelZ);
+        
+        auto it = voxelMap.find(voxelKey);
+        if (it != voxelMap.end()) {
+            VoxelCenter& voxel = it->second;
+            voxel.count++;
+            voxel.sumX += x;
+            voxel.sumY += y;
+            voxel.sumZ += z;
+        } else {
+            VoxelCenter voxel;
+            voxel.voxelX = voxelX;
+            voxel.voxelY = voxelY;
+            voxel.voxelZ = voxelZ;
+            voxel.count = 1;
+            voxel.sumX = x;
+            voxel.sumY = y;
+            voxel.sumZ = z;
+            voxelMap[voxelKey] = voxel;
+        }
+    }
+    
+    // Convert to voxel grid positions (centers of voxel grid cells)
+    g_voxelDebug.voxelCenters.clear();
+    g_voxelDebug.voxelSize = voxelSize;
+    
+    for (const auto& [voxelKey, voxel] : voxelMap) {
+        // Calculate voxel grid position (center of voxel grid cell)
+        // This ensures proper alignment like other implementations
+        float gridX = minX + (voxel.voxelX + 0.5f) * voxelSize;
+        float gridY = minY + (voxel.voxelY + 0.5f) * voxelSize;
+        float gridZ = minZ + (voxel.voxelZ + 0.5f) * voxelSize;
+        
+        g_voxelDebug.voxelCenters.push_back(Point3D(gridX, gridY, gridZ));
+    }
+    
+    g_voxelDebug.isVisible = true;
+    
+    // Free allocated memory
+    free(inputPtr);
+}
+
 void hideVoxelDebug() {
     g_voxelDebug.isVisible = false;
 }
@@ -297,7 +405,8 @@ EMSCRIPTEN_BINDINGS(tools_module) {
 
     emscripten::function("voxelDownsample", &voxelDownsample);
     emscripten::function("pointCloudSmoothing", &pointCloudSmoothing);
-    emscripten::function("showVoxelDebug", &showVoxelDebug);
+    emscripten::function("showVoxelDebug", emscripten::select_overload<void()>(&showVoxelDebug));
+    emscripten::function("showVoxelDebug", emscripten::select_overload<void(const emscripten::val&, float)>(&showVoxelDebug));
     emscripten::function("hideVoxelDebug", &hideVoxelDebug);
     emscripten::function("getVoxelDebugCenters", &getVoxelDebugCenters);
     emscripten::function("getVoxelDebugSize", &getVoxelDebugSize);
