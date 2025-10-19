@@ -120,41 +120,23 @@ async function processVoxelDownsampling(data: {
     globalBounds
   });
 
-  // Try optimized function first, fallback to original if not available
-  let result;
-  let downsampledPoints: Float32Array;
-  let resultSize: number;
+  // Use the optimized voxel downsampling function
+  const result = toolsModule.voxelDownsample(
+    pointCloudData,
+    voxelSize,
+    globalBounds.minX,
+    globalBounds.minY,
+    globalBounds.minZ
+  );
   
-  if (toolsModule.voxelDownsampleOptimized) {
-    WorkerLog.info('Using optimized voxel downsampling');
-    result = toolsModule.voxelDownsampleOptimized(
-      pointCloudData,
-      voxelSize,
-      globalBounds.minX,
-      globalBounds.minY,
-      globalBounds.minZ
-    );
-    // Optimized function returns Float32Array directly
-    downsampledPoints = result;
-    resultSize = result.length / 3;
-  } else {
-    WorkerLog.info('Using original voxel downsampling');
-    result = toolsModule.voxelDownsample(
-      pointCloudData,
-      voxelSize,
-      globalBounds.minX,
-      globalBounds.minY,
-      globalBounds.minZ
-    );
-    // Original function returns a vector of Point3D objects
-    resultSize = result.size();
-    downsampledPoints = new Float32Array(resultSize * 3);
-    for (let i = 0; i < resultSize; i++) {
-      const point = result.get(i);
-      downsampledPoints[i * 3] = point.x;
-      downsampledPoints[i * 3 + 1] = point.y;
-      downsampledPoints[i * 3 + 2] = point.z;
-    }
+  // Convert result to Float32Array
+  const resultSize = result.size();
+  const downsampledPoints = new Float32Array(resultSize * 3);
+  for (let i = 0; i < resultSize; i++) {
+    const point = result.get(i);
+    downsampledPoints[i * 3] = point.x;
+    downsampledPoints[i * 3 + 1] = point.y;
+    downsampledPoints[i * 3 + 2] = point.z;
   }
 
   const processingTime = performance.now() - startTime;

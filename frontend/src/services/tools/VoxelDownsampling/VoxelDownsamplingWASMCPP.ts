@@ -107,25 +107,14 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
       // Try optimized function first, fallback to original if not available
       let result;
       try {
-        if (this.module.voxelDownsampleOptimized) {
-          Log.Info('VoxelDownsamplingWASM', 'Using optimized voxel downsampling');
-          result = this.module.voxelDownsampleOptimized(
-            params.pointCloudData, // Use Float32Array directly
-            params.voxelSize,
-            params.globalBounds.minX,
-            params.globalBounds.minY,
-            params.globalBounds.minZ
-          );
-        } else {
-          Log.Info('VoxelDownsamplingWASM', 'Using original voxel downsampling');
-          result = this.module.voxelDownsample(
-            pointArray,
-            params.voxelSize,
-            params.globalBounds.minX,
-            params.globalBounds.minY,
-            params.globalBounds.minZ
-          );
-        }
+        Log.Info('VoxelDownsamplingWASM', 'Using voxel downsampling');
+        result = this.module.voxelDownsample(
+          params.pointCloudData, // Use Float32Array directly
+          params.voxelSize,
+          params.globalBounds.minX,
+          params.globalBounds.minY,
+          params.globalBounds.minZ
+        );
       } catch (error) {
         Log.Error('VoxelDownsamplingWASM', 'WASM function threw error', error);
         throw error;
