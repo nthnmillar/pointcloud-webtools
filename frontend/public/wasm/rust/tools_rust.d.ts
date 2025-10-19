@@ -5,8 +5,8 @@ export class PointCloudToolsRust {
   [Symbol.dispose](): void;
   constructor();
   /**
-   * Voxel downsampling implementation in Rust
-   * This matches the algorithm used in TS, WASM C++, and BE C++
+   * Voxel downsampling implementation in Rust - OPTIMIZED like point cloud smoothing
+   * Uses local hash map for maximum performance - same efficiency as point cloud smoothing
    */
   voxel_downsample(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
   /**

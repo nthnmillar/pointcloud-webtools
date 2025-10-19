@@ -5,8 +5,8 @@ export class PointCloudToolsRust {
   [Symbol.dispose](): void;
   constructor();
   /**
-   * Voxel downsampling implementation in Rust - OPTIMIZED with integer hash keys
-   * Uses integer hash keys for maximum performance - same efficiency as point cloud smoothing
+   * Voxel downsampling implementation in Rust - OPTIMIZED like point cloud smoothing
+   * Uses local hash map for maximum performance - same efficiency as point cloud smoothing
    */
   voxel_downsample(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
   /**

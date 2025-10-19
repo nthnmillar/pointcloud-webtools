@@ -85,11 +85,11 @@ export class VoxelDownsamplingWASMRust extends BaseService {
         bounds: globalBounds
       });
 
-      // Call Rust WASM voxel downsampling (now optimized with integer hash keys)
-      console.log('🔧 Rust WASM: Calling optimized voxel downsampling with:', {
+      // Call Rust WASM voxel downsampling (now optimized like point cloud smoothing)
+      console.log('🔧 Rust WASM: Calling voxel_downsample with:', {
         pointsLength: pointCloudData.length,
         voxelSize,
-        bounds: { minX: globalBounds.minX, minY: globalBounds.minY, minZ: globalBounds.minZ }
+        bounds: globalBounds
       });
       
       const result = this.wasmModule.voxel_downsample(
@@ -101,8 +101,9 @@ export class VoxelDownsamplingWASMRust extends BaseService {
       );
       
       console.log('🔧 Rust WASM: Got result:', {
-        resultLength: result.length,
-        firstFew: Array.from(result).slice(0, 9)
+        resultType: typeof result,
+        resultLength: result ? result.length : 'undefined',
+        result: result
       });
 
       const processingTime = performance.now() - startTime;
@@ -120,6 +121,8 @@ export class VoxelDownsamplingWASMRust extends BaseService {
       return {
         success: true,
         downsampledPoints,
+        originalCount: pointCloudData.length / 3,
+        downsampledCount: voxelCount,
         voxelCount,
         processingTime
       };

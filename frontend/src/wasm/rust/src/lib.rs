@@ -67,11 +67,11 @@ impl PointCloudToolsRust {
         }
     }
 
-    /// Voxel downsampling implementation in Rust - OPTIMIZED with integer hash keys
-    /// Uses integer hash keys for maximum performance - same efficiency as point cloud smoothing
+    /// Voxel downsampling implementation in Rust - OPTIMIZED like point cloud smoothing
+    /// Uses local hash map for maximum performance - same efficiency as point cloud smoothing
     #[wasm_bindgen]
     pub fn voxel_downsample(
-        &mut self,
+        &self,
         points: &[f32],
         voxel_size: f32,
         min_x: f32,
@@ -80,8 +80,9 @@ impl PointCloudToolsRust {
     ) -> Vec<f32> {
         console_log!("🔧 RUST OPTIMIZED: Starting voxel downsampling with {} points, voxel_size: {}", 
                     points.len() / 3, voxel_size);
+        console_log!("🔧 RUST OPTIMIZED: Bounds - min_x: {}, min_y: {}, min_z: {}", min_x, min_y, min_z);
         
-        // Use integer hash map for maximum performance
+        // Use local hash map with integer keys for maximum performance (like point cloud smoothing)
         let mut voxel_map: std::collections::HashMap<u64, Voxel> = std::collections::HashMap::new();
         
         // Process each point directly from memory
@@ -120,6 +121,7 @@ impl PointCloudToolsRust {
         
         console_log!("🔧 RUST OPTIMIZED: Voxel downsampling completed. {} input points -> {} output points", 
                     points.len() / 3, result.len() / 3);
+        console_log!("🔧 RUST OPTIMIZED: Returning result with {} elements", result.len());
         
         result
     }
