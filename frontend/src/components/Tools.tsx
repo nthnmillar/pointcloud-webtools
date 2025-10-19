@@ -2152,10 +2152,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                       <div className="tools-col-5">
                         <button
                           className="tools-wasm-btn"
-                          onClick={handleWasmVoxelDebug}
-                          disabled={!showVoxelDebug || isProcessing}
+                          disabled={true}
+                          style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                          title="Worker threads not applicable for debug visualization"
                         >
-                          {isProcessing ? 'Processing...' : 'C++ Worker'}
+                          N/A
                         </button>
                       </div>
                       <div className="tools-col-6">
@@ -2170,10 +2171,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                       <div className="tools-col-7">
                         <button
                           className="tools-wasm-rust-btn"
-                          onClick={handleWasmRustVoxelDebug}
-                          disabled={!showVoxelDebug || isProcessing}
+                          disabled={true}
+                          style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                          title="Worker threads not applicable for debug visualization"
                         >
-                          {isProcessing ? 'Processing...' : 'Rust Worker'}
+                          N/A
                         </button>
                       </div>
                       <div className="tools-col-8">

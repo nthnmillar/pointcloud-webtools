@@ -53,6 +53,12 @@ export class VoxelDownsampleDebugService extends BaseService {
 
   async generateVoxelCenters(params: VoxelDebugParams, implementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE'): Promise<VoxelDebugResult> {
     try {
+      Log.Info('VoxelDownsampleDebugService', `Routing to ${implementation} implementation`, {
+        implementation,
+        pointCount: params.pointCloudData.length / 3,
+        voxelSize: params.voxelSize
+      });
+      
       let result: VoxelDebugResult;
       
       switch (implementation) {

@@ -27,10 +27,31 @@ export class VoxelDownsampleDebug {
   private _scene: Scene | null = null;
   private _currentPointClouds: any[] = [];
   private _serviceManager: any = null;
+  private _updateTimeout: NodeJS.Timeout | null = null;
+  private _currentVoxelSize = 2.0;
+  private _isUpdating = false;
+  private _currentImplementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' = 'TS';
+  private _currentColor: { r: number; g: number; b: number } = { r: 0/255, g: 100/255, b: 200/255 };
 
   constructor(scene: Scene, serviceManager?: any) {
     this._scene = scene;
     this._serviceManager = serviceManager;
+  }
+
+  /**
+   * Set the current implementation for voxel debug
+   */
+  public setImplementation(implementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE'): void {
+    this._currentImplementation = implementation;
+    Log.InfoClass(this, 'Voxel debug implementation set', { implementation });
+  }
+
+  /**
+   * Set the current color for voxel debug
+   */
+  public setColor(color: { r: number; g: number; b: number }): void {
+    this._currentColor = color;
+    Log.InfoClass(this, 'Voxel debug color set', { color });
   }
 
   /**
@@ -58,6 +79,12 @@ export class VoxelDownsampleDebug {
    * Hide voxel debug visualization
    */
   public hideVoxelDebug(): void {
+    // Clear any pending updates
+    if (this._updateTimeout) {
+      clearTimeout(this._updateTimeout);
+      this._updateTimeout = null;
+    }
+    
     if (this._scene) {
       // Remove all voxel-related meshes
       const voxelMeshes = this._scene.meshes.filter(mesh => 
@@ -82,7 +109,7 @@ export class VoxelDownsampleDebug {
   }
 
   /**
-   * Update voxel size of existing debug visualization
+   * Update voxel size of existing debug visualization with debouncing
    */
   public updateVoxelSize(newVoxelSize: number): void {
     if (!this._isVisible || !this._scene) {
@@ -90,46 +117,218 @@ export class VoxelDownsampleDebug {
       return;
     }
 
-    Log.InfoClass(this, 'Updating voxel size for existing debug visualization', { newVoxelSize });
-    
-    // Find all voxel instances (including those in debug group)
+    // Store the new voxel size
+    this._currentVoxelSize = newVoxelSize;
+
+    // Clear any existing timeout
+    if (this._updateTimeout) {
+      clearTimeout(this._updateTimeout);
+    }
+
+    // Immediate visual feedback - just update scaling
+    this.updateVoxelScaling(newVoxelSize);
+
+    // Debounced full regeneration
+    this._updateTimeout = setTimeout(async () => {
+      await this.regenerateVoxelDebug(newVoxelSize);
+    }, 150); // 150ms delay
+  }
+
+  /**
+   * Quick visual update - just change scaling of existing boxes
+   */
+  private updateVoxelScaling(newVoxelSize: number): void {
+    if (!this._scene) return;
+
+    // Update base template scaling
+    const baseBox = this._scene.getMeshByName('voxelTemplate');
+    if (baseBox) {
+      baseBox.scaling = new Vector3(newVoxelSize, newVoxelSize, newVoxelSize);
+    }
+
+    // Update all instances scaling
     const voxelInstances = this._scene.meshes.filter(mesh => 
       mesh.name.startsWith('voxelInstance_')
     );
 
-    Log.InfoClass(this, `Found ${voxelInstances.length} voxel instances to update`);
-    
-    if (voxelInstances.length > 0) {
-      // Update the base template size
-      const baseBox = this._scene.getMeshByName('voxelTemplate');
-      if (baseBox) {
-        baseBox.scaling = new Vector3(newVoxelSize, newVoxelSize, newVoxelSize);
-        Log.InfoClass(this, 'Updated base voxel template size', { newVoxelSize });
-      }
-      
-      // Update all instances
-      voxelInstances.forEach((instance, index) => {
-        instance.scaling = new Vector3(newVoxelSize, newVoxelSize, newVoxelSize);
-        if (index < 3) { // Log first 3 for debugging
-          Log.InfoClass(this, `Updated instance ${index} scaling`, { scaling: instance.scaling });
+    voxelInstances.forEach(instance => {
+      instance.scaling = new Vector3(newVoxelSize, newVoxelSize, newVoxelSize);
+    });
+
+    // Also check debug group children
+    if (this._voxelDebugGroup) {
+      const groupChildren = this._voxelDebugGroup.getChildMeshes();
+      groupChildren.forEach(child => {
+        if (child.name.startsWith('voxelInstance_')) {
+          child.scaling = new Vector3(newVoxelSize, newVoxelSize, newVoxelSize);
         }
       });
+    }
+  }
+
+  /**
+   * Full regeneration of voxel debug (called after debounce)
+   */
+  private async regenerateVoxelDebug(newVoxelSize: number): Promise<void> {
+    if (this._isUpdating) return;
+    
+    this._isUpdating = true;
+    
+    try {
+      Log.InfoClass(this, 'Regenerating voxel debug with new size', { 
+        newVoxelSize, 
+        implementation: this._currentImplementation 
+      });
       
-      Log.InfoClass(this, 'Updated voxel size for all instances');
-    } else {
-      Log.WarnClass(this, 'No voxel instances found to update');
-      // Try to find instances in the debug group
-      if (this._voxelDebugGroup) {
-        const groupChildren = this._voxelDebugGroup.getChildMeshes();
-        Log.InfoClass(this, 'Debug group children', { count: groupChildren.length });
-        groupChildren.forEach(child => {
-          if (child.name.startsWith('voxelInstance_')) {
-            child.scaling = new Vector3(newVoxelSize, newVoxelSize, newVoxelSize);
-            Log.InfoClass(this, `Updated child instance ${child.name} scaling`, { scaling: child.scaling });
-          }
+      // Get current point clouds to regenerate voxel centers
+      const pointClouds = this.getCurrentPointClouds();
+      if (!pointClouds || pointClouds.length === 0) {
+        Log.WarnClass(this, 'No point clouds available for voxel size update');
+        return;
+      }
+
+      // Convert to Float32Array for voxel center calculation
+      const allPositions: number[] = [];
+      let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
+      let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
+
+      for (const cloud of pointClouds) {
+        for (const point of cloud.points) {
+          allPositions.push(point.position.x, point.position.y, point.position.z);
+          
+          if (point.position.x < globalMinX) globalMinX = point.position.x;
+          if (point.position.y < globalMinY) globalMinY = point.position.y;
+          if (point.position.z < globalMinZ) globalMinZ = point.position.z;
+          if (point.position.x > globalMaxX) globalMaxX = point.position.x;
+          if (point.position.y > globalMaxY) globalMaxY = point.position.y;
+          if (point.position.z > globalMaxZ) globalMaxZ = point.position.z;
+        }
+      }
+
+      const pointCloudData = new Float32Array(allPositions);
+      const globalBounds = {
+        minX: globalMinX,
+        minY: globalMinY,
+        minZ: globalMinZ,
+        maxX: globalMaxX,
+        maxY: globalMaxY,
+        maxZ: globalMaxZ
+      };
+
+      // Use the correct implementation to calculate voxel centers
+      let voxelCenters: Float32Array;
+      
+      if (this._serviceManager?.voxelDownsampleService?.voxelDownsampleDebug) {
+        // Use the proper implementation service
+        const result = await this._serviceManager.voxelDownsampleService.voxelDownsampleDebug.generateVoxelCenters(
+          {
+            pointCloudData,
+            voxelSize: newVoxelSize,
+            globalBounds
+          },
+          this._currentImplementation
+        );
+        
+        if (result.success && result.voxelCenters) {
+          voxelCenters = result.voxelCenters;
+          Log.InfoClass(this, 'Using correct implementation for voxel centers', { 
+            implementation: this._currentImplementation,
+            voxelCount: result.voxelCenters.length / 3
+          });
+        } else {
+          Log.ErrorClass(this, 'Implementation failed, falling back to TypeScript', { 
+            error: result.error,
+            implementation: this._currentImplementation 
+          });
+          voxelCenters = this.calculateVoxelCenters(pointCloudData, newVoxelSize, globalBounds);
+          Log.WarnClass(this, 'Using TypeScript fallback - this should not happen!', {
+            implementation: this._currentImplementation,
+            voxelCount: voxelCenters.length / 3
+          });
+        }
+      } else {
+        // Fallback to TypeScript implementation
+        Log.WarnClass(this, 'Service not available, using TypeScript fallback');
+        voxelCenters = this.calculateVoxelCenters(pointCloudData, newVoxelSize, globalBounds);
+      }
+      
+      // Hide existing debug and recreate with new positions
+      this.hideVoxelDebug();
+      this.showVoxelDebugWithCenters(voxelCenters, newVoxelSize, this._currentColor);
+      
+      Log.InfoClass(this, 'Regenerated voxel debug with new size', { 
+        newVoxelSize, 
+        voxelCount: voxelCenters.length / 3,
+        implementation: this._currentImplementation
+      });
+    } finally {
+      this._isUpdating = false;
+    }
+  }
+
+  /**
+   * Calculate voxel centers using the same algorithm as other implementations
+   */
+  private calculateVoxelCenters(
+    pointCloudData: Float32Array, 
+    voxelSize: number, 
+    globalBounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number }
+  ): Float32Array {
+    const pointCount = pointCloudData.length / 3;
+    const voxelMap = new Map<string, {
+      voxelX: number;
+      voxelY: number;
+      voxelZ: number;
+      count: number;
+      sumX: number;
+      sumY: number;
+      sumZ: number;
+    }>();
+
+    // Group points into voxels
+    for (let i = 0; i < pointCount; i++) {
+      const x = pointCloudData[i * 3];
+      const y = pointCloudData[i * 3 + 1];
+      const z = pointCloudData[i * 3 + 2];
+
+      // Calculate voxel coordinates using Math.floor for consistency
+      const voxelX = Math.floor((x - globalBounds.minX) / voxelSize);
+      const voxelY = Math.floor((y - globalBounds.minY) / voxelSize);
+      const voxelZ = Math.floor((z - globalBounds.minZ) / voxelSize);
+
+      const voxelKey = `${voxelX},${voxelY},${voxelZ}`;
+
+      if (voxelMap.has(voxelKey)) {
+        const voxel = voxelMap.get(voxelKey)!;
+        voxel.count++;
+        voxel.sumX += x;
+        voxel.sumY += y;
+        voxel.sumZ += z;
+      } else {
+        voxelMap.set(voxelKey, {
+          voxelX,
+          voxelY,
+          voxelZ,
+          count: 1,
+          sumX: x,
+          sumY: y,
+          sumZ: z
         });
       }
     }
+
+    // Convert to voxel grid centers
+    const voxelCenters: number[] = [];
+    for (const [_, voxel] of voxelMap) {
+      // Calculate voxel grid position (center of voxel grid cell)
+      const gridX = globalBounds.minX + (voxel.voxelX + 0.5) * voxelSize;
+      const gridY = globalBounds.minY + (voxel.voxelY + 0.5) * voxelSize;
+      const gridZ = globalBounds.minZ + (voxel.voxelZ + 0.5) * voxelSize;
+      
+      voxelCenters.push(gridX, gridY, gridZ);
+    }
+
+    return new Float32Array(voxelCenters);
   }
 
   /**
@@ -148,6 +347,7 @@ export class VoxelDownsampleDebug {
       voxelSize,
       sceneAvailable: !!this._scene,
       color,
+      implementation: this._currentImplementation,
       firstFewCenters: Array.from(voxelCenters.slice(0, 9))
     });
 

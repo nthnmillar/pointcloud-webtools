@@ -149,6 +149,10 @@ export class ToolsService extends BaseService {
       throw new Error('Voxel debug service not available');
     }
 
+    // Set the implementation for future updates
+    const currentImplementation = implementation || 'TS';
+    this.voxelDownsampleService.voxelDownsampleDebug.setImplementation(currentImplementation);
+
     try {
       // Get current point clouds
       const pointClouds = this.voxelDownsampleService.voxelDownsampleDebug.getCurrentPointClouds();
@@ -244,6 +248,9 @@ export class ToolsService extends BaseService {
           color = { r: 255/255, g: 165/255, b: 0/255 };
         }
         // TS is the default (darker blue color)
+        
+        // Set the color for future updates
+        this.voxelDownsampleService.voxelDownsampleDebug?.setColor(color);
         
         this.voxelDownsampleService.voxelDownsampleDebug?.showVoxelDebugWithCenters(result.voxelCenters, voxelSize, color, maxVoxels);
         Log.Info('ToolsService', `${implementation || 'TS'} debug voxel generation completed`, {
