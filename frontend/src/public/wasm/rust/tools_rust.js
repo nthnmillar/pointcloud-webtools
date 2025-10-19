@@ -77,8 +77,8 @@ export class PointCloudToolsRust {
         return this;
     }
     /**
-     * Voxel downsampling implementation in Rust
-     * This matches the algorithm used in TS, WASM C++, and BE C++
+     * Voxel downsampling implementation in Rust - OPTIMIZED with integer hash keys
+     * Uses integer hash keys for maximum performance - same efficiency as point cloud smoothing
      * @param {Float32Array} points
      * @param {number} voxel_size
      * @param {number} min_x

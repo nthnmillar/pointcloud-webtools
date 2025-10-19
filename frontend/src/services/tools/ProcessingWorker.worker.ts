@@ -67,8 +67,9 @@ async function initialize() {
 // Handle voxel downsampling
 async function handleVoxelDownsampling(data: any, messageId: number): Promise<void> {
   const startTime = performance.now();
+  // Call Rust WASM voxel downsampling (now optimized with integer hash keys)
   const result = wasmModule.voxel_downsample(
-    new Float64Array(data.pointCloudData),
+    data.pointCloudData,
     data.voxelSize,
     data.globalBounds.minX,
     data.globalBounds.minY,

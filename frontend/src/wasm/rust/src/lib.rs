@@ -67,8 +67,8 @@ impl PointCloudToolsRust {
         }
     }
 
-    /// Voxel downsampling implementation in Rust
-    /// This matches the algorithm used in TS, WASM C++, and BE C++
+    /// Voxel downsampling implementation in Rust - OPTIMIZED with integer hash keys
+    /// Uses integer hash keys for maximum performance - same efficiency as point cloud smoothing
     #[wasm_bindgen]
     pub fn voxel_downsample(
         &mut self,
@@ -78,30 +78,31 @@ impl PointCloudToolsRust {
         min_y: f32,
         min_z: f32,
     ) -> Vec<f32> {
-        console_log!("🔧 RUST CODE: Starting voxel downsampling with {} points, voxel_size: {}", 
+        console_log!("🔧 RUST OPTIMIZED: Starting voxel downsampling with {} points, voxel_size: {}", 
                     points.len() / 3, voxel_size);
-        console_log!("🔧 RUST CODE: Bounds - min_x: {}, min_y: {}, min_z: {}", min_x, min_y, min_z);
         
-        self.voxel_map.clear();
+        // Use integer hash map for maximum performance
+        let mut voxel_map: std::collections::HashMap<u64, Voxel> = std::collections::HashMap::new();
         
-        // Process each point
+        // Process each point directly from memory
         for i in (0..points.len()).step_by(3) {
             if i + 2 < points.len() {
                 let x = points[i];
                 let y = points[i + 1];
                 let z = points[i + 2];
                 
-                // Calculate voxel coordinates (same algorithm as other implementations)
+                // Calculate voxel coordinates
                 let voxel_x = ((x - min_x) / voxel_size).floor() as i32;
                 let voxel_y = ((y - min_y) / voxel_size).floor() as i32;
                 let voxel_z = ((z - min_z) / voxel_size).floor() as i32;
                 
-                // Create voxel key (same format as other implementations)
-                let voxel_key = format!("{},{}", voxel_x, voxel_y);
-                let voxel_key = format!("{},{}", voxel_key, voxel_z);
+                // Create integer hash key - much faster than string
+                let voxel_key = ((voxel_x as u64) << 32) |
+                               ((voxel_y as u64) << 16) |
+                               (voxel_z as u64);
                 
-                // Add point to voxel
-                self.voxel_map
+                // Add point to voxel using integer key
+                voxel_map
                     .entry(voxel_key)
                     .or_insert_with(Voxel::new)
                     .add_point(x, y, z);
@@ -110,16 +111,15 @@ impl PointCloudToolsRust {
         
         // Convert voxels to output points
         let mut result = Vec::new();
-        for voxel in self.voxel_map.values() {
+        for voxel in voxel_map.values() {
             let (avg_x, avg_y, avg_z) = voxel.get_average();
             result.push(avg_x);
             result.push(avg_y);
             result.push(avg_z);
         }
         
-        console_log!("🔧 RUST CODE: Voxel downsampling completed. {} input points -> {} output points", 
+        console_log!("🔧 RUST OPTIMIZED: Voxel downsampling completed. {} input points -> {} output points", 
                     points.len() / 3, result.len() / 3);
-        console_log!("🔧 RUST CODE: First few result points: {:?}", &result[0..std::cmp::min(9, result.len())]);
         
         result
     }

@@ -85,18 +85,15 @@ export class VoxelDownsamplingWASMRust extends BaseService {
         bounds: globalBounds
       });
 
-      // Convert Float32Array to Float64Array for Rust WASM
-      const pointsArray = new Float64Array(pointCloudData);
-
-      // Call Rust WASM voxel downsampling
-      console.log('🔧 Rust WASM: Calling voxel_downsample with:', {
-        pointsLength: pointsArray.length,
+      // Call Rust WASM voxel downsampling (now optimized with integer hash keys)
+      console.log('🔧 Rust WASM: Calling optimized voxel downsampling with:', {
+        pointsLength: pointCloudData.length,
         voxelSize,
         bounds: { minX: globalBounds.minX, minY: globalBounds.minY, minZ: globalBounds.minZ }
       });
       
       const result = this.wasmModule.voxel_downsample(
-        pointsArray,
+        pointCloudData,
         voxelSize,
         globalBounds.minX,
         globalBounds.minY,
