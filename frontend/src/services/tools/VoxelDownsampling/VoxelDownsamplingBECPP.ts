@@ -69,7 +69,15 @@ export class VoxelDownsamplingBECPP extends BaseService {
     try {
       const startTime = performance.now();
       
-      // Use retry mechanism for backend request
+      const pointCount = params.pointCloudData.length / 3;
+      
+      Log.Info('VoxelDownsamplingBECPP', 'Starting backend voxel downsampling with single request', {
+        pointCount,
+        voxelSize: params.voxelSize,
+        bounds: params.globalBounds
+      });
+
+      // Use single request - no batching
       const result = await this.retryBackendRequest(async () => {
         const response = await fetch('http://localhost:3003/api/voxel-downsample', {
           method: 'POST',
@@ -92,7 +100,7 @@ export class VoxelDownsamplingBECPP extends BaseService {
 
       const processingTime = performance.now() - startTime;
       
-      Log.Info('VoxelDownsamplingBECPP', 'Voxel downsampling completed using real C++ backend', {
+      Log.Info('VoxelDownsamplingBECPP', 'Backend voxel downsampling completed with single request', {
         originalCount: result.originalCount,
         downsampledCount: result.downsampledCount,
         voxelCount: result.voxelCount,
@@ -108,7 +116,7 @@ export class VoxelDownsamplingBECPP extends BaseService {
         voxelCount: result.voxelCount
       };
     } catch (error) {
-      Log.Error('VoxelDownsamplingBECPP', 'Real C++ backend voxel downsampling failed after retries', error);
+      Log.Error('VoxelDownsamplingBECPP', 'Backend voxel downsampling failed after retries', error);
       
       return {
         success: false,

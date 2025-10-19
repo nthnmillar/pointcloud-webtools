@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <cmath>
 #include <sstream>
+#include <cstdint>
 
 struct Point3D {
     float x, y, z;
@@ -25,65 +26,67 @@ int main() {
     float voxelSize, minX, minY, minZ, maxX, maxY, maxZ;
     iss >> pointCount >> voxelSize >> minX >> minY >> minZ >> maxX >> maxY >> maxZ;
     
-    // Read point cloud data
-    std::vector<Point3D> points;
+    // Read point cloud data directly into memory - much faster than vector
+    float* inputData = (float*)malloc(pointCount * 3 * sizeof(float));
     for (int i = 0; i < pointCount; i++) {
-        float x, y, z;
-        std::cin >> x >> y >> z;
-        points.push_back(Point3D(x, y, z));
+        std::cin >> inputData[i * 3] >> inputData[i * 3 + 1] >> inputData[i * 3 + 2];
     }
     
-    // C++ voxel downsampling algorithm
-    std::unordered_map<std::string, Voxel> voxelMap;
+    // Ultra-optimized voxel downsampling using direct memory access (same as WASM)
+    std::unordered_map<uint64_t, Voxel> voxelMap;
     
-    for (const auto& point : points) {
+    // Process each point directly from memory - same algorithm as WASM
+    for (int i = 0; i < pointCount; i++) {
+        int i3 = i * 3;
+        float x = inputData[i3];
+        float y = inputData[i3 + 1];
+        float z = inputData[i3 + 2];
+        
         // Calculate voxel coordinates
-        int voxelX = std::floor((point.x - minX) / voxelSize);
-        int voxelY = std::floor((point.y - minY) / voxelSize);
-        int voxelZ = std::floor((point.z - minZ) / voxelSize);
+        int voxelX = static_cast<int>((x - minX) / voxelSize);
+        int voxelY = static_cast<int>((y - minY) / voxelSize);
+        int voxelZ = static_cast<int>((z - minZ) / voxelSize);
         
-        std::string voxelKey = std::to_string(voxelX) + "," + 
-                              std::to_string(voxelY) + "," + 
-                              std::to_string(voxelZ);
+        // Create integer hash key - much faster than string concatenation
+        uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
+                           (static_cast<uint64_t>(voxelY) << 16) |
+                           static_cast<uint64_t>(voxelZ);
         
-        if (voxelMap.find(voxelKey) != voxelMap.end()) {
-            Voxel& voxel = voxelMap[voxelKey];
-            voxel.count++;
-            voxel.sumX += point.x;
-            voxel.sumY += point.y;
-            voxel.sumZ += point.z;
-        } else {
-            Voxel voxel;
-            voxel.count = 1;
-            voxel.sumX = point.x;
-            voxel.sumY = point.y;
-            voxel.sumZ = point.z;
-            voxelMap[voxelKey] = voxel;
-        }
+        // Direct access with [] operator - much faster than find()
+        Voxel& voxel = voxelMap[voxelKey];
+        voxel.count++;
+        voxel.sumX += x;
+        voxel.sumY += y;
+        voxel.sumZ += z;
     }
     
-    // Calculate downsampled points (voxel centers)
-    std::vector<float> downsampledPoints;
-    for (const auto& pair : voxelMap) {
-        const Voxel& voxel = pair.second;
-        // Calculate average position (voxel center)
-        float avgX = voxel.sumX / voxel.count;
-        float avgY = voxel.sumY / voxel.count;
-        float avgZ = voxel.sumZ / voxel.count;
-        
-        downsampledPoints.push_back(avgX);
-        downsampledPoints.push_back(avgY);
-        downsampledPoints.push_back(avgZ);
+    // Calculate downsampled points using direct memory access (same as WASM)
+    int outputCount = voxelMap.size();
+    float* outputData = (float*)malloc(outputCount * 3 * sizeof(float));
+    
+    int outputIndex = 0;
+    for (const auto& [voxelKey, voxel] : voxelMap) {
+        // Calculate average position (voxel center) - direct memory write
+        outputData[outputIndex * 3] = voxel.sumX / voxel.count;
+        outputData[outputIndex * 3 + 1] = voxel.sumY / voxel.count;
+        outputData[outputIndex * 3 + 2] = voxel.sumZ / voxel.count;
+        outputIndex++;
     }
     
     // Output results
     std::cout << voxelMap.size() << std::endl; // voxel count
     std::cout << pointCount << std::endl; // original count
-    std::cout << downsampledPoints.size() / 3 << std::endl; // downsampled count
-    for (float point : downsampledPoints) {
-        std::cout << point << " ";
+    std::cout << outputCount << std::endl; // downsampled count
+    
+    // Output points directly from memory - much faster than vector iteration
+    for (int i = 0; i < outputCount * 3; i++) {
+        std::cout << outputData[i] << " ";
     }
     std::cout << std::endl;
+    
+    // Free allocated memory
+    free(inputData);
+    free(outputData);
     
     return 0;
 }

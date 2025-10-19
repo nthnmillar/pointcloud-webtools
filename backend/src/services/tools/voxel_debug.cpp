@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <cmath>
 #include <sstream>
+#include <cstdint>
 
 struct Point3D {
     float x, y, z;
@@ -33,45 +34,37 @@ int main() {
         points.push_back(Point3D(x, y, z));
     }
     
-    // C++ voxel downsampling algorithm
-    std::unordered_map<std::string, Voxel> voxelMap;
+    // Optimized C++ voxel downsampling algorithm using integer hashing
+    std::unordered_map<uint64_t, Voxel> voxelMap;
     
     for (const auto& point : points) {
         // Calculate voxel coordinates
-        int voxelX = std::floor((point.x - minX) / voxelSize);
-        int voxelY = std::floor((point.y - minY) / voxelSize);
-        int voxelZ = std::floor((point.z - minZ) / voxelSize);
+        int voxelX = static_cast<int>((point.x - minX) / voxelSize);
+        int voxelY = static_cast<int>((point.y - minY) / voxelSize);
+        int voxelZ = static_cast<int>((point.z - minZ) / voxelSize);
         
-        std::string voxelKey = std::to_string(voxelX) + "," + 
-                              std::to_string(voxelY) + "," + 
-                              std::to_string(voxelZ);
+        // Create integer hash key - much faster than string concatenation
+        uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
+                           (static_cast<uint64_t>(voxelY) << 16) |
+                           static_cast<uint64_t>(voxelZ);
         
-        if (voxelMap.find(voxelKey) != voxelMap.end()) {
-            Voxel& voxel = voxelMap[voxelKey];
-            voxel.count++;
-            voxel.sumX += point.x;
-            voxel.sumY += point.y;
-            voxel.sumZ += point.z;
-        } else {
-            Voxel voxel;
-            voxel.count = 1;
-            voxel.sumX = point.x;
-            voxel.sumY = point.y;
-            voxel.sumZ = point.z;
-            voxelMap[voxelKey] = voxel;
-        }
+        // Direct access with [] operator - much faster than find()
+        Voxel& voxel = voxelMap[voxelKey];
+        voxel.count++;
+        voxel.sumX += point.x;
+        voxel.sumY += point.y;
+        voxel.sumZ += point.z;
     }
     
-    // Calculate voxel grid positions for visualization
+    // Calculate voxel grid positions for visualization - optimized
     std::vector<float> voxelGridPositions;
-    for (const auto& pair : voxelMap) {
-        std::string voxelKey = pair.first;
-        size_t pos1 = voxelKey.find(',');
-        size_t pos2 = voxelKey.find(',', pos1 + 1);
-        
-        int voxelX = std::stoi(voxelKey.substr(0, pos1));
-        int voxelY = std::stoi(voxelKey.substr(pos1 + 1, pos2 - pos1 - 1));
-        int voxelZ = std::stoi(voxelKey.substr(pos2 + 1));
+    voxelGridPositions.reserve(voxelMap.size() * 3); // Pre-allocate memory
+    
+    for (const auto& [voxelKey, voxel] : voxelMap) {
+        // Extract voxel coordinates from integer key
+        int voxelX = static_cast<int>(voxelKey >> 32);
+        int voxelY = static_cast<int>((voxelKey >> 16) & 0xFFFF);
+        int voxelZ = static_cast<int>(voxelKey & 0xFFFF);
         
         // Calculate voxel grid position (center of voxel grid cell)
         float gridX = minX + (voxelX + 0.5f) * voxelSize;
