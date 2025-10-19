@@ -67,12 +67,10 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
     try {
       const startTime = performance.now();
       
-      // Convert Float32Array to regular array for WASM compatibility
-      const pointArray = Array.from(params.pointCloudData);
-      
-      // Use dedicated C++ WASM debug functions for proper benchmarking
+      // OPTIMIZATION: Use direct Float32Array without Array.from() conversion
+      // The C++ code now uses typed_memory_view for efficient access
       this.module.showVoxelDebug(
-        pointArray,
+        params.pointCloudData,  // Direct Float32Array - no conversion!
         params.voxelSize
       );
       

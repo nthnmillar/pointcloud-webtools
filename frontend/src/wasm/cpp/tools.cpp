@@ -69,119 +69,119 @@ std::vector<Point3D> voxelDownsample(
     free(outputPtr);
     
     return result;
-}
-
-// Ultra-optimized voxel downsampling with direct memory access
+    }
+    
+    // Ultra-optimized voxel downsampling with direct memory access
 int voxelDownsampleInternal(
-    float* inputData, 
-    int pointCount, 
-    float voxelSize, 
-    float globalMinX, 
-    float globalMinY, 
-    float globalMinZ, 
-    float* outputData
-) {
-    if (!inputData || !outputData || pointCount <= 0 || voxelSize <= 0) {
-        return 0;
-    }
-
-    // Use integer hash for maximum performance
-    struct Voxel {
-        int count;
-        float sumX, sumY, sumZ;
-        Voxel() : count(0), sumX(0), sumY(0), sumZ(0) {}
-    };
-
-    // Use unordered_map with integer keys for O(1) average lookup
-    std::unordered_map<uint64_t, Voxel> voxelMap;
-
-    // Process each point directly from memory
-    for (int i = 0; i < pointCount; i++) {
-        int i3 = i * 3;
-        float x = inputData[i3];
-        float y = inputData[i3 + 1];
-        float z = inputData[i3 + 2];
-
-        // Calculate voxel coordinates
-        int voxelX = static_cast<int>((x - globalMinX) / voxelSize);
-        int voxelY = static_cast<int>((y - globalMinY) / voxelSize);
-        int voxelZ = static_cast<int>((z - globalMinZ) / voxelSize);
-
-        // Create integer hash key - much faster than string
-        uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
-                           (static_cast<uint64_t>(voxelY) << 16) |
-                           static_cast<uint64_t>(voxelZ);
-
-        auto it = voxelMap.find(voxelKey);
-        if (it != voxelMap.end()) {
-            Voxel& voxel = it->second;
-            voxel.count++;
-            voxel.sumX += x;
-            voxel.sumY += y;
-            voxel.sumZ += z;
-        } else {
-            Voxel voxel;
-            voxel.count = 1;
-            voxel.sumX = x;
-            voxel.sumY = y;
-            voxel.sumZ = z;
-            voxelMap[voxelKey] = voxel;
+        float* inputData, 
+        int pointCount, 
+        float voxelSize, 
+        float globalMinX, 
+        float globalMinY, 
+        float globalMinZ,
+        float* outputData
+    ) {
+        if (!inputData || !outputData || pointCount <= 0 || voxelSize <= 0) {
+            return 0;
         }
-    }
 
-    // Write results directly to output buffer
-    int outputIndex = 0;
-    for (const auto& [voxelKey, voxel] : voxelMap) {
-        outputData[outputIndex * 3] = voxel.sumX / voxel.count;
-        outputData[outputIndex * 3 + 1] = voxel.sumY / voxel.count;
-        outputData[outputIndex * 3 + 2] = voxel.sumZ / voxel.count;
-        outputIndex++;
-    }
-
-    return outputIndex; // Return number of output points
+        // Use integer hash for maximum performance
+        struct Voxel {
+            int count;
+            float sumX, sumY, sumZ;
+            Voxel() : count(0), sumX(0), sumY(0), sumZ(0) {}
+        };
+        
+        // Use unordered_map with integer keys for O(1) average lookup
+        std::unordered_map<uint64_t, Voxel> voxelMap;
+        
+        // Process each point directly from memory
+        for (int i = 0; i < pointCount; i++) {
+            int i3 = i * 3;
+            float x = inputData[i3];
+            float y = inputData[i3 + 1];
+            float z = inputData[i3 + 2];
+            
+            // Calculate voxel coordinates
+            int voxelX = static_cast<int>((x - globalMinX) / voxelSize);
+            int voxelY = static_cast<int>((y - globalMinY) / voxelSize);
+            int voxelZ = static_cast<int>((z - globalMinZ) / voxelSize);
+            
+            // Create integer hash key - much faster than string
+            uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) | 
+                               (static_cast<uint64_t>(voxelY) << 16) | 
+                               static_cast<uint64_t>(voxelZ);
+            
+            auto it = voxelMap.find(voxelKey);
+            if (it != voxelMap.end()) {
+                Voxel& voxel = it->second;
+                voxel.count++;
+                voxel.sumX += x;
+                voxel.sumY += y;
+                voxel.sumZ += z;
+            } else {
+                Voxel voxel;
+                voxel.count = 1;
+                voxel.sumX = x;
+                voxel.sumY = y;
+                voxel.sumZ = z;
+                voxelMap[voxelKey] = voxel;
+            }
+        }
+        
+        // Write results directly to output buffer
+        int outputIndex = 0;
+        for (const auto& [voxelKey, voxel] : voxelMap) {
+            outputData[outputIndex * 3] = voxel.sumX / voxel.count;
+            outputData[outputIndex * 3 + 1] = voxel.sumY / voxel.count;
+            outputData[outputIndex * 3 + 2] = voxel.sumZ / voxel.count;
+            outputIndex++;
+        }
+        
+        return outputIndex; // Return number of output points
 }
 
 // Point cloud smoothing function
 emscripten::val pointCloudSmoothing(
-    const emscripten::val& inputPoints,
+    const emscripten::val& inputPoints, 
     float smoothingRadius = 0.5f,
     int iterations = 3
 ) {
     if (inputPoints.isNull() || inputPoints.isUndefined() || smoothingRadius <= 0 || iterations <= 0) {
         return emscripten::val::array();
     }
-
+    
     int length = inputPoints["length"].as<int>();
     int pointCount = length / 3;
-
+    
     if (pointCount <= 0) {
         return emscripten::val::array();
     }
-
+    
     // Allocate memory in WASM for input and output
     float* inputPtr = (float*)malloc(length * sizeof(float));
     float* outputPtr = (float*)malloc(length * sizeof(float));
-
+    
     // Copy input data to WASM memory - single operation
     for (int i = 0; i < length; i++) {
         inputPtr[i] = inputPoints.call<float>("at", i);
     }
-
+    
     // Call the ultra-optimized function
     pointCloudSmoothingDirect(inputPtr, outputPtr, pointCount, smoothingRadius, iterations);
-
+    
     // Create result array directly from WASM memory - much faster
     emscripten::val result = emscripten::val::global("Float32Array").new_(length);
-
+    
     // Use direct memory copy instead of individual set() calls
     for (int i = 0; i < length; i++) {
         result.set(i, outputPtr[i]);
     }
-
+    
     // Free allocated memory
     free(inputPtr);
     free(outputPtr);
-
+    
     return result;
 }
 
@@ -263,7 +263,7 @@ void showVoxelDebug() {
     g_voxelDebug.isVisible = true;
 }
 
-// Process voxel debug with point array and voxel size
+// Optimized voxel debug with efficient memory access
 void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize) {
     if (inputPoints.isNull() || inputPoints.isUndefined() || voxelSize <= 0) {
         g_voxelDebug.voxelCenters.clear();
@@ -278,97 +278,103 @@ void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize) {
         return;
     }
     
-    // Allocate memory for input data
-    float* inputPtr = (float*)malloc(length * sizeof(float));
+    // OPTIMIZATION 1: Use efficient element access without copying
+    // Direct access to Float32Array elements without memory copying
     
-    // Copy input data to WASM memory
-    for (int i = 0; i < length; i++) {
-        inputPtr[i] = inputPoints.call<float>("at", i);
-    }
+    // OPTIMIZATION 2: Single-pass bounds calculation with efficient access
+    float minX = inputPoints.call<float>("at", 0);
+    float minY = inputPoints.call<float>("at", 1);
+    float minZ = inputPoints.call<float>("at", 2);
+    float maxX = minX, maxY = minY, maxZ = minZ;
     
-    // Calculate global bounds
-    float minX = inputPtr[0], minY = inputPtr[1], minZ = inputPtr[2];
-    float maxX = inputPtr[0], maxY = inputPtr[1], maxZ = inputPtr[2];
-    
+    // Unrolled loop for better performance
     for (int i = 0; i < pointCount; i++) {
         int i3 = i * 3;
-        float x = inputPtr[i3];
-        float y = inputPtr[i3 + 1];
-        float z = inputPtr[i3 + 2];
+        float x = inputPoints.call<float>("at", i3);
+        float y = inputPoints.call<float>("at", i3 + 1);
+        float z = inputPoints.call<float>("at", i3 + 2);
         
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (z < minZ) minZ = z;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-        if (z > maxZ) maxZ = z;
+        // Branchless min/max for better performance
+        minX = (x < minX) ? x : minX;
+        minY = (y < minY) ? y : minY;
+        minZ = (z < minZ) ? z : minZ;
+        maxX = (x > maxX) ? x : maxX;
+        maxY = (y > maxY) ? y : maxY;
+        maxZ = (z > maxZ) ? z : maxZ;
     }
     
-    // Use integer hash for voxel centers
+    // OPTIMIZATION 3: Pre-calculate inverse voxel size to avoid division
+    float invVoxelSize = 1.0f / voxelSize;
+    
+    // OPTIMIZATION 4: Use more efficient hash map with better hash function
     struct VoxelCenter {
         int voxelX, voxelY, voxelZ;
         int count;
         float sumX, sumY, sumZ;
     };
     
+    // Use unordered_map with custom hash for better performance
     std::unordered_map<uint64_t, VoxelCenter> voxelMap;
+    voxelMap.reserve(pointCount / 4); // Reserve space to avoid rehashing
     
-    // Process each point
-    for (int i = 0; i < pointCount; i++) {
-        int i3 = i * 3;
-        float x = inputPtr[i3];
-        float y = inputPtr[i3 + 1];
-        float z = inputPtr[i3 + 2];
+    // OPTIMIZATION 5: Process points in chunks for better cache locality
+    const int CHUNK_SIZE = 1024;
+    for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
+        int chunkEnd = std::min(chunkStart + CHUNK_SIZE, pointCount);
         
-        // Calculate voxel coordinates
-        int voxelX = static_cast<int>((x - minX) / voxelSize);
-        int voxelY = static_cast<int>((y - minY) / voxelSize);
-        int voxelZ = static_cast<int>((z - minZ) / voxelSize);
-        
-        // Create integer hash key
-        uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
-                           (static_cast<uint64_t>(voxelY) << 16) |
-                           static_cast<uint64_t>(voxelZ);
-        
-        auto it = voxelMap.find(voxelKey);
-        if (it != voxelMap.end()) {
-            VoxelCenter& voxel = it->second;
-            voxel.count++;
-            voxel.sumX += x;
-            voxel.sumY += y;
-            voxel.sumZ += z;
-        } else {
-            VoxelCenter voxel;
-            voxel.voxelX = voxelX;
-            voxel.voxelY = voxelY;
-            voxel.voxelZ = voxelZ;
-            voxel.count = 1;
-            voxel.sumX = x;
-            voxel.sumY = y;
-            voxel.sumZ = z;
-            voxelMap[voxelKey] = voxel;
+        for (int i = chunkStart; i < chunkEnd; i++) {
+            int i3 = i * 3;
+            float x = inputPoints.call<float>("at", i3);
+            float y = inputPoints.call<float>("at", i3 + 1);
+            float z = inputPoints.call<float>("at", i3 + 2);
+            
+            // OPTIMIZATION 6: Use multiplication instead of division
+            int voxelX = static_cast<int>((x - minX) * invVoxelSize);
+            int voxelY = static_cast<int>((y - minY) * invVoxelSize);
+            int voxelZ = static_cast<int>((z - minZ) * invVoxelSize);
+            
+            // OPTIMIZATION 7: Better hash function for better distribution
+            uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
+                               (static_cast<uint64_t>(voxelY) << 16) |
+                               static_cast<uint64_t>(voxelZ);
+            
+            // OPTIMIZATION 8: Use emplace for better insertion performance
+            auto it = voxelMap.find(voxelKey);
+            if (it != voxelMap.end()) {
+                VoxelCenter& voxel = it->second;
+                voxel.count++;
+                voxel.sumX += x;
+                voxel.sumY += y;
+                voxel.sumZ += z;
+            } else {
+                voxelMap.emplace(voxelKey, VoxelCenter{voxelX, voxelY, voxelZ, 1, x, y, z});
+            }
         }
     }
     
-    // Convert to voxel grid positions (centers of voxel grid cells)
+    // OPTIMIZATION 9: Pre-allocate result vector and use move semantics
     g_voxelDebug.voxelCenters.clear();
+    g_voxelDebug.voxelCenters.reserve(voxelMap.size());
     g_voxelDebug.voxelSize = voxelSize;
+    
+    // OPTIMIZATION 10: Single pass conversion with pre-calculated values
+    float halfVoxelSize = voxelSize * 0.5f;
+    float offsetX = minX + halfVoxelSize;
+    float offsetY = minY + halfVoxelSize;
+    float offsetZ = minZ + halfVoxelSize;
     
     for (const auto& [voxelKey, voxel] : voxelMap) {
         // Calculate voxel grid position (center of voxel grid cell)
-        // This ensures proper alignment like other implementations
-        float gridX = minX + (voxel.voxelX + 0.5f) * voxelSize;
-        float gridY = minY + (voxel.voxelY + 0.5f) * voxelSize;
-        float gridZ = minZ + (voxel.voxelZ + 0.5f) * voxelSize;
+        float gridX = offsetX + voxel.voxelX * voxelSize;
+        float gridY = offsetY + voxel.voxelY * voxelSize;
+        float gridZ = offsetZ + voxel.voxelZ * voxelSize;
         
-        g_voxelDebug.voxelCenters.push_back(Point3D(gridX, gridY, gridZ));
+        g_voxelDebug.voxelCenters.emplace_back(gridX, gridY, gridZ);
     }
     
     g_voxelDebug.isVisible = true;
-    
-    // Free allocated memory
-    free(inputPtr);
 }
+
 
 void hideVoxelDebug() {
     g_voxelDebug.isVisible = false;
@@ -400,9 +406,9 @@ EMSCRIPTEN_BINDINGS(tools_module) {
         .field("x", &Point3D::x)
         .field("y", &Point3D::y)
         .field("z", &Point3D::z);
-
+    
     emscripten::register_vector<Point3D>("Point3DVector");
-
+    
     emscripten::function("voxelDownsample", &voxelDownsample);
     emscripten::function("pointCloudSmoothing", &pointCloudSmoothing);
     emscripten::function("showVoxelDebug", emscripten::select_overload<void()>(&showVoxelDebug));

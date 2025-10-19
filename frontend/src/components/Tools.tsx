@@ -209,7 +209,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     if (serviceManager?.toolsService) {
       if (newShowDebug) {
         // Show voxel debug grid
-        serviceManager.toolsService.showVoxelDebug(voxelSize, 'TS', maxVoxels);
+        serviceManager.toolsService.showVoxelDebug(voxelSize, 'TS', 2000);
       } else {
         // Hide voxel debug grid
         serviceManager.toolsService.hideVoxelDebug();
@@ -223,7 +223,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'TS', maxVoxels);
+      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'TS', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'TS Debug Voxel generation completed', {
@@ -249,7 +249,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'WASM', maxVoxels);
+      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'WASM', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'WASM Debug Voxel generation completed', {
@@ -275,7 +275,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'WASM_MAIN', maxVoxels);
+      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'WASM_MAIN', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'WASM C++ Main Debug Voxel generation completed', {
@@ -593,7 +593,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'RUST_WASM_MAIN', maxVoxels);
+      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'RUST_WASM_MAIN', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'Rust WASM Main Debug Voxel generation completed', {
@@ -619,7 +619,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'BE', maxVoxels);
+      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'BE', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'BE Debug Voxel generation completed', {
@@ -653,7 +653,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'WASM_RUST', maxVoxels);
+      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'WASM_RUST', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'WASM Rust Debug Voxel generation completed', {
@@ -2113,6 +2113,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                               {voxelSize.toFixed(2)}m
                             </div>
                           </div>
+                          {/* Max Voxels slider commented out - not providing performance benefits
                           <div className="tool-slider-container">
                             <label>Max Voxels:</label>
                             <input
@@ -2129,6 +2130,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                               {maxVoxels.toLocaleString()}
                             </div>
                           </div>
+                          */}
                         </div>
                       </div>
                       <div className="tools-col-3">
