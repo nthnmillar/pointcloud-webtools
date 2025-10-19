@@ -1,7 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
-export const __wbg_voxel_free: (a: number, b: number) => void;
 export const __wbg_pointcloudtoolsrust_free: (a: number, b: number) => void;
 export const pointcloudtoolsrust_new: () => number;
 export const pointcloudtoolsrust_voxel_downsample: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];

@@ -77,8 +77,8 @@ export class PointCloudToolsRust {
         return this;
     }
     /**
-     * Voxel downsampling implementation in Rust - OPTIMIZED like point cloud smoothing
-     * Uses local hash map for maximum performance - same efficiency as point cloud smoothing
+     * Voxel downsampling implementation in Rust - MAXIMUM OPTIMIZATION
+     * Uses direct memory access and integer hashing for maximum performance
      * @param {Float32Array} points
      * @param {number} voxel_size
      * @param {number} min_x
@@ -111,8 +111,8 @@ export class PointCloudToolsRust {
         return v2;
     }
     /**
-     * Generate voxel centers for debug visualization
-     * This matches the algorithm used in other implementations
+     * Generate voxel centers for debug visualization - MAXIMUM OPTIMIZATION
+     * Uses direct memory access, integer hashing, and zero-copy operations
      * @param {Float32Array} points
      * @param {number} voxel_size
      * @param {number} min_x
@@ -130,26 +130,6 @@ export class PointCloudToolsRust {
     }
 }
 if (Symbol.dispose) PointCloudToolsRust.prototype[Symbol.dispose] = PointCloudToolsRust.prototype.free;
-
-const VoxelFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_voxel_free(ptr >>> 0, 1));
-
-export class Voxel {
-
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        VoxelFinalization.unregister(this);
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_voxel_free(ptr, 0);
-    }
-}
-if (Symbol.dispose) Voxel.prototype[Symbol.dispose] = Voxel.prototype.free;
 
 const EXPECTED_RESPONSE_TYPES = new Set(['basic', 'cors', 'default']);
 

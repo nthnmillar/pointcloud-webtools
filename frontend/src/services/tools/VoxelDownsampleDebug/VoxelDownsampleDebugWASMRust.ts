@@ -50,18 +50,10 @@ export class VoxelDownsampleDebugWASMRust extends BaseService {
         bounds: params.globalBounds
       });
 
-      // Convert Float32Array to Float64Array for Rust WASM
-      const pointsArray = new Float64Array(params.pointCloudData);
-
-      // Call Rust WASM voxel center generation
-      console.log('🔧 RUST DEBUG: Calling generate_voxel_centers with:', {
-        pointsLength: pointsArray.length,
-        voxelSize: params.voxelSize,
-        bounds: params.globalBounds
-      });
-      
+      // OPTIMIZATION: Use direct Float32Array - Rust can handle f32 directly
+      // No conversion needed - Rust WASM accepts &[f32] directly from Float32Array
       const result = this.wasmModule.generate_voxel_centers(
-        pointsArray,
+        params.pointCloudData,  // Direct Float32Array - zero conversion!
         params.voxelSize,
         params.globalBounds.minX,
         params.globalBounds.minY,

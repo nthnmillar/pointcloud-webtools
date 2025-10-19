@@ -5,8 +5,8 @@ export class PointCloudToolsRust {
   [Symbol.dispose](): void;
   constructor();
   /**
-   * Voxel downsampling implementation in Rust - OPTIMIZED like point cloud smoothing
-   * Uses local hash map for maximum performance - same efficiency as point cloud smoothing
+   * Voxel downsampling implementation in Rust - MAXIMUM OPTIMIZATION
+   * Uses direct memory access and integer hashing for maximum performance
    */
   voxel_downsample(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
   /**
@@ -15,22 +15,16 @@ export class PointCloudToolsRust {
    */
   point_cloud_smooth(points: Float32Array, smoothing_radius: number, iterations: number): Float32Array;
   /**
-   * Generate voxel centers for debug visualization
-   * This matches the algorithm used in other implementations
+   * Generate voxel centers for debug visualization - MAXIMUM OPTIMIZATION
+   * Uses direct memory access, integer hashing, and zero-copy operations
    */
   generate_voxel_centers(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
-}
-export class Voxel {
-  private constructor();
-  free(): void;
-  [Symbol.dispose](): void;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly __wbg_voxel_free: (a: number, b: number) => void;
   readonly __wbg_pointcloudtoolsrust_free: (a: number, b: number) => void;
   readonly pointcloudtoolsrust_new: () => number;
   readonly pointcloudtoolsrust_voxel_downsample: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
