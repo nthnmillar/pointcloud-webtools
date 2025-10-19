@@ -1,5 +1,6 @@
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <cmath>
 #include <cstdint>
 #include <emscripten/bind.h>
@@ -306,16 +307,9 @@ void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize) {
     // OPTIMIZATION 3: Pre-calculate inverse voxel size to avoid division
     float invVoxelSize = 1.0f / voxelSize;
     
-    // OPTIMIZATION 4: Use more efficient hash map with better hash function
-    struct VoxelCenter {
-        int voxelX, voxelY, voxelZ;
-        int count;
-        float sumX, sumY, sumZ;
-    };
-    
-    // Use unordered_map with custom hash for better performance
-    std::unordered_map<uint64_t, VoxelCenter> voxelMap;
-    voxelMap.reserve(pointCount / 4); // Reserve space to avoid rehashing
+    // OPTIMIZATION 4: Use unordered_set for unique voxel coordinates (same as Rust)
+    std::unordered_set<uint64_t> voxelKeys;
+    voxelKeys.reserve(pointCount / 4); // Reserve space to avoid rehashing
     
     // OPTIMIZATION 5: Process points in chunks for better cache locality
     const int CHUNK_SIZE = 1024;
@@ -338,23 +332,14 @@ void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize) {
                                (static_cast<uint64_t>(voxelY) << 16) |
                                static_cast<uint64_t>(voxelZ);
             
-            // OPTIMIZATION 8: Use emplace for better insertion performance
-            auto it = voxelMap.find(voxelKey);
-            if (it != voxelMap.end()) {
-                VoxelCenter& voxel = it->second;
-                voxel.count++;
-                voxel.sumX += x;
-                voxel.sumY += y;
-                voxel.sumZ += z;
-            } else {
-                voxelMap.emplace(voxelKey, VoxelCenter{voxelX, voxelY, voxelZ, 1, x, y, z});
-            }
+            // OPTIMIZATION 8: Store unique voxel keys only (same as Rust)
+            voxelKeys.insert(voxelKey);
         }
     }
     
     // OPTIMIZATION 9: Pre-allocate result vector and use move semantics
     g_voxelDebug.voxelCenters.clear();
-    g_voxelDebug.voxelCenters.reserve(voxelMap.size());
+    g_voxelDebug.voxelCenters.reserve(voxelKeys.size());
     g_voxelDebug.voxelSize = voxelSize;
     
     // OPTIMIZATION 10: Single pass conversion with pre-calculated values
@@ -363,11 +348,16 @@ void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize) {
     float offsetY = minY + halfVoxelSize;
     float offsetZ = minZ + halfVoxelSize;
     
-    for (const auto& [voxelKey, voxel] : voxelMap) {
+    for (const uint64_t voxelKey : voxelKeys) {
+        // Extract voxel coordinates from integer key
+        int voxelX = static_cast<int>(voxelKey >> 32);
+        int voxelY = static_cast<int>((voxelKey >> 16) & 0xFFFF);
+        int voxelZ = static_cast<int>(voxelKey & 0xFFFF);
+        
         // Calculate voxel grid position (center of voxel grid cell)
-        float gridX = offsetX + voxel.voxelX * voxelSize;
-        float gridY = offsetY + voxel.voxelY * voxelSize;
-        float gridZ = offsetZ + voxel.voxelZ * voxelSize;
+        float gridX = offsetX + voxelX * voxelSize;
+        float gridY = offsetY + voxelY * voxelSize;
+        float gridZ = offsetZ + voxelZ * voxelSize;
         
         g_voxelDebug.voxelCenters.emplace_back(gridX, gridY, gridZ);
     }

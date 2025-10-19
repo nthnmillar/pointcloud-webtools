@@ -44,16 +44,8 @@ export class VoxelDownsampleDebugTS extends BaseService {
       
       const pointCount = params.pointCloudData.length / 3;
       
-      // OPTIMIZATION 1: Use Map with integer keys instead of string keys
-      const voxelMap = new Map<number, {
-        voxelX: number;
-        voxelY: number;
-        voxelZ: number;
-        count: number;
-        sumX: number;
-        sumY: number;
-        sumZ: number;
-      }>();
+      // OPTIMIZATION 1: Use Set for unique voxel coordinates (same as Rust)
+      const voxelCoords = new Set<string>();
       
       // OPTIMIZATION 2: Pre-calculate inverse voxel size to avoid division
       const invVoxelSize = 1.0 / params.voxelSize;
@@ -77,31 +69,14 @@ export class VoxelDownsampleDebugTS extends BaseService {
           const voxelY = Math.floor((y - minY) * invVoxelSize);
           const voxelZ = Math.floor((z - minZ) * invVoxelSize);
           
-          // OPTIMIZATION 5: Use integer hash key instead of string concatenation
-          const voxelKey = (voxelX << 32) | (voxelY << 16) | voxelZ;
-          
-          if (voxelMap.has(voxelKey)) {
-            const voxel = voxelMap.get(voxelKey)!;
-            voxel.count++;
-            voxel.sumX += x;
-            voxel.sumY += y;
-            voxel.sumZ += z;
-          } else {
-            voxelMap.set(voxelKey, {
-              voxelX,
-              voxelY,
-              voxelZ,
-              count: 1,
-              sumX: x,
-              sumY: y,
-              sumZ: z
-            });
-          }
+          // OPTIMIZATION 5: Store unique voxel coordinates only (same as Rust)
+          const voxelKey = `${voxelX},${voxelY},${voxelZ}`;
+          voxelCoords.add(voxelKey);
         }
       }
       
       // OPTIMIZATION 6: Pre-allocate result array and calculate grid positions directly
-      const voxelCount = voxelMap.size;
+      const voxelCount = voxelCoords.size;
       const voxelGridPositions = new Float32Array(voxelCount * 3);
       
       // OPTIMIZATION 7: Pre-calculate offsets for grid position calculation
@@ -111,11 +86,14 @@ export class VoxelDownsampleDebugTS extends BaseService {
       const offsetZ = minZ + halfVoxelSize;
       
       let index = 0;
-      for (const [voxelKey, voxel] of voxelMap) {
+      for (const voxelKey of voxelCoords) {
+        // Parse voxel coordinates from string key
+        const [voxelX, voxelY, voxelZ] = voxelKey.split(',').map(Number);
+        
         // OPTIMIZATION 8: Direct grid position calculation (same as C++/Rust)
-        const gridX = offsetX + voxel.voxelX * params.voxelSize;
-        const gridY = offsetY + voxel.voxelY * params.voxelSize;
-        const gridZ = offsetZ + voxel.voxelZ * params.voxelSize;
+        const gridX = offsetX + voxelX * params.voxelSize;
+        const gridY = offsetY + voxelY * params.voxelSize;
+        const gridZ = offsetZ + voxelZ * params.voxelSize;
         
         voxelGridPositions[index++] = gridX;
         voxelGridPositions[index++] = gridY;
@@ -125,14 +103,14 @@ export class VoxelDownsampleDebugTS extends BaseService {
       const processingTime = performance.now() - startTime;
       
       Log.Info('VoxelDownsampleDebugTS', 'Voxel centers generated', {
-        voxelCount: voxelMap.size,
+        voxelCount: voxelCoords.size,
         processingTime: processingTime.toFixed(2) + 'ms'
       });
 
       return {
         success: true,
         voxelCenters: voxelGridPositions,
-        voxelCount: voxelMap.size,
+        voxelCount: voxelCoords.size,
         processingTime
       };
     } catch (error) {
