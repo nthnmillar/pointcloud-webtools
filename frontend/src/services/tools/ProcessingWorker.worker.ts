@@ -35,7 +35,7 @@ async function initialize() {
     
     WorkerLog.info('Created module URL:', moduleUrl);
     
-    const module = await import(moduleUrl);
+    const module = await import(/* @vite-ignore */ moduleUrl);
     WorkerLog.info('Module imported successfully');
     WorkerLog.info('Module exports:', Object.keys(module));
     
