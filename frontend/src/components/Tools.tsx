@@ -56,6 +56,16 @@ interface ToolsProps {
     smoothingRadius?: number;
     iterations?: number;
   }) => void;
+  onBeRustResults?: (results: {
+    originalCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
+    processingTime: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
+  }) => void;
   onRustWasmMainResults?: (results: {
     originalCount: number;
     downsampledCount?: number;
@@ -69,10 +79,10 @@ interface ToolsProps {
   onCurrentToolChange?: (tool: 'voxel' | 'smoothing') => void;
 }
 
-export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onTsResults, onBeResults, onWasmRustResults, onWasmCppMainResults, onRustWasmMainResults, onCurrentToolChange }) => {
+export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onTsResults, onBeResults, onWasmRustResults, onBeRustResults, onWasmCppMainResults, onRustWasmMainResults, onCurrentToolChange }) => {
   const [isVisible, setIsVisible] = useState(false);
-  const [voxelSize, setVoxelSize] = useState(2.0);
-  const [maxVoxels, setMaxVoxels] = useState(2000);
+  const [voxelSize] = useState(2.0); // Fixed voxel size for downsampling
+  const [debugVoxelSize, setDebugVoxelSize] = useState(2.0); // Separate voxel size for debug visualization
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
   
@@ -182,21 +192,16 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     };
   }, [serviceManager]);
 
-  // Handle voxel size changes
+  // Handle voxel size changes (for debug visualization only)
   const handleVoxelSizeChange = (newSize: number) => {
     console.log('🎚️ Slider changed to:', newSize, 'showVoxelDebug:', showVoxelDebug);
-    setVoxelSize(newSize);
+    setDebugVoxelSize(newSize); // Only update debug voxel size
     if (serviceManager?.toolsService) {
       // Update voxel debug visualization if it's currently visible
       if (showVoxelDebug) {
         // Update existing debug squares instead of creating new ones
-        console.log('🔧 Updating voxel size for existing debug visualization:', newSize);
         serviceManager.toolsService.updateVoxelSize(newSize);
-      } else {
-        console.log('🔧 Debug visualization not visible, skipping update');
       }
-    } else {
-      console.log('🔧 Service manager not available');
     }
   };
 
@@ -209,7 +214,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     if (serviceManager?.toolsService) {
       if (newShowDebug) {
         // Show voxel debug grid
-        serviceManager.toolsService.showVoxelDebug(voxelSize, 'TS', 2000);
+        serviceManager.toolsService.showVoxelDebug(debugVoxelSize, 'TS', 2000);
       } else {
         // Hide voxel debug grid
         serviceManager.toolsService.hideVoxelDebug();
@@ -640,6 +645,32 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
+  const handleBeRustVoxelDebug = async () => {
+    if (!serviceManager?.toolsService) return;
+    
+    const startTime = performance.now();
+    try {
+      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'BE_RUST', 2000);
+      const processingTime = performance.now() - startTime;
+      
+      Log.Info('Tools', 'BE Rust Debug Voxel generation completed', {
+        processingTime: processingTime.toFixed(2) + 'ms',
+        voxelCount: result?.voxelCount || 0
+      });
+
+      // Emit benchmark results for debug voxel generation
+      if (onBeRustResults) {
+        onBeRustResults({
+          originalCount: 0, // Debug voxels don't have original point count
+          processingTime: processingTime,
+          voxelCount: result?.voxelCount || 0
+        });
+      }
+    } catch (error) {
+      Log.Error('Tools', 'BE Rust Debug Voxel generation failed', error);
+    }
+  };
+
   const handleWasmRustVoxelDebug = async () => {
     if (!serviceManager?.toolsService) return;
     
@@ -1012,6 +1043,205 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
+  const handleBeRustVoxelDownsampling = async () => {
+    if (!serviceManager?.toolsService) {
+      Log.Error('Tools', 'Tools service not available');
+      return;
+    }
+
+    try {
+      // Start end-to-end timing
+      const startTime = Date.now();
+      
+      // Get all point cloud IDs FIRST (before clearing)
+      const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
+      Log.Debug('Tools', 'Found point cloud IDs for BE Rust processing', allPointCloudIds);
+      
+      if (allPointCloudIds.length === 0) {
+        Log.Error('Tools', 'No point clouds found in scene');
+        return;
+      }
+
+      // Collect all points from all point clouds
+      const allPositions: number[] = [];
+      let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
+      let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
+
+      for (const pointCloudId of allPointCloudIds) {
+        const pointCloud = serviceManager.pointService?.getPointCloud(pointCloudId);
+        if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
+          for (const point of pointCloud.points) {
+            allPositions.push(point.position.x, point.position.y, point.position.z);
+            
+            // Calculate global bounding box
+            globalMinX = Math.min(globalMinX, point.position.x);
+            globalMinY = Math.min(globalMinY, point.position.y);
+            globalMinZ = Math.min(globalMinZ, point.position.z);
+            globalMaxX = Math.max(globalMaxX, point.position.x);
+            globalMaxY = Math.max(globalMaxY, point.position.y);
+            globalMaxZ = Math.max(globalMaxZ, point.position.z);
+          }
+        }
+      }
+
+      if (allPositions.length === 0) {
+        Log.Error('Tools', 'No points found in any point cloud');
+        return;
+      }
+
+      const pointCloudData = new Float32Array(allPositions);
+      Log.Info('Tools', 'Collected points for BE Rust processing', {
+        pointCount: pointCloudData.length / 3,
+        globalBounds: {
+          minX: globalMinX,
+          minY: globalMinY,
+          minZ: globalMinZ,
+          maxX: globalMaxX,
+          maxY: globalMaxY,
+          maxZ: globalMaxZ
+        }
+      });
+
+      // Clear the scene
+      serviceManager.pointService?.clearAllPointClouds();
+
+      // Set current tool for benchmark display
+      onCurrentToolChange?.('voxel');
+
+      Log.Info('Tools', 'Calling BE Rust voxel downsampling', {
+        pointCount: pointCloudData.length / 3,
+        voxelSize,
+        globalBounds: {
+          minX: globalMinX,
+          minY: globalMinY,
+          minZ: globalMinZ,
+          maxX: globalMaxX,
+          maxY: globalMaxY,
+          maxZ: globalMaxZ
+        }
+      });
+
+      // Process with Backend Rust service (use same voxel size as debug squares)
+      const result = await serviceManager.toolsService.voxelDownsampleBERust({
+        pointCloudData,
+        voxelSize: debugVoxelSize,
+        globalBounds: {
+          minX: globalMinX,
+          minY: globalMinY,
+          minZ: globalMinZ,
+          maxX: globalMaxX,
+          maxY: globalMaxY,
+          maxZ: globalMaxZ
+        }
+      });
+
+      if (result.success && result.downsampledPoints) {
+        Log.Info('Tools', 'Backend Rust voxel downsampling completed', {
+          originalCount: result.originalCount,
+          downsampledCount: result.downsampledCount,
+          processingTime: result.processingTime,
+          reductionRatio: result.reductionRatio
+        });
+
+        // Convert downsampled points to PointCloudPoint array
+        const downsampledPoints = [];
+        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
+          downsampledPoints.push({
+            position: {
+              x: result.downsampledPoints[i],
+              y: result.downsampledPoints[i + 1],
+              z: result.downsampledPoints[i + 2],
+            },
+            color: { r: 1, g: 0.5, b: 0 }, // Orange color for Rust BE processed points
+            intensity: 1,
+            classification: 0,
+          });
+        }
+
+        // Create point cloud for Rust BE result
+        const rustBEPointCloud = {
+          points: downsampledPoints,
+          metadata: {
+            name: 'Rust BE Downsampled Point Cloud',
+            totalPoints: downsampledPoints.length,
+            bounds: {
+              min: {
+                x: Math.min(...downsampledPoints.map(p => p.position.x)),
+                y: Math.min(...downsampledPoints.map(p => p.position.y)),
+                z: Math.min(...downsampledPoints.map(p => p.position.z))
+              },
+              max: {
+                x: Math.max(...downsampledPoints.map(p => p.position.x)),
+                y: Math.max(...downsampledPoints.map(p => p.position.y)),
+                z: Math.max(...downsampledPoints.map(p => p.position.z))
+              }
+            },
+            hasColor: true,
+            hasIntensity: true,
+            hasClassification: true,
+            originalCount: result.originalCount,
+            downsampledCount: result.downsampledCount,
+            voxelSize: voxelSize,
+            processingTime: result.processingTime,
+            reductionRatio: result.reductionRatio
+          }
+        };
+
+        // Create new point cloud with downsampled points
+        const downsampledPointCloud = await serviceManager.pointService?.loadPointCloud(
+          'BE Rust Voxel Downsampled',
+          rustBEPointCloud,
+          false // Don't reposition camera
+        );
+
+        if (downsampledPointCloud) {
+          Log.Info('Tools', 'Created downsampled point cloud', {
+            id: downsampledPointCloud.id,
+            pointCount: downsampledPointCloud.points.length
+          });
+        }
+
+        // Calculate end-to-end timing (button press to point clouds appearing)
+        const endToEndTime = Date.now() - startTime;
+        const rustProcessingTime = result.processingTime || 0;
+        
+        Log.Info('Tools', 'Rust BE timing breakdown', {
+          rustProcessingTime: `${rustProcessingTime}ms`,
+          endToEndTime: `${endToEndTime}ms`,
+          overhead: `${endToEndTime - rustProcessingTime}ms`,
+          overheadPercentage: `${((endToEndTime - rustProcessingTime) / endToEndTime * 100).toFixed(1)}%`
+        });
+
+        // Calculate voxel count for display
+        const voxelCount = result.downsampledCount / 3;
+        
+        // Emit results to parent component (use end-to-end time for benchmark)
+        if (onBeRustResults) {
+          const benchmarkResults = {
+            originalCount: result.originalCount || 0,
+            downsampledCount: result.downsampledCount || 0,
+            processingTime: endToEndTime, // Use end-to-end time instead of just Rust time
+            reductionRatio: result.reductionRatio || 0,
+            voxelCount: voxelCount
+          };
+          onBeRustResults(benchmarkResults);
+        }
+      } else {
+        Log.Error('Tools', 'Backend Rust voxel downsampling failed', {
+          result: result,
+          error: result.error,
+          success: result.success
+        });
+      }
+    } catch (error) {
+      Log.Error('Tools', 'Backend Rust voxel downsampling error', {
+        error: error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+    }
+  };
+
   const handleTsVoxelDownsampling = async () => {
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
@@ -1161,7 +1391,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   };
 
   // Point Cloud Smoothing - Core processing function
-  const processPointCloudSmoothing = async (method: 'TS' | 'WASM' | 'WASM_CPP_MAIN' | 'WASM_RUST' | 'BE'): Promise<{
+  const processPointCloudSmoothing = async (method: 'TS' | 'WASM' | 'WASM_CPP_MAIN' | 'WASM_RUST' | 'BE' | 'BE_RUST'): Promise<{
     originalCount: number;
     smoothedCount?: number;
     processingTime: number;
@@ -1221,8 +1451,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Use appropriate threading based on method
       let result;
       
-      if (method === 'TS' || method === 'BE' || method === 'WASM_CPP_MAIN') {
-        // TS, BE, and WASM_CPP_MAIN run on main thread (TS is lightweight, BE is separate process, WASM_CPP_MAIN is main thread WASM)
+      if (method === 'TS' || method === 'BE' || method === 'BE_RUST' || method === 'WASM_CPP_MAIN') {
+        // TS, BE, BE_RUST, and WASM_CPP_MAIN run on main thread (TS is lightweight, BE/BE_RUST are separate processes, WASM_CPP_MAIN is main thread WASM)
         if (method === 'TS') {
           result = await serviceManager.toolsService.performPointCloudSmoothingTS({
             points: pointCloudData,
@@ -1232,6 +1462,12 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         } else if (method === 'BE') {
           result = await serviceManager.toolsService.performPointCloudSmoothingBECPP({
             points: pointCloudData,
+            smoothingRadius,
+            iterations: smoothingIterations
+          });
+        } else if (method === 'BE_RUST') {
+          result = await serviceManager.toolsService.performPointCloudSmoothingBERust({
+            pointCloudData: pointCloudData,
             smoothingRadius,
             iterations: smoothingIterations
           });
@@ -1783,6 +2019,13 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
+  const handleBeRustPointCloudSmoothing = async () => {
+    const results = await processPointCloudSmoothing('BE_RUST');
+    if (results) {
+      onBeRustResults?.(results);
+    }
+  };
+
   const tools = [
     {
       name: 'Voxel Downsampling',
@@ -1827,6 +2070,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                 <div className="tools-col-6">Rust Main</div>
                 <div className="tools-col-7">Rust Worker</div>
                 <div className="tools-col-8">BE C++</div>
+                <div className="tools-col-9">BE Rust</div>
               </div>
 
               {tools.map((tool, index) => (
@@ -2068,6 +2312,23 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           : 'BE C++'}
                       </button>
                     </div>
+                    <div className="tools-col-9">
+                      <button
+                        className="tools-be-rust-btn"
+                        onClick={
+                          tool.name === 'Voxel Downsampling'
+                            ? handleBeRustVoxelDownsampling
+                            : tool.name === 'Point Cloud Smoothing'
+                            ? handleBeRustPointCloudSmoothing
+                            : undefined
+                        }
+                        disabled={isProcessing}
+                      >
+                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                          ? 'Processing...'
+                          : 'BE Rust'}
+                      </button>
+                    </div>
                   </div>
                   
                   {/* Debug Voxels Row - Show after Voxel Downsampling */}
@@ -2096,13 +2357,13 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                               min="0.01"
                               max="2.0"
                               step="0.01"
-                              value={voxelSize}
+                              value={debugVoxelSize}
                               onChange={e => handleVoxelSizeChange(parseFloat(e.target.value))}
                               className="tool-slider"
                               style={{ width: '120px', marginLeft: '8px' }}
                             />
                             <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
-                              {voxelSize.toFixed(2)}m
+                              {debugVoxelSize.toFixed(2)}m
                             </div>
                           </div>
                           {/* Max Voxels slider commented out - not providing performance benefits
@@ -2179,6 +2440,15 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           disabled={!showVoxelDebug || isProcessing}
                         >
                           {isProcessing ? 'Processing...' : 'BE C++'}
+                        </button>
+                      </div>
+                      <div className="tools-col-9">
+                        <button
+                          className="tools-be-rust-btn"
+                          onClick={handleBeRustVoxelDebug}
+                          disabled={!showVoxelDebug || isProcessing}
+                        >
+                          {isProcessing ? 'Processing...' : 'BE Rust'}
                         </button>
                       </div>
                     </div>

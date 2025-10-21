@@ -5,6 +5,7 @@ import { VoxelDownsamplingWASMCPP } from './VoxelDownsamplingWASMCPP';
 import { VoxelDownsamplingWASMRust } from './VoxelDownsamplingWASMRust';
 import { VoxelDownsamplingTS } from './VoxelDownsamplingTS';
 import { VoxelDownsamplingBECPP } from './VoxelDownsamplingBECPP';
+import { VoxelDownsamplingBERust } from './VoxelDownsamplingBERust';
 import { VoxelDownsampleDebug } from './VoxelDownsampleDebug';
 import type { VoxelDownsampleParams, VoxelDownsampleResult } from './VoxelDownsamplingTS';
 
@@ -42,6 +43,7 @@ export class VoxelDownsampleService extends BaseService {
   public voxelDownsamplingWASMRust: VoxelDownsamplingWASMRust;
   public voxelDownsamplingTS: VoxelDownsamplingTS;
   public voxelDownsamplingBECPP: VoxelDownsamplingBECPP;
+  public voxelDownsamplingBERust: VoxelDownsamplingBERust;
   public voxelDownsampleDebug: VoxelDownsampleDebug | null = null;
 
   constructor(serviceManager: ServiceManager) {
@@ -50,6 +52,8 @@ export class VoxelDownsampleService extends BaseService {
     this.voxelDownsamplingWASMRust = new VoxelDownsamplingWASMRust(serviceManager);
     this.voxelDownsamplingTS = new VoxelDownsamplingTS(serviceManager);
     this.voxelDownsamplingBECPP = new VoxelDownsamplingBECPP(serviceManager);
+    console.log('🔧 VoxelDownsampleService: Creating VoxelDownsamplingBERust service');
+    this.voxelDownsamplingBERust = new VoxelDownsamplingBERust();
     
     // Initialize debug visualization after a short delay to ensure scene is ready
     setTimeout(() => {

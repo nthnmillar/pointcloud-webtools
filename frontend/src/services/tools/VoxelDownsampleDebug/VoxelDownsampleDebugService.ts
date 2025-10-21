@@ -5,6 +5,7 @@ import { VoxelDownsampleDebugTS } from './VoxelDownsampleDebugTS';
 import { VoxelDownsampleDebugWASMCPP } from './VoxelDownsampleDebugWASMCPP';
 import { VoxelDownsampleDebugWASMRust } from './VoxelDownsampleDebugWASMRust';
 import { VoxelDownsampleDebugBECPP } from './VoxelDownsampleDebugBECPP';
+import { VoxelDownsampleDebugBERust } from './VoxelDownsampleDebugBERust';
 
 export interface VoxelDebugParams {
   pointCloudData: Float32Array;
@@ -32,6 +33,7 @@ export class VoxelDownsampleDebugService extends BaseService {
   public voxelDownsampleDebugWASMCPP: VoxelDownsampleDebugWASMCPP;
   public voxelDownsampleDebugWASMRust: VoxelDownsampleDebugWASMRust;
   public voxelDownsampleDebugBECPP: VoxelDownsampleDebugBECPP;
+  public voxelDownsampleDebugBERust: VoxelDownsampleDebugBERust;
 
   constructor(serviceManager: ServiceManager) {
     super();
@@ -39,6 +41,8 @@ export class VoxelDownsampleDebugService extends BaseService {
     this.voxelDownsampleDebugWASMCPP = new VoxelDownsampleDebugWASMCPP(serviceManager);
     this.voxelDownsampleDebugWASMRust = new VoxelDownsampleDebugWASMRust(serviceManager);
     this.voxelDownsampleDebugBECPP = new VoxelDownsampleDebugBECPP(serviceManager);
+    console.log('🔧 VoxelDownsampleDebugService: Creating VoxelDownsampleDebugBERust service');
+    this.voxelDownsampleDebugBERust = new VoxelDownsampleDebugBERust();
   }
 
   async initialize(): Promise<void> {
@@ -51,7 +55,7 @@ export class VoxelDownsampleDebugService extends BaseService {
     this.isInitialized = true;
   }
 
-  async generateVoxelCenters(params: VoxelDebugParams, implementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE'): Promise<VoxelDebugResult> {
+  async generateVoxelCenters(params: VoxelDebugParams, implementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' | 'BE_RUST'): Promise<VoxelDebugResult> {
     try {
       Log.Info('VoxelDownsampleDebugService', `Routing to ${implementation} implementation`, {
         implementation,
@@ -79,6 +83,9 @@ export class VoxelDownsampleDebugService extends BaseService {
           break;
         case 'BE':
           result = await this.voxelDownsampleDebugBECPP.generateVoxelCenters(params);
+          break;
+        case 'BE_RUST':
+          result = await this.voxelDownsampleDebugBERust.generateVoxelCenters(params);
           break;
         default:
           throw new Error(`Unknown implementation: ${implementation}`);

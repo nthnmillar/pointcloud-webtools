@@ -34,3 +34,13 @@ src/build/
 !src/wasm/*/src/
 !src/wasm/*/Cargo.toml
 !src/wasm/*/package.json
+
+# Rust compiled executables and build artifacts
+*.rust
+**/target/
+**/.cargo/
+**/.rustc_info.json
+# Keep Rust source files but ignore compiled executables
+!**/*.rs
+!**/Cargo.toml
+!**/Cargo.lock

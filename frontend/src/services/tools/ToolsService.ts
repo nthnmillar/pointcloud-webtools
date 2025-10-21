@@ -6,6 +6,7 @@ import { PointCloudSmoothingWASMCPP } from './PointCloudSmoothing/PointCloudSmoo
 import { PointCloudSmoothingWASMRust } from './PointCloudSmoothing/PointCloudSmoothingWASMRust';
 import { PointCloudSmoothingTS } from './PointCloudSmoothing/PointCloudSmoothingTS';
 import { PointCloudSmoothingBECPP } from './PointCloudSmoothing/PointCloudSmoothingBECPP';
+import { PointCloudSmoothingBERust } from './PointCloudSmoothing/PointCloudSmoothingBERust';
 import { VoxelDownsampleDebugService } from './VoxelDownsampleDebug/VoxelDownsampleDebugService';
 
 export interface VoxelDownsampleParams {
@@ -55,6 +56,7 @@ export class ToolsService extends BaseService {
   private pointCloudSmoothingWASMRust: PointCloudSmoothingWASMRust;
   private pointCloudSmoothingTS: PointCloudSmoothingTS;
   private pointCloudSmoothingBECPP: PointCloudSmoothingBECPP;
+  private pointCloudSmoothingBERust: PointCloudSmoothingBERust;
   public voxelDownsampleDebugService: VoxelDownsampleDebugService;
 
   constructor(serviceManager: ServiceManager) {
@@ -66,6 +68,8 @@ export class ToolsService extends BaseService {
     this.pointCloudSmoothingWASMRust = new PointCloudSmoothingWASMRust(serviceManager);
     this.pointCloudSmoothingTS = new PointCloudSmoothingTS(serviceManager);
     this.pointCloudSmoothingBECPP = new PointCloudSmoothingBECPP(serviceManager);
+    console.log('🔧 ToolsService: Creating PointCloudSmoothingBERust service');
+    this.pointCloudSmoothingBERust = new PointCloudSmoothingBERust();
     this.voxelDownsampleDebugService = new VoxelDownsampleDebugService(serviceManager);
   }
 
@@ -115,6 +119,10 @@ export class ToolsService extends BaseService {
     return this.voxelDownsampleService.voxelDownsamplingBECPP.voxelDownsample(params);
   }
 
+  async voxelDownsampleBERust(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
+    return this.voxelDownsampleService.voxelDownsamplingBERust.voxelDownsample(params);
+  }
+
   // Point cloud smoothing methods
   async performPointCloudSmoothingWASMCPP(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
     return this.pointCloudSmoothingWASMCPP.pointCloudSmoothing(params);
@@ -136,8 +144,12 @@ export class ToolsService extends BaseService {
     return this.pointCloudSmoothingBECPP.pointCloudSmoothing(params);
   }
 
+  async performPointCloudSmoothingBERust(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
+    return this.pointCloudSmoothingBERust.pointCloudSmooth(params);
+  }
+
   // Voxel debug methods
-  async showVoxelDebug(voxelSize: number, implementation?: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE', maxVoxels?: number): Promise<{ voxelCount: number; processingTime: number } | null> {
+  async showVoxelDebug(voxelSize: number, implementation?: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' | 'BE_RUST', maxVoxels?: number): Promise<{ voxelCount: number; processingTime: number } | null> {
     console.log('🔍 Debug voxel generation started', { implementation, voxelSize });
     
     // Clear any existing debug visualization first

@@ -78,6 +78,17 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     iterations?: number;
   } | null>(null);
   
+  const [beRustResults, setBeRustResults] = useState<{
+    originalCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
+    processingTime: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
+  } | null>(null);
+  
   const [wasmRustResults, setWasmRustResults] = useState<{
     originalCount: number;
     downsampledCount?: number;
@@ -225,6 +236,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         wasmResults={wasmResults}
         tsResults={tsResults}
         beResults={beResults}
+        beRustResults={beRustResults}
         wasmRustResults={wasmRustResults}
         wasmCppMainResults={wasmCppMainResults}
         rustWasmMainResults={rustWasmMainResults}
@@ -235,6 +247,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         onWasmResults={setWasmResults}
         onTsResults={setTsResults}
         onBeResults={setBeResults}
+        onBeRustResults={setBeRustResults}
         onWasmRustResults={setWasmRustResults}
         onWasmCppMainResults={setWasmCppMainResults}
         onRustWasmMainResults={setRustWasmMainResults}

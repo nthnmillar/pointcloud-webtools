@@ -93,24 +93,65 @@ const PORT = process.env.PORT || 3003;
 
 // WebSocket server for simple single-request processing
 const wss = new WebSocketServer({ server });
+console.log('🔧 Backend: WebSocket server created on port', PORT);
+console.log('🔧 Backend: WebSocket server listening for connections...');
 
-wss.on('connection', (ws) => {
-  console.log('🔧 WebSocket client connected');
+wss.on('connection', (ws, req) => {
+  console.log('🔧 WebSocket client connected from:', req.socket.remoteAddress);
+  console.log('🔧 WebSocket readyState:', ws.readyState);
+  console.log('🔧 WebSocket URL:', req.url);
   
   let pendingHeader = null;
   
   ws.on('message', async (data) => {
     try {
+      console.log('🔧 Backend: WebSocket message received', {
+        isBuffer: data instanceof Buffer,
+        dataType: typeof data,
+        dataLength: data.length || data.byteLength,
+        firstBytes: data instanceof Buffer ? data.slice(0, 10).toString() : data.toString().substring(0, 10)
+      });
+      
       // Check if this is binary data or JSON header
+      // First, try to parse as JSON string (even if it's a Buffer)
+      let message;
+      try {
+        const dataString = data.toString();
+        message = JSON.parse(dataString);
+        
+        // Handle JSON messages
+        if (message.type === 'test') {
+          console.log('🔧 Backend: Received test message from frontend:', message.message);
+          ws.send(JSON.stringify({ type: 'test_response', message: 'Hello from backend' }));
+        } else if (message.type === 'voxel_downsample') {
+          // Store header and wait for binary data
+          pendingHeader = message;
+        } else if (message.type === 'voxel_downsample_rust') {
+          // Store header and wait for binary data
+          console.log('🔧 Backend: Setting pendingHeader for voxel_downsample_rust:', message);
+          pendingHeader = message;
+        } else if (message.type === 'point_smooth_rust') {
+          // Store header and wait for binary data
+          pendingHeader = message;
+        } else if (message.type === 'voxel_debug_rust') {
+          // Store header and wait for binary data
+          pendingHeader = message;
+        }
+        return; // Exit early for JSON messages
+      } catch (parseError) {
+        // Not JSON, treat as binary data
+      }
+      
       if (data instanceof Buffer) {
         // This is binary point cloud data
         if (pendingHeader) {
-          const { voxelSize, globalBounds, requestId } = pendingHeader;
+          const { type, voxelSize, globalBounds, requestId, smoothingRadius, iterations } = pendingHeader;
           
           // Convert binary data to Float32Array
           const points = new Float32Array(data.buffer, data.byteOffset, data.byteLength / 4);
           
-          console.log('🔧 WebSocket: Processing voxel downsampling with binary data', {
+          console.log('🔧 WebSocket: Processing with binary data', {
+            type,
             pointCount: points.length / 3,
             voxelSize,
             requestId
@@ -118,8 +159,9 @@ wss.on('connection', (ws) => {
           
           const startTime = Date.now();
           
-          // Get process from pool
-          const cppProcess = await voxelDownsamplePool.getProcess();
+          if (type === 'voxel_downsample') {
+            // Handle C++ voxel downsampling
+            const cppProcess = await voxelDownsamplePool.getProcess();
           
           // Prepare input for C++ program
           const pointCount = points.length / 3;
@@ -206,19 +248,266 @@ wss.on('connection', (ws) => {
           cppProcess.stdin.write(fullInput);
           cppProcess.stdin.end();
           
+          } else if (type === 'voxel_downsample_rust') {
+            // Handle Rust voxel downsampling
+            const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample_rust');
+            
+            let rustProcess;
+            try {
+              rustProcess = spawn(rustExecutable);
+            } catch (spawnError) {
+              console.error('🔧 WebSocket: Failed to spawn Rust process:', spawnError);
+              ws.send(JSON.stringify({
+                type: 'voxel_downsample_rust_result',
+                requestId,
+                success: false,
+                error: 'Failed to spawn Rust process: ' + spawnError.message
+              }));
+              return;
+            }
+            
+            // Prepare input for Rust program
+            const input = {
+              point_cloud_data: Array.from(points),
+              voxel_size: voxelSize,
+              global_bounds: {
+                min_x: globalBounds.minX,
+                min_y: globalBounds.minY,
+                min_z: globalBounds.minZ,
+                max_x: globalBounds.maxX,
+                max_y: globalBounds.maxY,
+                max_z: globalBounds.maxZ
+              }
+            };
+            
+            let outputData = '';
+            let errorData = '';
+            
+            rustProcess.stdout.on('data', (data) => {
+              outputData += data.toString();
+            });
+            
+            rustProcess.stderr.on('data', (data) => {
+              errorData += data.toString();
+            });
+            
+            rustProcess.on('error', (error) => {
+              console.error('Rust process error:', error);
+              ws.send(JSON.stringify({
+                type: 'voxel_downsample_rust_result',
+                requestId,
+                success: false,
+                error: 'Rust process failed to start'
+              }));
+            });
+            
+            rustProcess.on('close', (code) => {
+              if (code !== 0) {
+                console.error(`Rust process exited with code ${code}`);
+                ws.send(JSON.stringify({
+                  type: 'voxel_downsample_rust_result',
+                  requestId,
+                  success: false,
+                  error: `Rust process exited with code ${code}: ${errorData}`
+                }));
+                return;
+              }
+              
+              try {
+                const result = JSON.parse(outputData);
+                const processingTime = Date.now() - startTime;
+                
+                ws.send(JSON.stringify({
+                  type: 'voxel_downsample_rust_result',
+                  requestId,
+                  success: true,
+                  data: {
+                    downsampledPoints: result.downsampled_points,
+                    originalCount: result.original_count,
+                    downsampledCount: result.downsampled_count,
+                    processingTime: result.processing_time
+                  }
+                }));
+              } catch (parseError) {
+                console.error('Failed to parse Rust output:', parseError);
+                ws.send(JSON.stringify({
+                  type: 'voxel_downsample_rust_result',
+                  requestId,
+                  success: false,
+                  error: 'Failed to parse Rust output'
+                }));
+              }
+            });
+            
+            // Send input to Rust process
+            rustProcess.stdin.write(JSON.stringify(input));
+            rustProcess.stdin.end();
+            
+          } else if (type === 'point_smooth_rust') {
+            // Handle Rust point cloud smoothing
+            const rustExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth_rust');
+            const rustProcess = spawn(rustExecutable);
+            
+            // Prepare input for Rust program
+            const input = {
+              point_cloud_data: Array.from(points),
+              smoothing_radius: smoothingRadius,
+              iterations: iterations
+            };
+            
+            let outputData = '';
+            let errorData = '';
+            
+            rustProcess.stdout.on('data', (data) => {
+              outputData += data.toString();
+            });
+            
+            rustProcess.stderr.on('data', (data) => {
+              errorData += data.toString();
+            });
+            
+            rustProcess.on('error', (error) => {
+              console.error('Rust process error:', error);
+              ws.send(JSON.stringify({
+                type: 'point_smooth_rust_result',
+                requestId,
+                success: false,
+                error: 'Rust process failed to start'
+              }));
+            });
+            
+            rustProcess.on('close', (code) => {
+              if (code !== 0) {
+                console.error(`Rust process exited with code ${code}`);
+                ws.send(JSON.stringify({
+                  type: 'point_smooth_rust_result',
+                  requestId,
+                  success: false,
+                  error: `Rust process exited with code ${code}: ${errorData}`
+                }));
+                return;
+              }
+              
+              try {
+                const result = JSON.parse(outputData);
+                const processingTime = Date.now() - startTime;
+                
+                ws.send(JSON.stringify({
+                  type: 'point_smooth_rust_result',
+                  requestId,
+                  success: true,
+                  data: {
+                    smoothedPoints: result.smoothed_points,
+                    originalCount: result.original_count,
+                    smoothedCount: result.smoothed_count,
+                    processingTime: result.processing_time,
+                    smoothingRadius: result.smoothing_radius,
+                    iterations: result.iterations
+                  }
+                }));
+              } catch (parseError) {
+                console.error('Failed to parse Rust output:', parseError);
+                ws.send(JSON.stringify({
+                  type: 'point_smooth_rust_result',
+                  requestId,
+                  success: false,
+                  error: 'Failed to parse Rust output'
+                }));
+              }
+            });
+            
+            // Send input to Rust process
+            rustProcess.stdin.write(JSON.stringify(input));
+            rustProcess.stdin.end();
+            
+          } else if (type === 'voxel_debug_rust') {
+            // Handle Rust voxel debug
+            const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug_rust');
+            const rustProcess = spawn(rustExecutable);
+            
+            // Prepare input for Rust program
+            const input = {
+              point_cloud_data: Array.from(points),
+              voxel_size: voxelSize,
+              global_bounds: {
+                min_x: globalBounds.minX,
+                min_y: globalBounds.minY,
+                min_z: globalBounds.minZ,
+                max_x: globalBounds.maxX,
+                max_y: globalBounds.maxY,
+                max_z: globalBounds.maxZ
+              }
+            };
+            
+            let outputData = '';
+            let errorData = '';
+            
+            rustProcess.stdout.on('data', (data) => {
+              outputData += data.toString();
+            });
+            
+            rustProcess.stderr.on('data', (data) => {
+              errorData += data.toString();
+            });
+            
+            rustProcess.on('error', (error) => {
+              console.error('Rust process error:', error);
+              ws.send(JSON.stringify({
+                type: 'voxel_debug_rust_result',
+                requestId,
+                success: false,
+                error: 'Rust process failed to start'
+              }));
+            });
+            
+            rustProcess.on('close', (code) => {
+              if (code !== 0) {
+                console.error(`Rust process exited with code ${code}`);
+                ws.send(JSON.stringify({
+                  type: 'voxel_debug_rust_result',
+                  requestId,
+                  success: false,
+                  error: `Rust process exited with code ${code}: ${errorData}`
+                }));
+                return;
+              }
+              
+              try {
+                const result = JSON.parse(outputData);
+                const processingTime = Date.now() - startTime;
+                
+                ws.send(JSON.stringify({
+                  type: 'voxel_debug_rust_result',
+                  requestId,
+                  success: true,
+                  data: {
+                    voxelGridPositions: result.voxel_grid_positions,
+                    voxelCount: result.voxel_count,
+                    processingTime: result.processing_time
+                  }
+                }));
+              } catch (parseError) {
+                console.error('Failed to parse Rust output:', parseError);
+                ws.send(JSON.stringify({
+                  type: 'voxel_debug_rust_result',
+                  requestId,
+                  success: false,
+                  error: 'Failed to parse Rust output'
+                }));
+              }
+            });
+            
+            // Send input to Rust process
+            rustProcess.stdin.write(JSON.stringify(input));
+            rustProcess.stdin.end();
+          }
+          
           pendingHeader = null; // Reset for next request
-        }
-      } else {
-        // This is a JSON header
-        const message = JSON.parse(data.toString());
-        
-        if (message.type === 'voxel_downsample') {
-          // Store header and wait for binary data
-          pendingHeader = message;
         }
       }
     } catch (error) {
       console.error('WebSocket message error:', error);
+      console.error('Error stack:', error.stack);
       ws.send(JSON.stringify({
         type: 'error',
         error: error.message
@@ -632,6 +921,374 @@ app.post('/api/voxel-debug', async (req, res) => {
     
   } catch (error) {
     console.error('Voxel debug error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Rust Backend Endpoints
+
+// Voxel downsampling endpoint for Rust backend processing
+app.post('/api/voxel-downsample-rust', async (req, res) => {
+  try {
+    const { pointCloudData, voxelSize, globalBounds } = req.body;
+    
+    console.log('🔧 Backend: Processing Rust voxel downsampling request', {
+      pointCount: pointCloudData ? pointCloudData.length / 3 : 0,
+      voxelSize,
+      bounds: globalBounds
+    });
+    
+    // Validate inputs
+    if (!pointCloudData || !Array.isArray(pointCloudData)) {
+      throw new Error('Invalid pointCloudData');
+    }
+    if (typeof voxelSize !== 'number' || voxelSize <= 0) {
+      throw new Error('Invalid voxelSize');
+    }
+    if (!globalBounds || typeof globalBounds.minX !== 'number') {
+      throw new Error('Invalid globalBounds');
+    }
+
+    const startTime = Date.now();
+    
+    // Use Rust backend processing
+    console.log('🔧 Backend: Using Rust backend processing for voxel downsampling');
+    
+    // Path to the Rust executable
+    const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample_rust');
+    
+    // Prepare input for Rust program
+    const input = {
+      point_cloud_data: pointCloudData,
+      voxel_size: voxelSize,
+      global_bounds: {
+        min_x: globalBounds.minX,
+        min_y: globalBounds.minY,
+        min_z: globalBounds.minZ,
+        max_x: globalBounds.maxX,
+        max_y: globalBounds.maxY,
+        max_z: globalBounds.maxZ
+      }
+    };
+    
+    const inputJson = JSON.stringify(input);
+    
+    // Spawn Rust process
+    const rustProcess = spawn(rustExecutable);
+    
+    let outputData = '';
+    let errorData = '';
+    
+    rustProcess.stdout.on('data', (data) => {
+      outputData += data.toString();
+    });
+    
+    rustProcess.stderr.on('data', (data) => {
+      errorData += data.toString();
+    });
+    
+    rustProcess.on('error', (error) => {
+      console.error('Rust process error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          success: false, 
+          error: 'Rust process failed to start' 
+        });
+      }
+    });
+    
+    rustProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`Rust process exited with code ${code}`);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            error: `Rust process exited with code ${code}: ${errorData}` 
+          });
+        }
+        return;
+      }
+      
+      try {
+        const result = JSON.parse(outputData);
+        const processingTime = Date.now() - startTime;
+        
+        console.log('🔧 Backend: Rust voxel downsampling completed', {
+          originalCount: result.original_count,
+          downsampledCount: result.downsampled_count,
+          processingTime: result.processing_time,
+          totalTime: processingTime
+        });
+        
+        res.json({
+          success: true,
+          downsampledPoints: result.downsampled_points,
+          originalCount: result.original_count,
+          downsampledCount: result.downsampled_count,
+          processingTime: result.processing_time
+        });
+      } catch (parseError) {
+        console.error('Failed to parse Rust output:', parseError);
+        console.error('Raw output:', outputData);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            error: 'Failed to parse Rust output' 
+          });
+        }
+      }
+    });
+    
+    // Send input to Rust process
+    rustProcess.stdin.write(inputJson);
+    rustProcess.stdin.end();
+    
+  } catch (error) {
+    console.error('Rust voxel downsampling error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Point cloud smoothing endpoint for Rust backend processing
+app.post('/api/point-smooth-rust', async (req, res) => {
+  try {
+    const { pointCloudData, smoothingRadius, iterations } = req.body;
+    
+    console.log('🔧 Backend: Processing Rust point cloud smoothing request', {
+      pointCount: pointCloudData ? pointCloudData.length / 3 : 0,
+      smoothingRadius,
+      iterations
+    });
+    
+    // Validate inputs
+    if (!pointCloudData || !Array.isArray(pointCloudData)) {
+      throw new Error('Invalid pointCloudData');
+    }
+    if (typeof smoothingRadius !== 'number' || smoothingRadius <= 0) {
+      throw new Error('Invalid smoothingRadius');
+    }
+    if (typeof iterations !== 'number' || iterations <= 0) {
+      throw new Error('Invalid iterations');
+    }
+
+    const startTime = Date.now();
+    
+    // Use Rust backend processing
+    console.log('🔧 Backend: Using Rust backend processing for point cloud smoothing');
+    
+    // Path to the Rust executable
+    const rustExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth_rust');
+    
+    // Prepare input for Rust program
+    const input = {
+      point_cloud_data: pointCloudData,
+      smoothing_radius: smoothingRadius,
+      iterations: iterations
+    };
+    
+    const inputJson = JSON.stringify(input);
+    
+    // Spawn Rust process
+    const rustProcess = spawn(rustExecutable);
+    
+    let outputData = '';
+    let errorData = '';
+    
+    rustProcess.stdout.on('data', (data) => {
+      outputData += data.toString();
+    });
+    
+    rustProcess.stderr.on('data', (data) => {
+      errorData += data.toString();
+    });
+    
+    rustProcess.on('error', (error) => {
+      console.error('Rust process error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          success: false, 
+          error: 'Rust process failed to start' 
+        });
+      }
+    });
+    
+    rustProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`Rust process exited with code ${code}`);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            error: `Rust process exited with code ${code}: ${errorData}` 
+          });
+        }
+        return;
+      }
+      
+      try {
+        const result = JSON.parse(outputData);
+        const processingTime = Date.now() - startTime;
+        
+        console.log('🔧 Backend: Rust point cloud smoothing completed', {
+          originalCount: result.original_count,
+          smoothedCount: result.smoothed_count,
+          processingTime: result.processing_time,
+          totalTime: processingTime
+        });
+        
+        res.json({
+          success: true,
+          smoothedPoints: result.smoothed_points,
+          originalCount: result.original_count,
+          smoothedCount: result.smoothed_count,
+          processingTime: result.processing_time
+        });
+      } catch (parseError) {
+        console.error('Failed to parse Rust output:', parseError);
+        console.error('Raw output:', outputData);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            error: 'Failed to parse Rust output' 
+          });
+        }
+      }
+    });
+    
+    // Send input to Rust process
+    rustProcess.stdin.write(inputJson);
+    rustProcess.stdin.end();
+    
+  } catch (error) {
+    console.error('Rust point cloud smoothing error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Voxel debug endpoint for Rust backend processing
+app.post('/api/voxel-debug-rust', async (req, res) => {
+  try {
+    const { pointCloudData, voxelSize, globalBounds } = req.body;
+    
+    console.log('🔧 Backend: Processing Rust voxel debug request', {
+      pointCount: pointCloudData ? pointCloudData.length / 3 : 0,
+      voxelSize,
+      bounds: globalBounds
+    });
+    
+    // Validate inputs
+    if (!pointCloudData || !Array.isArray(pointCloudData)) {
+      throw new Error('Invalid pointCloudData');
+    }
+    if (typeof voxelSize !== 'number' || voxelSize <= 0) {
+      throw new Error('Invalid voxelSize');
+    }
+    if (!globalBounds || typeof globalBounds.minX !== 'number') {
+      throw new Error('Invalid globalBounds');
+    }
+
+    const startTime = Date.now();
+    
+    // Use Rust backend processing
+    console.log('🔧 Backend: Using Rust backend processing for voxel debug');
+    
+    // Path to the Rust executable
+    const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug_rust');
+    
+    // Prepare input for Rust program
+    const input = {
+      point_cloud_data: pointCloudData,
+      voxel_size: voxelSize,
+      global_bounds: {
+        min_x: globalBounds.minX,
+        min_y: globalBounds.minY,
+        min_z: globalBounds.minZ,
+        max_x: globalBounds.maxX,
+        max_y: globalBounds.maxY,
+        max_z: globalBounds.maxZ
+      }
+    };
+    
+    const inputJson = JSON.stringify(input);
+    
+    // Spawn Rust process
+    const rustProcess = spawn(rustExecutable);
+    
+    let outputData = '';
+    let errorData = '';
+    
+    rustProcess.stdout.on('data', (data) => {
+      outputData += data.toString();
+    });
+    
+    rustProcess.stderr.on('data', (data) => {
+      errorData += data.toString();
+    });
+    
+    rustProcess.on('error', (error) => {
+      console.error('Rust process error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          success: false, 
+          error: 'Rust process failed to start' 
+        });
+      }
+    });
+    
+    rustProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`Rust process exited with code ${code}`);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            error: `Rust process exited with code ${code}: ${errorData}` 
+          });
+        }
+        return;
+      }
+      
+      try {
+        const result = JSON.parse(outputData);
+        const processingTime = Date.now() - startTime;
+        
+        console.log('🔧 Backend: Rust voxel debug completed', {
+          voxelCount: result.voxel_count,
+          processingTime: result.processing_time,
+          totalTime: processingTime
+        });
+        
+        res.json({
+          success: true,
+          voxelGridPositions: result.voxel_grid_positions,
+          voxelCount: result.voxel_count,
+          processingTime: result.processing_time
+        });
+      } catch (parseError) {
+        console.error('Failed to parse Rust output:', parseError);
+        console.error('Raw output:', outputData);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            error: 'Failed to parse Rust output' 
+          });
+        }
+      }
+    });
+    
+    // Send input to Rust process
+    rustProcess.stdin.write(inputJson);
+    rustProcess.stdin.end();
+    
+  } catch (error) {
+    console.error('Rust voxel debug error:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message 
