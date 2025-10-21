@@ -228,7 +228,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'TS', 2000);
+      const result = await serviceManager.toolsService.showVoxelDebug(debugVoxelSize, 'TS', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'TS Debug Voxel generation completed', {
@@ -254,7 +254,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'WASM', 2000);
+      const result = await serviceManager.toolsService.showVoxelDebug(debugVoxelSize, 'WASM', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'WASM Debug Voxel generation completed', {
@@ -280,7 +280,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'WASM_MAIN', 2000);
+      const result = await serviceManager.toolsService.showVoxelDebug(debugVoxelSize, 'WASM_MAIN', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'WASM C++ Main Debug Voxel generation completed', {
@@ -598,7 +598,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'RUST_WASM_MAIN', 2000);
+      const result = await serviceManager.toolsService.showVoxelDebug(debugVoxelSize, 'RUST_WASM_MAIN', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'Rust WASM Main Debug Voxel generation completed', {
@@ -624,7 +624,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'BE', 2000);
+      const result = await serviceManager.toolsService.showVoxelDebug(debugVoxelSize, 'BE', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'BE Debug Voxel generation completed', {
@@ -650,7 +650,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'BE_RUST', 2000);
+      const result = await serviceManager.toolsService.showVoxelDebug(debugVoxelSize, 'BE_RUST', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'BE Rust Debug Voxel generation completed', {
@@ -676,7 +676,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     
     const startTime = performance.now();
     try {
-      const result = await serviceManager.toolsService.showVoxelDebug(voxelSize, 'WASM_RUST', 2000);
+      const result = await serviceManager.toolsService.showVoxelDebug(debugVoxelSize, 'WASM_RUST', 2000);
       const processingTime = performance.now() - startTime;
       
       Log.Info('Tools', 'WASM Rust Debug Voxel generation completed', {
