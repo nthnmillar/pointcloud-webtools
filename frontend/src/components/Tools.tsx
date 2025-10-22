@@ -461,6 +461,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       return;
     }
 
+    const startTime = performance.now();
     setIsProcessing(true);
     isProcessingRef.current = true;
 
@@ -522,12 +523,21 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
 
         // Convert result to point cloud format
         const smoothedPoints = [];
-        for (let i = 0; i < result.smoothedPoints.length; i += 3) {
+        const pointCount = result.smoothedPoints.length / 3; // Float32Array has 3 elements per point
+        
+        Log.Info('Tools', 'Converting Rust WASM Main smoothed points', {
+          arrayLength: result.smoothedPoints.length,
+          pointCount: pointCount,
+          expectedCount: result.smoothedCount
+        });
+        
+        for (let i = 0; i < pointCount; i++) {
+          const pointIndex = i * 3;
           smoothedPoints.push({
             position: { 
-              x: result.smoothedPoints[i], 
-              y: result.smoothedPoints[i + 1], 
-              z: result.smoothedPoints[i + 2] 
+              x: result.smoothedPoints[pointIndex], 
+              y: result.smoothedPoints[pointIndex + 1], 
+              z: result.smoothedPoints[pointIndex + 2] 
             },
             color: { r: 1, g: 0.4, b: 0.28 }, // Orange/red color for Rust WASM Main smoothed points
             intensity: 1,
@@ -567,10 +577,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         await serviceManager.pointService?.loadPointCloud(rustWasmMainId, rustWasmMainPointCloud, false);
 
         if (rustWasmMainPointCloud) {
+          const endToEndTime = performance.now() - startTime;
           onRustWasmMainResults?.({
             originalCount: result.originalCount || 0,
             smoothedCount: result.smoothedCount || 0,
-            processingTime: result.processingTime || 0,
+            processingTime: endToEndTime,
             smoothingRadius: smoothingRadius,
             iterations: smoothingIterations
           });
@@ -1575,12 +1586,21 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       if (result.success && result.smoothedPoints) {
         // Convert smoothed points to PointCloudPoint array
         const smoothedPoints = [];
-        for (let i = 0; i < result.smoothedPoints.length; i += 3) {
+        const pointCount = result.smoothedPoints.length / 3; // Float32Array has 3 elements per point
+        
+        Log.Info('Tools', 'Converting Rust BE smoothed points', {
+          arrayLength: result.smoothedPoints.length,
+          pointCount: pointCount,
+          expectedCount: result.smoothedCount
+        });
+        
+        for (let i = 0; i < pointCount; i++) {
+          const pointIndex = i * 3;
           smoothedPoints.push({
             position: {
-              x: result.smoothedPoints[i],
-              y: result.smoothedPoints[i + 1],
-              z: result.smoothedPoints[i + 2],
+              x: result.smoothedPoints[pointIndex],
+              y: result.smoothedPoints[pointIndex + 1],
+              z: result.smoothedPoints[pointIndex + 2],
             },
             color: { r: 1, g: 1, b: 0 }, // Yellow color for smoothed points
             intensity: 1,
@@ -1650,9 +1670,17 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   
   // Point Cloud Smoothing Handlers
   const handleWasmPointCloudSmoothing = async () => {
+    const startTime = performance.now();
     const results = await processPointCloudSmoothing('WASM');
+    const endToEndTime = performance.now() - startTime;
+    
     if (results) {
-      onWasmResults?.(results);
+      // Override processing time with end-to-end measurement
+      const endToEndResults = {
+        ...results,
+        processingTime: endToEndTime
+      };
+      onWasmResults?.(endToEndResults);
     }
   };
 
@@ -1807,9 +1835,17 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   };
 
   const handleWasmCppMainPointCloudSmoothing = async () => {
+    const startTime = performance.now();
     const results = await processPointCloudSmoothing('WASM_CPP_MAIN');
+    const endToEndTime = performance.now() - startTime;
+    
     if (results) {
-      onWasmCppMainResults?.(results);
+      // Override processing time with end-to-end measurement
+      const endToEndResults = {
+        ...results,
+        processingTime: endToEndTime
+      };
+      onWasmCppMainResults?.(endToEndResults);
     }
   };
 
@@ -1985,30 +2021,62 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   };
 
   const handleWasmRustPointCloudSmoothing = async () => {
+    const startTime = performance.now();
     const results = await processPointCloudSmoothing('WASM_RUST');
+    const endToEndTime = performance.now() - startTime;
+    
     if (results) {
-      onWasmRustResults?.(results);
+      // Override processing time with end-to-end measurement
+      const endToEndResults = {
+        ...results,
+        processingTime: endToEndTime
+      };
+      onWasmRustResults?.(endToEndResults);
     }
   };
 
   const handleTsPointCloudSmoothing = async () => {
+    const startTime = performance.now();
     const results = await processPointCloudSmoothing('TS');
+    const endToEndTime = performance.now() - startTime;
+    
     if (results) {
-      onTsResults?.(results);
+      // Override processing time with end-to-end measurement
+      const endToEndResults = {
+        ...results,
+        processingTime: endToEndTime
+      };
+      onTsResults?.(endToEndResults);
     }
   };
 
   const handleBePointCloudSmoothing = async () => {
+    const startTime = performance.now();
     const results = await processPointCloudSmoothing('BE');
+    const endToEndTime = performance.now() - startTime;
+    
     if (results) {
-      onBeResults?.(results);
+      // Override processing time with end-to-end measurement
+      const endToEndResults = {
+        ...results,
+        processingTime: endToEndTime
+      };
+      onBeResults?.(endToEndResults);
     }
   };
 
   const handleBeRustPointCloudSmoothing = async () => {
+    const startTime = performance.now();
     const results = await processPointCloudSmoothing('BE_RUST');
+    const endToEndTime = performance.now() - startTime;
+    
     if (results) {
-      onBeRustResults?.(results);
+      // Override processing time with end-to-end measurement
+      const endToEndResults = {
+        ...results,
+        processingTime: endToEndTime
+      };
+      onBeRustResults?.(endToEndResults);
     }
   };
 

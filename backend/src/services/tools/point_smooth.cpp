@@ -47,8 +47,11 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
     int gridHeight = static_cast<int>((maxY - minY) * invCellSize) + 1;
     int gridDepth = static_cast<int>((maxZ - minZ) * invCellSize) + 1;
     
-    // Create spatial hash grid
+    // Create spatial hash grid with pre-allocated capacity
     std::vector<std::vector<int>> grid(gridWidth * gridHeight * gridDepth);
+    for (auto& cell : grid) {
+        cell.reserve(8); // Pre-allocate capacity for better performance
+    }
     
     // Hash function to get grid index
     auto getGridIndex = [&](float x, float y, float z) -> int {

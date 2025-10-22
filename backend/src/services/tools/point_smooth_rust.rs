@@ -46,10 +46,11 @@ fn main() {
     let processing_time = start_time.elapsed().as_secs_f64() * 1000.0; // Convert to milliseconds
     
     // Prepare output
-    let smoothed_count = smoothed_points.len();
+    let original_count = input.point_cloud_data.len() / 3; // Convert from Float32Array length to point count
+    let smoothed_count = smoothed_points.len() / 3; // Convert from Float32Array length to point count
     let output = OutputData {
         smoothed_points,
-        original_count: input.point_cloud_data.len() / 3,
+        original_count,
         smoothed_count,
         processing_time,
     };

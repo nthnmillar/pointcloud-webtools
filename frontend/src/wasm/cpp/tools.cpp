@@ -188,7 +188,7 @@ emscripten::val pointCloudSmoothing(
 
 // Ultra-optimized point cloud smoothing using direct WASM memory access
 extern "C" {
-    // Ultra-optimized function using spatial hashing for O(n) complexity
+    // Ultra-optimized function using O(n) spatial hashing (same as Rust)
     void pointCloudSmoothingDirect(
         float* inputData,
         float* outputData,
@@ -205,43 +205,125 @@ extern "C" {
             outputData[i] = inputData[i];
         }
 
+        // OPTIMIZATION: Use O(n) spatial hashing algorithm (same as Rust)
+        float radiusSquared = smoothingRadius * smoothingRadius;
+        float cellSize = smoothingRadius;
+        float invCellSize = 1.0f / cellSize;
+        
+        // Find bounding box - single pass
+        float minX = inputData[0], maxX = inputData[0];
+        float minY = inputData[1], maxY = inputData[1];
+        float minZ = inputData[2], maxZ = inputData[2];
+        
+        for (int i = 0; i < pointCount; i++) {
+            int i3 = i * 3;
+            minX = (inputData[i3] < minX) ? inputData[i3] : minX;
+            maxX = (inputData[i3] > maxX) ? inputData[i3] : maxX;
+            minY = (inputData[i3 + 1] < minY) ? inputData[i3 + 1] : minY;
+            maxY = (inputData[i3 + 1] > maxY) ? inputData[i3 + 1] : maxY;
+            minZ = (inputData[i3 + 2] < minZ) ? inputData[i3 + 2] : minZ;
+            maxZ = (inputData[i3 + 2] > maxZ) ? inputData[i3 + 2] : maxZ;
+        }
+        
+        // Calculate grid dimensions
+        int gridWidth = static_cast<int>((maxX - minX) * invCellSize) + 1;
+        int gridHeight = static_cast<int>((maxY - minY) * invCellSize) + 1;
+        int gridDepth = static_cast<int>((maxZ - minZ) * invCellSize) + 1;
+        int gridSize = gridWidth * gridHeight * gridDepth;
+        
+        // Pre-allocate grid with capacity estimation
+        std::vector<std::vector<int>> grid(gridSize);
+        for (auto& cell : grid) {
+            cell.reserve(8); // Pre-allocate capacity
+        }
+        
+        // Hash function to get grid index (same as Rust)
+        auto getGridIndex = [&](float x, float y, float z) -> int {
+            int gx = static_cast<int>((x - minX) * invCellSize);
+            int gy = static_cast<int>((y - minY) * invCellSize);
+            int gz = static_cast<int>((z - minZ) * invCellSize);
+            return gx + gy * gridWidth + gz * gridWidth * gridHeight;
+        };
+        
         // Create temporary buffer for smoothing
         float* tempBuffer = (float*)malloc(pointCount * 3 * sizeof(float));
-
+        
+        // Smoothing iterations using spatial hashing (same as Rust)
         for (int iter = 0; iter < iterations; iter++) {
-            // Copy current output to temp buffer
+            // Copy current state to temp buffer
             for (int i = 0; i < pointCount * 3; i++) {
                 tempBuffer[i] = outputData[i];
             }
-
-            // Apply smoothing
+            
+            // Clear grid efficiently
+            for (auto& cell : grid) {
+                cell.clear();
+            }
+            
+            // Populate grid with PREVIOUS iteration's point positions
             for (int i = 0; i < pointCount; i++) {
-                float x = tempBuffer[i * 3];
-                float y = tempBuffer[i * 3 + 1];
-                float z = tempBuffer[i * 3 + 2];
-
-                float sumX = 0, sumY = 0, sumZ = 0;
+                int i3 = i * 3;
+                float x = tempBuffer[i3];
+                float y = tempBuffer[i3 + 1];
+                float z = tempBuffer[i3 + 2];
+                int gridIndex = getGridIndex(x, y, z);
+                if (gridIndex >= 0 && gridIndex < gridSize) {
+                    grid[gridIndex].push_back(i);
+                }
+            }
+            
+            // Process each point using spatial hash
+            for (int i = 0; i < pointCount; i++) {
+                int i3 = i * 3;
+                float x = tempBuffer[i3];
+                float y = tempBuffer[i3 + 1];
+                float z = tempBuffer[i3 + 2];
+                
+                float sumX = 0.0f, sumY = 0.0f, sumZ = 0.0f;
                 int count = 0;
-
-                // Find nearby points within smoothing radius
-                for (int j = 0; j < pointCount; j++) {
-                    float dx = tempBuffer[j * 3] - x;
-                    float dy = tempBuffer[j * 3 + 1] - y;
-                    float dz = tempBuffer[j * 3 + 2] - z;
-                    float distance = sqrt(dx * dx + dy * dy + dz * dz);
-
-                    if (distance <= smoothingRadius) {
-                        sumX += tempBuffer[j * 3];
-                        sumY += tempBuffer[j * 3 + 1];
-                        sumZ += tempBuffer[j * 3 + 2];
-                        count++;
+                
+                // Check neighboring grid cells (3x3x3 = 27 cells) - same as Rust
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dy = -1; dy <= 1; dy++) {
+                        for (int dz = -1; dz <= 1; dz++) {
+                            int gridIndex = getGridIndex(
+                                x + dx * cellSize,
+                                y + dy * cellSize,
+                                z + dz * cellSize
+                            );
+                            
+                            if (gridIndex >= 0 && gridIndex < gridSize) {
+                                for (int j : grid[gridIndex]) {
+                                    if (i == j) continue;
+                                    
+                                    int j3 = j * 3;
+                                    float jx = tempBuffer[j3];
+                                    float jy = tempBuffer[j3 + 1];
+                                    float jz = tempBuffer[j3 + 2];
+                                    
+                                    float dx2 = jx - x;
+                                    float dy2 = jy - y;
+                                    float dz2 = jz - z;
+                                    
+                                    float distanceSquared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2;
+                                    
+                                    if (distanceSquared <= radiusSquared) {
+                                        sumX += jx;
+                                        sumY += jy;
+                                        sumZ += jz;
+                                        count++;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-
+                
+                // Apply smoothing if neighbors found
                 if (count > 0) {
-                    outputData[i * 3] = sumX / count;
-                    outputData[i * 3 + 1] = sumY / count;
-                    outputData[i * 3 + 2] = sumZ / count;
+                    outputData[i3] = (x + sumX) / (count + 1);
+                    outputData[i3 + 1] = (y + sumY) / (count + 1);
+                    outputData[i3 + 2] = (z + sumZ) / (count + 1);
                 }
             }
         }
