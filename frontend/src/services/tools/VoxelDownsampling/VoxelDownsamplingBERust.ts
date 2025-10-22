@@ -31,7 +31,7 @@ export class VoxelDownsamplingBERust extends BaseService {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
 
-  constructor(baseUrl: string = 'ws://localhost:3003') {
+  constructor() {
     super();
     this.connect();
   }
