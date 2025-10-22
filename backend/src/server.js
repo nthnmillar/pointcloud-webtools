@@ -133,6 +133,10 @@ wss.on('connection', (ws, req) => {
         } else if (message.type === 'point_smooth_rust') {
           // Store header and wait for binary data
           pendingHeader = message;
+        } else if (message.type === 'point_smooth_cpp') {
+          // Store header and wait for binary data
+          console.log('🔧 Backend: Setting pendingHeader for point_smooth_cpp:', message);
+          pendingHeader = message;
         } else if (message.type === 'voxel_debug_rust') {
           // Store header and wait for binary data
           pendingHeader = message;
@@ -346,6 +350,7 @@ wss.on('connection', (ws, req) => {
           } else if (type === 'point_smooth_rust') {
             // Handle Rust point cloud smoothing
             const rustExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth_rust');
+            console.log('🔧 Rust point smooth executable:', rustExecutable);
             const rustProcess = spawn(rustExecutable);
             
             // Prepare input for Rust program
@@ -354,15 +359,18 @@ wss.on('connection', (ws, req) => {
               smoothing_radius: smoothingRadius,
               iterations: iterations
             };
+            console.log('🔧 Rust point smooth input:', { pointCount: points.length / 3, smoothingRadius, iterations });
             
             let outputData = '';
             let errorData = '';
             
             rustProcess.stdout.on('data', (data) => {
+              console.log('🔧 Rust point smooth stdout:', data.toString());
               outputData += data.toString();
             });
             
             rustProcess.stderr.on('data', (data) => {
+              console.log('🔧 Rust point smooth stderr:', data.toString());
               errorData += data.toString();
             });
             
@@ -419,6 +427,83 @@ wss.on('connection', (ws, req) => {
             // Send input to Rust process
             rustProcess.stdin.write(JSON.stringify(input));
             rustProcess.stdin.end();
+            
+          } else if (type === 'point_smooth_cpp') {
+            // Handle C++ point cloud smoothing
+            const cppExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth');
+            const cppProcess = spawn(cppExecutable);
+            
+            // Prepare input for C++ program
+            const input = {
+              point_cloud_data: Array.from(points),
+              smoothing_radius: smoothingRadius,
+              iterations: iterations
+            };
+            
+            let outputData = '';
+            let errorData = '';
+            
+            cppProcess.stdout.on('data', (data) => {
+              outputData += data.toString();
+            });
+            
+            cppProcess.stderr.on('data', (data) => {
+              errorData += data.toString();
+            });
+            
+            cppProcess.on('error', (error) => {
+              console.error('C++ process error:', error);
+              ws.send(JSON.stringify({
+                type: 'point_smooth_cpp_result',
+                requestId,
+                success: false,
+                error: 'C++ process failed to start'
+              }));
+            });
+            
+            cppProcess.on('close', (code) => {
+              if (code !== 0) {
+                console.error(`C++ process exited with code ${code}`);
+                ws.send(JSON.stringify({
+                  type: 'point_smooth_cpp_result',
+                  requestId,
+                  success: false,
+                  error: `C++ process exited with code ${code}: ${errorData}`
+                }));
+                return;
+              }
+              
+              try {
+                const result = JSON.parse(outputData);
+                const processingTime = Date.now() - startTime;
+                
+                ws.send(JSON.stringify({
+                  type: 'point_smooth_cpp_result',
+                  requestId,
+                  success: true,
+                  data: {
+                    smoothedPoints: result.smoothed_points,
+                    originalCount: result.original_count,
+                    smoothedCount: result.smoothed_count,
+                    processingTime: result.processing_time,
+                    smoothingRadius: result.smoothing_radius,
+                    iterations: result.iterations
+                  }
+                }));
+              } catch (parseError) {
+                console.error('Failed to parse C++ output:', parseError);
+                ws.send(JSON.stringify({
+                  type: 'point_smooth_cpp_result',
+                  requestId,
+                  success: false,
+                  error: 'Failed to parse C++ output'
+                }));
+              }
+            });
+            
+            // Send input to C++ process
+            cppProcess.stdin.write(JSON.stringify(input));
+            cppProcess.stdin.end();
             
           } else if (type === 'voxel_debug_rust') {
             // Handle Rust voxel debug

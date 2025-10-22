@@ -53,7 +53,7 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
         cell.reserve(8); // Pre-allocate capacity for better performance
     }
     
-    // Hash function to get grid index
+    // Hash function to get grid index (same as C++ WASM - truncate toward zero)
     auto getGridIndex = [&](float x, float y, float z) -> int {
         int gx = static_cast<int>((x - minX) * invCellSize);
         int gy = static_cast<int>((y - minY) * invCellSize);
@@ -61,28 +61,31 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
         return gx + gy * gridWidth + gz * gridWidth * gridHeight;
     };
     
-    // Smoothing iterations using spatial hashing
+    // Smoothing iterations using spatial hashing (same as C++ WASM)
     for (int iter = 0; iter < iterations; iter++) {
-        // Copy current state to temp buffer
+        // Copy current state to temp buffer (same as C++ WASM)
         for (int i = 0; i < length; i++) {
             tempBuffer[i] = outputData[i];
         }
         
-        // Clear grid
+        // Clear grid efficiently
         for (auto& cell : grid) {
             cell.clear();
         }
         
-        // Populate grid with current point positions
+        // Populate grid with PREVIOUS iteration's point positions (same as C++ WASM)
         for (int i = 0; i < pointCount; i++) {
             int i3 = i * 3;
-            int gridIndex = getGridIndex(tempBuffer[i3], tempBuffer[i3 + 1], tempBuffer[i3 + 2]);
-            if (gridIndex >= 0 && gridIndex < grid.size()) {
+            float x = tempBuffer[i3];
+            float y = tempBuffer[i3 + 1];
+            float z = tempBuffer[i3 + 2];
+            int gridIndex = getGridIndex(x, y, z);
+            if (gridIndex >= 0 && gridIndex < static_cast<int>(grid.size())) {
                 grid[gridIndex].push_back(i);
             }
         }
         
-        // Process each point using spatial hash
+        // Process each point using spatial hash (same as C++ WASM)
         for (int i = 0; i < pointCount; i++) {
             int i3 = i * 3;
             float x = tempBuffer[i3];
@@ -92,26 +95,32 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
             float sumX = 0.0f, sumY = 0.0f, sumZ = 0.0f;
             int count = 0;
             
-            // Check neighboring grid cells (3x3x3 = 27 cells)
+            // Check neighboring grid cells (3x3x3 = 27 cells) - same as C++ WASM
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {
                     for (int dz = -1; dz <= 1; dz++) {
-                        int gridIndex = getGridIndex(x + dx * cellSize, y + dy * cellSize, z + dz * cellSize);
-                        if (gridIndex >= 0 && gridIndex < grid.size()) {
-                            for (int j : grid[gridIndex]) {
-                                if (i == j) continue;
+                        int gridIndex = getGridIndex(
+                            x + dx * cellSize,
+                            y + dy * cellSize,
+                            z + dz * cellSize
+                        );
+                        
+                        if (gridIndex >= 0 && gridIndex < static_cast<int>(grid.size())) {
+                            for (int neighborIndex : grid[gridIndex]) {
+                                int n3 = neighborIndex * 3;
+                                float nx = tempBuffer[n3];
+                                float ny = tempBuffer[n3 + 1];
+                                float nz = tempBuffer[n3 + 2];
                                 
-                                int j3 = j * 3;
-                                float dx2 = tempBuffer[j3] - x;
-                                float dy2 = tempBuffer[j3 + 1] - y;
-                                float dz2 = tempBuffer[j3 + 2] - z;
+                                float dx2 = x - nx;
+                                float dy2 = y - ny;
+                                float dz2 = z - nz;
+                                float distSquared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2;
                                 
-                                float distanceSquared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2;
-                                
-                                if (distanceSquared <= radiusSquared) {
-                                    sumX += tempBuffer[j3];
-                                    sumY += tempBuffer[j3 + 1];
-                                    sumZ += tempBuffer[j3 + 2];
+                                if (distSquared <= radiusSquared) {
+                                    sumX += nx;
+                                    sumY += ny;
+                                    sumZ += nz;
                                     count++;
                                 }
                             }
@@ -120,11 +129,11 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
                 }
             }
             
-            // Apply smoothing if neighbors found
+            // Update point position (same as C++ WASM)
             if (count > 0) {
-                outputData[i3] = (x + sumX) / (count + 1);
-                outputData[i3 + 1] = (y + sumY) / (count + 1);
-                outputData[i3 + 2] = (z + sumZ) / (count + 1);
+                outputData[i3] = sumX / count;
+                outputData[i3 + 1] = sumY / count;
+                outputData[i3 + 2] = sumZ / count;
             }
         }
     }
@@ -134,36 +143,67 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
 }
 
 int main() {
-    std::string line;
-    std::getline(std::cin, line);
+    std::string jsonInput;
+    std::getline(std::cin, jsonInput);
     
-    // Parse input: pointCount smoothingRadius iterations
-    std::istringstream iss(line);
-    int pointCount;
-    float smoothingRadius;
-    int iterations;
-    iss >> pointCount >> smoothingRadius >> iterations;
+    // Simple JSON parsing - find the values we need
+    size_t pointsStart = jsonInput.find("\"point_cloud_data\":[");
+    size_t radiusStart = jsonInput.find("\"smoothing_radius\":");
+    size_t iterationsStart = jsonInput.find("\"iterations\":");
     
-    // Allocate memory for input and output data (same as C++ WASM)
+    if (pointsStart == std::string::npos || radiusStart == std::string::npos || iterationsStart == std::string::npos) {
+        std::cout << "{\"error\":\"Invalid JSON format\"}" << std::endl;
+        return 1;
+    }
+    
+    // Parse smoothing radius
+    size_t radiusValueStart = jsonInput.find(":", radiusStart) + 1;
+    size_t radiusValueEnd = jsonInput.find(",", radiusValueStart);
+    if (radiusValueEnd == std::string::npos) radiusValueEnd = jsonInput.find("}", radiusValueStart);
+    float smoothingRadius = std::stof(jsonInput.substr(radiusValueStart, radiusValueEnd - radiusValueStart));
+    
+    // Parse iterations
+    size_t iterationsValueStart = jsonInput.find(":", iterationsStart) + 1;
+    size_t iterationsValueEnd = jsonInput.find(",", iterationsValueStart);
+    if (iterationsValueEnd == std::string::npos) iterationsValueEnd = jsonInput.find("}", iterationsValueStart);
+    int iterations = std::stoi(jsonInput.substr(iterationsValueStart, iterationsValueEnd - iterationsValueStart));
+    
+    // Count points in the array
+    size_t arrayStart = jsonInput.find("[", pointsStart) + 1;
+    size_t arrayEnd = jsonInput.find("]", arrayStart);
+    std::string arrayContent = jsonInput.substr(arrayStart, arrayEnd - arrayStart);
+    
+    // Count commas to determine point count
+    int pointCount = 0;
+    size_t pos = 0;
+    while ((pos = arrayContent.find(",", pos)) != std::string::npos) {
+        pointCount++;
+        pos++;
+    }
+    pointCount = (pointCount + 1) / 3; // Convert to point count
+    
+    // Allocate memory for input and output data
     int length = pointCount * 3;
     float* inputData = (float*)malloc(length * sizeof(float));
     float* outputData = (float*)malloc(length * sizeof(float));
     
-    // Read point cloud data directly into input buffer
-    for (int i = 0; i < pointCount; i++) {
-        int i3 = i * 3;
-        std::cin >> inputData[i3] >> inputData[i3 + 1] >> inputData[i3 + 2];
+    // Parse point data
+    std::istringstream iss(arrayContent);
+    for (int i = 0; i < length; i++) {
+        iss >> inputData[i];
+        if (iss.peek() == ',') iss.ignore();
     }
     
-    // Call ultra-optimized smoothing function (same as C++ WASM)
+    // Call ultra-optimized smoothing function
     pointCloudSmoothingDirect(inputData, outputData, pointCount, smoothingRadius, iterations);
     
-    // Output results
-    std::cout << pointCount << std::endl; // point count
+    // Output JSON results
+    std::cout << "{\"smoothed_points\":[";
     for (int i = 0; i < length; i++) {
-        std::cout << outputData[i] << " ";
+        if (i > 0) std::cout << ",";
+        std::cout << outputData[i];
     }
-    std::cout << std::endl;
+    std::cout << "],\"original_count\":" << pointCount << ",\"smoothed_count\":" << pointCount << ",\"processing_time\":0}" << std::endl;
     
     // Free allocated memory
     free(inputData);

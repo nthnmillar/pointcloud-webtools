@@ -88,10 +88,14 @@ export class PointCloudSmoothingWASMRust extends BaseService {
 
       // Result is already Float32Array (Rust WASM now returns f32)
       const smoothedPoints = result;
+      const originalCount = pointCloudData.length / 3;
+      const smoothedCount = smoothedPoints.length / 3;
 
       return {
         success: true,
         smoothedPoints,
+        originalCount,
+        smoothedCount,
         processingTime
       };
     } catch (error) {

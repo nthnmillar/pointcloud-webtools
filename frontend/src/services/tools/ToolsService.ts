@@ -67,7 +67,7 @@ export class ToolsService extends BaseService {
     this.pointCloudSmoothingWASMCPP = new PointCloudSmoothingWASMCPP(serviceManager);
     this.pointCloudSmoothingWASMRust = new PointCloudSmoothingWASMRust(serviceManager);
     this.pointCloudSmoothingTS = new PointCloudSmoothingTS(serviceManager);
-    this.pointCloudSmoothingBECPP = new PointCloudSmoothingBECPP(serviceManager);
+    this.pointCloudSmoothingBECPP = new PointCloudSmoothingBECPP();
     this.pointCloudSmoothingBERust = new PointCloudSmoothingBERust();
     this.voxelDownsampleDebugService = new VoxelDownsampleDebugService(serviceManager);
   }
@@ -140,7 +140,11 @@ export class ToolsService extends BaseService {
   }
 
   async performPointCloudSmoothingBECPP(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
-    return this.pointCloudSmoothingBECPP.pointCloudSmoothing(params);
+    return this.pointCloudSmoothingBECPP.pointCloudSmooth({
+      pointCloudData: params.points,
+      smoothingRadius: params.smoothingRadius,
+      iterations: params.iterations
+    });
   }
 
   async performPointCloudSmoothingBERust(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
