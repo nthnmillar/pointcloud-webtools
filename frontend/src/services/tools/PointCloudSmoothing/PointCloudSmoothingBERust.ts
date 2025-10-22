@@ -34,7 +34,6 @@ export class PointCloudSmoothingBERust extends BaseService {
       Log.Info('PointCloudSmoothingBERust', 'Connecting to WebSocket', { baseUrl: 'ws://localhost:3003' });
       
       this.ws = new WebSocket('ws://localhost:3003');
-      console.log('🔧 PointCloudSmoothingBERust: WebSocket created', this.ws);
       
       this.ws.onopen = () => {
         Log.Info('PointCloudSmoothingBERust', 'WebSocket connected');
@@ -95,12 +94,6 @@ export class PointCloudSmoothingBERust extends BaseService {
   }
 
   async pointCloudSmooth(params: PointCloudSmoothingBERustParams): Promise<PointCloudSmoothingBERustResult> {
-    console.log('🔧 PointCloudSmoothingBERust: pointCloudSmooth called', {
-      pointCount: params.pointCloudData.length / 3,
-      smoothingRadius: params.smoothingRadius,
-      iterations: params.iterations,
-      wsState: this.ws?.readyState
-    });
     Log.Info('PointCloudSmoothingBERust', 'Starting point cloud smoothing via WebSocket', {
       pointCount: params.pointCloudData.length / 3,
       smoothingRadius: params.smoothingRadius,

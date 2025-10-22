@@ -52,7 +52,6 @@ export class VoxelDownsampleService extends BaseService {
     this.voxelDownsamplingWASMRust = new VoxelDownsamplingWASMRust(serviceManager);
     this.voxelDownsamplingTS = new VoxelDownsamplingTS(serviceManager);
     this.voxelDownsamplingBECPP = new VoxelDownsamplingBECPP(serviceManager);
-    console.log('🔧 VoxelDownsampleService: Creating VoxelDownsamplingBERust service');
     this.voxelDownsamplingBERust = new VoxelDownsamplingBERust();
     
     // Initialize debug visualization after a short delay to ensure scene is ready

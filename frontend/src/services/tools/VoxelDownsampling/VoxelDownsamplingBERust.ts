@@ -33,8 +33,15 @@ export class VoxelDownsamplingBERust extends BaseService {
 
   constructor(baseUrl: string = 'ws://localhost:3003') {
     super();
-    console.log('🔧 VoxelDownsamplingBERust: Constructor called with baseUrl:', baseUrl);
     this.connect();
+  }
+
+  async initialize(): Promise<void> {
+    // WebSocket connection is handled in constructor
+  }
+
+  dispose(): void {
+    this.destroy();
   }
 
   private connect(): void {
@@ -42,12 +49,8 @@ export class VoxelDownsamplingBERust extends BaseService {
         Log.Info('VoxelDownsamplingBERust', 'Connecting to WebSocket', { baseUrl: 'ws://localhost:3003' });
       
       this.ws = new WebSocket('ws://localhost:3003');
-      console.log('🔧 VoxelDownsamplingBERust: WebSocket created', this.ws);
-      console.log('🔧 VoxelDownsamplingBERust: WebSocket readyState after creation:', this.ws.readyState);
       
       this.ws.onopen = () => {
-        console.log('🔧 VoxelDownsamplingBERust: WebSocket connected!', this.ws);
-        console.log('🔧 VoxelDownsamplingBERust: WebSocket readyState:', this.ws.readyState);
         Log.Info('VoxelDownsamplingBERust', 'WebSocket connected');
         this.reconnectAttempts = 0;
         
@@ -57,9 +60,7 @@ export class VoxelDownsamplingBERust extends BaseService {
       
       this.ws.onmessage = (event) => {
         try {
-          console.log('🔧 VoxelDownsamplingBERust: Received message', event.data);
           const message = JSON.parse(event.data);
-          console.log('🔧 VoxelDownsamplingBERust: Parsed message', message);
           
           if (message.type === 'voxel_downsample_rust_result') {
             const { requestId, success, error, data } = message;
@@ -90,7 +91,6 @@ export class VoxelDownsamplingBERust extends BaseService {
       };
       
       this.ws.onclose = (event) => {
-        console.log('🔧 VoxelDownsamplingBERust: WebSocket closed', event);
         Log.Info('VoxelDownsamplingBERust', 'WebSocket disconnected');
         this.ws = null;
         
@@ -103,8 +103,6 @@ export class VoxelDownsamplingBERust extends BaseService {
       };
       
       this.ws.onerror = (error) => {
-        console.log('🔧 VoxelDownsamplingBERust: WebSocket error', error);
-        console.log('🔧 VoxelDownsamplingBERust: WebSocket readyState on error:', this.ws.readyState);
         Log.Error('VoxelDownsamplingBERust', 'WebSocket error', error);
       };
       
@@ -114,12 +112,6 @@ export class VoxelDownsamplingBERust extends BaseService {
   }
 
   async voxelDownsample(params: VoxelDownsamplingBERustParams): Promise<VoxelDownsamplingBERustResult> {
-    console.log('🔧 VoxelDownsamplingBERust: voxelDownsample called', {
-      pointCount: params.pointCloudData.length / 3,
-      voxelSize: params.voxelSize,
-      wsState: this.ws?.readyState,
-      wsExists: !!this.ws
-    });
     Log.Info('VoxelDownsamplingBERust', 'Starting voxel downsampling via WebSocket', {
       pointCount: params.pointCloudData.length / 3,
       voxelSize: params.voxelSize
@@ -127,10 +119,6 @@ export class VoxelDownsamplingBERust extends BaseService {
     
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        console.log('🔧 VoxelDownsamplingBERust: WebSocket not connected', {
-          wsExists: !!this.ws,
-          readyState: this.ws?.readyState
-        });
         Log.Error('VoxelDownsamplingBERust', 'WebSocket not connected', {
           wsExists: !!this.ws,
           readyState: this.ws?.readyState
@@ -154,14 +142,9 @@ export class VoxelDownsamplingBERust extends BaseService {
       };
 
       // Send header as JSON (small)
-      console.log('🔧 VoxelDownsamplingBERust: Sending header', header);
       this.ws.send(JSON.stringify(header));
       
       // Send binary data directly (fast)
-      console.log('🔧 VoxelDownsamplingBERust: Sending binary data', {
-        bufferSize: params.pointCloudData.buffer.byteLength,
-        arrayLength: params.pointCloudData.length
-      });
       this.ws.send(params.pointCloudData.buffer);
 
       // Set a timeout

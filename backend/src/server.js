@@ -422,8 +422,24 @@ wss.on('connection', (ws, req) => {
             
           } else if (type === 'voxel_debug_rust') {
             // Handle Rust voxel debug
+            console.log('🔧 WebSocket: Starting Rust voxel debug process');
             const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug_rust');
-            const rustProcess = spawn(rustExecutable);
+            console.log('🔧 WebSocket: Rust executable path:', rustExecutable);
+            
+            let rustProcess;
+            try {
+              rustProcess = spawn(rustExecutable);
+              console.log('🔧 WebSocket: Rust process spawned successfully');
+            } catch (spawnError) {
+              console.error('🔧 WebSocket: Failed to spawn Rust process:', spawnError);
+              ws.send(JSON.stringify({
+                type: 'voxel_debug_rust_result',
+                requestId,
+                success: false,
+                error: 'Failed to spawn Rust process: ' + spawnError.message
+              }));
+              return;
+            }
             
             // Prepare input for Rust program
             const input = {
@@ -439,19 +455,27 @@ wss.on('connection', (ws, req) => {
               }
             };
             
+            console.log('🔧 WebSocket: Rust voxel debug input:', {
+              pointCount: points.length / 3,
+              voxelSize: voxelSize,
+              globalBounds: globalBounds
+            });
+            
             let outputData = '';
             let errorData = '';
-            
+
             rustProcess.stdout.on('data', (data) => {
+              console.log('🔧 WebSocket: Rust voxel debug stdout data:', data.toString());
               outputData += data.toString();
             });
-            
+
             rustProcess.stderr.on('data', (data) => {
+              console.log('🔧 WebSocket: Rust voxel debug stderr data:', data.toString());
               errorData += data.toString();
             });
-            
+
             rustProcess.on('error', (error) => {
-              console.error('Rust process error:', error);
+              console.error('🔧 WebSocket: Rust voxel debug process error:', error);
               ws.send(JSON.stringify({
                 type: 'voxel_debug_rust_result',
                 requestId,
@@ -461,8 +485,12 @@ wss.on('connection', (ws, req) => {
             });
             
             rustProcess.on('close', (code) => {
+              console.log('🔧 WebSocket: Rust voxel debug process closed with code:', code);
+              console.log('🔧 WebSocket: Rust voxel debug outputData:', outputData);
+              console.log('🔧 WebSocket: Rust voxel debug errorData:', errorData);
+              
               if (code !== 0) {
-                console.error(`Rust process exited with code ${code}`);
+                console.error(`🔧 WebSocket: Rust voxel debug process exited with code ${code}`);
                 ws.send(JSON.stringify({
                   type: 'voxel_debug_rust_result',
                   requestId,
@@ -471,11 +499,14 @@ wss.on('connection', (ws, req) => {
                 }));
                 return;
               }
-              
+
               try {
+                console.log('🔧 WebSocket: Parsing Rust voxel debug output:', outputData);
                 const result = JSON.parse(outputData);
                 const processingTime = Date.now() - startTime;
-                
+
+                console.log('🔧 WebSocket: Rust voxel debug result:', result);
+
                 ws.send(JSON.stringify({
                   type: 'voxel_debug_rust_result',
                   requestId,
@@ -487,7 +518,8 @@ wss.on('connection', (ws, req) => {
                   }
                 }));
               } catch (parseError) {
-                console.error('Failed to parse Rust output:', parseError);
+                console.error('🔧 WebSocket: Failed to parse Rust voxel debug output:', parseError);
+                console.error('🔧 WebSocket: Raw output:', outputData);
                 ws.send(JSON.stringify({
                   type: 'voxel_debug_rust_result',
                   requestId,
@@ -498,7 +530,9 @@ wss.on('connection', (ws, req) => {
             });
             
             // Send input to Rust process
-            rustProcess.stdin.write(JSON.stringify(input));
+            const inputJson = JSON.stringify(input);
+            console.log('🔧 WebSocket: Sending input to Rust voxel debug process:', inputJson.substring(0, 200) + '...');
+            rustProcess.stdin.write(inputJson);
             rustProcess.stdin.end();
           }
           
@@ -1314,6 +1348,55 @@ server.listen(PORT, () => {
   console.log(`Voxel downsampling: http://localhost:${PORT}/api/voxel-downsample`);
   console.log(`Point smoothing: http://localhost:${PORT}/api/point-smooth`);
   console.log(`Voxel debug: http://localhost:${PORT}/api/voxel-debug`);
+});
+
+// Handle graceful shutdown on Ctrl+C
+process.on('SIGINT', () => {
+  console.log('\n🔧 Received SIGINT (Ctrl+C). Shutting down gracefully...');
+  
+  // Close the server
+  server.close(() => {
+    console.log('🔧 HTTP server closed');
+    
+    // Close WebSocket server
+    if (wss) {
+      wss.close(() => {
+        console.log('🔧 WebSocket server closed');
+        process.exit(0);
+      });
+    } else {
+      process.exit(0);
+    }
+  });
+  
+  // Force exit after 5 seconds if graceful shutdown fails
+  setTimeout(() => {
+    console.log('🔧 Force exit after timeout');
+    process.exit(1);
+  }, 5000);
+});
+
+// Handle graceful shutdown on SIGTERM
+process.on('SIGTERM', () => {
+  console.log('\n🔧 Received SIGTERM. Shutting down gracefully...');
+  
+  server.close(() => {
+    console.log('🔧 HTTP server closed');
+    
+    if (wss) {
+      wss.close(() => {
+        console.log('🔧 WebSocket server closed');
+        process.exit(0);
+      });
+    } else {
+      process.exit(0);
+    }
+  });
+  
+  setTimeout(() => {
+    console.log('🔧 Force exit after timeout');
+    process.exit(1);
+  }, 5000);
 });
 
 // Handle port conflicts gracefully

@@ -23,6 +23,7 @@ export interface VoxelDebugParams {
 export interface VoxelDebugResult {
   success: boolean;
   voxelCenters?: Float32Array;
+  voxelGridPositions?: Float32Array;
   voxelCount?: number;
   processingTime?: number;
   error?: string;
@@ -41,7 +42,6 @@ export class VoxelDownsampleDebugService extends BaseService {
     this.voxelDownsampleDebugWASMCPP = new VoxelDownsampleDebugWASMCPP(serviceManager);
     this.voxelDownsampleDebugWASMRust = new VoxelDownsampleDebugWASMRust(serviceManager);
     this.voxelDownsampleDebugBECPP = new VoxelDownsampleDebugBECPP(serviceManager);
-    console.log('🔧 VoxelDownsampleDebugService: Creating VoxelDownsampleDebugBERust service');
     this.voxelDownsampleDebugBERust = new VoxelDownsampleDebugBERust();
   }
 

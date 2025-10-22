@@ -75,10 +75,10 @@ fn generate_voxel_centers(
     let inv_voxel_size = 1.0 / voxel_size;
     let half_voxel_size = voxel_size * 0.5;
     
-    // Calculate offset to make voxel coordinates positive
-    let offset_x = -bounds.min_x + half_voxel_size;
-    let offset_y = -bounds.min_y + half_voxel_size;
-    let offset_z = -bounds.min_z + half_voxel_size;
+    // Calculate offsets to match TypeScript implementation
+    let offset_x = bounds.min_x + half_voxel_size;
+    let offset_y = bounds.min_y + half_voxel_size;
+    let offset_z = bounds.min_z + half_voxel_size;
     
     // Use HashSet to store unique voxel coordinates
     let mut voxel_coords: HashSet<(i32, i32, i32)> = HashSet::new();
@@ -92,10 +92,10 @@ fn generate_voxel_centers(
                 let y = chunk[i + 1];
                 let z = chunk[i + 2];
                 
-                // Calculate voxel coordinates
-                let voxel_x = ((x + offset_x) * inv_voxel_size) as i32;
-                let voxel_y = ((y + offset_y) * inv_voxel_size) as i32;
-                let voxel_z = ((z + offset_z) * inv_voxel_size) as i32;
+                // Calculate voxel coordinates to match TypeScript: Math.floor((x - minX) * invVoxelSize)
+                let voxel_x = ((x - bounds.min_x) * inv_voxel_size).floor() as i32;
+                let voxel_y = ((y - bounds.min_y) * inv_voxel_size).floor() as i32;
+                let voxel_z = ((z - bounds.min_z) * inv_voxel_size).floor() as i32;
                 
                 voxel_coords.insert((voxel_x, voxel_y, voxel_z));
             }
@@ -106,10 +106,10 @@ fn generate_voxel_centers(
     let mut voxel_grid_positions = Vec::with_capacity(voxel_coords.len() * 3);
     
     for (voxel_x, voxel_y, voxel_z) in voxel_coords {
-        // Convert voxel coordinates back to world coordinates (center of voxel)
-        let center_x = (voxel_x as f32 * voxel_size) - offset_x;
-        let center_y = (voxel_y as f32 * voxel_size) - offset_y;
-        let center_z = (voxel_z as f32 * voxel_size) - offset_z;
+        // Convert voxel coordinates back to world coordinates to match TypeScript: offsetX + voxelX * voxelSize
+        let center_x = offset_x + voxel_x as f32 * voxel_size;
+        let center_y = offset_y + voxel_y as f32 * voxel_size;
+        let center_z = offset_z + voxel_z as f32 * voxel_size;
         
         voxel_grid_positions.push(center_x);
         voxel_grid_positions.push(center_y);

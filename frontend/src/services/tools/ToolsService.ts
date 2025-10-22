@@ -68,7 +68,6 @@ export class ToolsService extends BaseService {
     this.pointCloudSmoothingWASMRust = new PointCloudSmoothingWASMRust(serviceManager);
     this.pointCloudSmoothingTS = new PointCloudSmoothingTS(serviceManager);
     this.pointCloudSmoothingBECPP = new PointCloudSmoothingBECPP(serviceManager);
-    console.log('🔧 ToolsService: Creating PointCloudSmoothingBERust service');
     this.pointCloudSmoothingBERust = new PointCloudSmoothingBERust();
     this.voxelDownsampleDebugService = new VoxelDownsampleDebugService(serviceManager);
   }
@@ -150,7 +149,6 @@ export class ToolsService extends BaseService {
 
   // Voxel debug methods
   async showVoxelDebug(voxelSize: number, implementation?: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' | 'BE_RUST', maxVoxels?: number): Promise<{ voxelCount: number; processingTime: number } | null> {
-    console.log('🔍 Debug voxel generation started', { implementation, voxelSize });
     
     // Clear any existing debug visualization first
     this.hideVoxelDebug();
@@ -168,11 +166,6 @@ export class ToolsService extends BaseService {
     try {
       // Get current point clouds
       const pointClouds = this.voxelDownsampleService.voxelDownsampleDebug.getCurrentPointClouds();
-      console.log('📊 Point clouds found:', { 
-        count: pointClouds?.length || 0,
-        implementation: implementation || 'TS',
-        voxelSize 
-      });
       
       Log.Info('ToolsService', 'Debug voxel generation started', {
         implementation: implementation || 'TS',
@@ -232,13 +225,16 @@ export class ToolsService extends BaseService {
         error: result.error
       });
 
-      if (result.success && result.voxelCenters) {
+      if (result.success && (result.voxelCenters || result.voxelGridPositions)) {
         // Create debug visualization with generated centers
-        console.log('🎯 ToolsService: Creating debug visualization with voxel size:', voxelSize);
+        const voxelCenters = result.voxelCenters || result.voxelGridPositions;
+        if (!voxelCenters) {
+          throw new Error('No voxel centers available for visualization');
+        }
         Log.Info('ToolsService', 'Creating debug visualization', {
-          voxelCentersLength: result.voxelCenters.length,
+          voxelCentersLength: voxelCenters.length,
           voxelSize,
-          firstFewCenters: Array.from(result.voxelCenters.slice(0, 9)) // First 3 centers (9 values)
+          firstFewCenters: Array.from(voxelCenters.slice(0, 9)) // First 3 centers (9 values)
         });
         
         // Set colors to match button colors exactly
@@ -258,13 +254,16 @@ export class ToolsService extends BaseService {
         } else if (implementation === 'BE') {
           // Orange to match .tools-be-btn: rgba(255, 165, 0, 0.8)
           color = { r: 255/255, g: 165/255, b: 0/255 };
+        } else if (implementation === 'BE_RUST') {
+          // Light blue/cyan to match .tools-be-rust-btn: rgba(97, 218, 251, 0.8)
+          color = { r: 97/255, g: 218/255, b: 251/255 };
         }
         // TS is the default (darker blue color)
         
         // Set the color for future updates
         this.voxelDownsampleService.voxelDownsampleDebug?.setColor(color);
         
-        this.voxelDownsampleService.voxelDownsampleDebug?.showVoxelDebugWithCenters(result.voxelCenters, voxelSize, color, maxVoxels);
+        this.voxelDownsampleService.voxelDownsampleDebug?.showVoxelDebugWithCenters(voxelCenters, voxelSize, color, maxVoxels);
         Log.Info('ToolsService', `${implementation || 'TS'} debug voxel generation completed`, {
           voxelCount: result.voxelCount,
           processingTime: result.processingTime?.toFixed(2) + 'ms',

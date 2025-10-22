@@ -103,7 +103,6 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
   // Debug logging for WASM Rust results
   useEffect(() => {
     if (wasmRustResults) {
-      console.log('🔧 PointCloudViewer: WASM Rust results updated:', wasmRustResults);
     }
   }, [wasmRustResults]);
   const [currentTool, setCurrentTool] = useState<'voxel' | 'smoothing'>('voxel');

@@ -194,7 +194,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
 
   // Handle voxel size changes (for debug visualization only)
   const handleVoxelSizeChange = (newSize: number) => {
-    console.log('🎚️ Slider changed to:', newSize, 'showVoxelDebug:', showVoxelDebug);
     setDebugVoxelSize(newSize); // Only update debug voxel size
     if (serviceManager?.toolsService) {
       // Update voxel debug visualization if it's currently visible
@@ -1808,9 +1807,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   };
 
   const handleWasmCppMainPointCloudSmoothing = async () => {
-    console.log('🔧 Tools: handleWasmCppMainPointCloudSmoothing called');
     const results = await processPointCloudSmoothing('WASM_CPP_MAIN');
-    console.log('🔧 Tools: processPointCloudSmoothing WASM_CPP_MAIN result:', results);
     if (results) {
       onWasmCppMainResults?.(results);
     }
@@ -1818,7 +1815,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
 
 
   const handleWasmRustVoxelDownsampling = async () => {
-    console.log('🔧 Tools: handleWasmRustVoxelDownsampling called');
     
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
@@ -1913,7 +1909,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         processingTime: workerResult.data.processingTime
       };
 
-      console.log('🔧 Tools: processVoxelDownsampling result:', result);
 
       if (result.success && result.downsampledPoints) {
           // Convert downsampled points to PointCloudPoint array
@@ -1972,13 +1967,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
 
           // Emit results to parent component
           if (onWasmRustResults) {
-            console.log('🔧 Tools: Calling onWasmRustResults with:', {
-              originalCount: result.originalCount || 0,
-              downsampledCount: result.downsampledCount || 0,
-              processingTime: result.processingTime || 0,
-              reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
-              voxelCount: result.downsampledCount || 0
-            });
             onWasmRustResults({
               originalCount: result.originalCount || 0,
               downsampledCount: result.downsampledCount || 0,
@@ -1997,9 +1985,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   };
 
   const handleWasmRustPointCloudSmoothing = async () => {
-    console.log('🔧 Tools: handleWasmRustPointCloudSmoothing called');
     const results = await processPointCloudSmoothing('WASM_RUST');
-    console.log('🔧 Tools: processPointCloudSmoothing WASM_RUST result:', results);
     if (results) {
       onWasmRustResults?.(results);
     }
