@@ -2,6 +2,7 @@ import { BaseService } from '../BaseService';
 import type { ServiceManager } from '../ServiceManager';
 import { Log } from '../../utils/Log';
 import { VoxelDownsampleService } from './VoxelDownsampling/VoxelDownsampleService';
+import { VoxelDownsamplingBEPython } from './VoxelDownsampling/VoxelDownsamplingBEPython';
 import { PointCloudSmoothingWASMCPP } from './PointCloudSmoothing/PointCloudSmoothingWASMCPP';
 import { PointCloudSmoothingWASMRust } from './PointCloudSmoothing/PointCloudSmoothingWASMRust';
 import { PointCloudSmoothingTS } from './PointCloudSmoothing/PointCloudSmoothingTS';
@@ -52,6 +53,7 @@ export class ToolsService extends BaseService {
   
   // Individual tool services
   public voxelDownsampleService: VoxelDownsampleService;
+  private voxelDownsamplingBEPython: VoxelDownsamplingBEPython;
   private pointCloudSmoothingWASMCPP: PointCloudSmoothingWASMCPP;
   private pointCloudSmoothingWASMRust: PointCloudSmoothingWASMRust;
   private pointCloudSmoothingTS: PointCloudSmoothingTS;
@@ -64,6 +66,7 @@ export class ToolsService extends BaseService {
     
     // Initialize individual tool services
     this.voxelDownsampleService = new VoxelDownsampleService(serviceManager);
+    this.voxelDownsamplingBEPython = new VoxelDownsamplingBEPython();
     this.pointCloudSmoothingWASMCPP = new PointCloudSmoothingWASMCPP(serviceManager);
     this.pointCloudSmoothingWASMRust = new PointCloudSmoothingWASMRust(serviceManager);
     this.pointCloudSmoothingTS = new PointCloudSmoothingTS(serviceManager);
@@ -120,6 +123,23 @@ export class ToolsService extends BaseService {
 
   async voxelDownsampleBERust(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
     return this.voxelDownsampleService.voxelDownsamplingBERust.voxelDownsample(params);
+  }
+
+  async voxelDownsampleBEPython(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
+    const result = await this.voxelDownsamplingBEPython.performVoxelDownsampling({
+      pointCloudData: params.pointCloudData,
+      voxelSize: params.voxelSize,
+      globalBounds: params.globalBounds
+    });
+    
+    return {
+      success: result.success,
+      downsampledPoints: result.downsampledPoints,
+      originalCount: result.originalCount,
+      downsampledCount: result.downsampledCount,
+      processingTime: result.processingTime,
+      voxelCount: result.voxelCount
+    };
   }
 
   // Point cloud smoothing methods

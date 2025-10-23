@@ -66,6 +66,16 @@ interface ToolsProps {
     smoothingRadius?: number;
     iterations?: number;
   }) => void;
+  onBePythonResults?: (results: {
+    originalCount: number;
+    downsampledCount?: number;
+    smoothedCount?: number;
+    processingTime: number;
+    reductionRatio?: number;
+    voxelCount?: number;
+    smoothingRadius?: number;
+    iterations?: number;
+  }) => void;
   onRustWasmMainResults?: (results: {
     originalCount: number;
     downsampledCount?: number;
@@ -79,7 +89,7 @@ interface ToolsProps {
   onCurrentToolChange?: (tool: 'voxel' | 'smoothing') => void;
 }
 
-export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onTsResults, onBeResults, onWasmRustResults, onBeRustResults, onWasmCppMainResults, onRustWasmMainResults, onCurrentToolChange }) => {
+export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onTsResults, onBeResults, onWasmRustResults, onBeRustResults, onBePythonResults, onWasmCppMainResults, onRustWasmMainResults, onCurrentToolChange }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [voxelSize] = useState(2.0); // Fixed voxel size for downsampling
   const [debugVoxelSize, setDebugVoxelSize] = useState(2.0); // Separate voxel size for debug visualization
@@ -1252,6 +1262,191 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
+  const handleBePythonVoxelDownsampling = async () => {
+    if (!serviceManager?.toolsService) {
+      Log.Error('Tools', 'Tools service not available');
+      return;
+    }
+
+    setIsProcessing(true);
+    isProcessingRef.current = true;
+
+    try {
+      // Start end-to-end timing
+      const startTime = Date.now();
+      
+      // Get all point cloud IDs FIRST (before clearing)
+      const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
+      Log.Debug('Tools', 'Found point cloud IDs for BE Python processing', allPointCloudIds);
+      
+      if (allPointCloudIds.length === 0) {
+        Log.Error('Tools', 'No point clouds found in scene');
+        return;
+      }
+
+      // Collect all points from all point clouds
+      const allPositions: number[] = [];
+      let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
+      let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
+
+      for (const pointCloudId of allPointCloudIds) {
+        const pointCloud = serviceManager.pointService?.getPointCloud(pointCloudId);
+        if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
+          for (const point of pointCloud.points) {
+            allPositions.push(point.position.x, point.position.y, point.position.z);
+            
+            // Calculate global bounding box
+            globalMinX = Math.min(globalMinX, point.position.x);
+            globalMinY = Math.min(globalMinY, point.position.y);
+            globalMinZ = Math.min(globalMinZ, point.position.z);
+            globalMaxX = Math.max(globalMaxX, point.position.x);
+            globalMaxY = Math.max(globalMaxY, point.position.y);
+            globalMaxZ = Math.max(globalMaxZ, point.position.z);
+          }
+        }
+      }
+
+      if (allPositions.length === 0) {
+        Log.Error('Tools', 'No points found in any point cloud');
+        return;
+      }
+
+      const pointCloudData = new Float32Array(allPositions);
+      Log.Info('Tools', 'Collected points for BE Python processing', {
+        pointCount: pointCloudData.length / 3,
+        globalBounds: {
+          minX: globalMinX,
+          minY: globalMinY,
+          minZ: globalMinZ,
+          maxX: globalMaxX,
+          maxY: globalMaxY,
+          maxZ: globalMaxZ
+        }
+      });
+
+      // Clear all existing point clouds
+      serviceManager.pointService?.clearAllPointClouds();
+
+      // Set current tool for benchmark display
+      onCurrentToolChange?.('voxel');
+
+      Log.Info('Tools', 'Calling BE Python voxel downsampling', {
+        pointCount: pointCloudData.length / 3,
+        voxelSize,
+        globalBounds: {
+          minX: globalMinX,
+          minY: globalMinY,
+          minZ: globalMinZ,
+          maxX: globalMaxX,
+          maxY: globalMaxY,
+          maxZ: globalMaxZ
+        }
+      });
+
+      const result = await serviceManager.toolsService.voxelDownsampleBEPython({
+        pointCloudData,
+        voxelSize,
+        globalBounds: {
+          minX: globalMinX,
+          minY: globalMinY,
+          minZ: globalMinZ,
+          maxX: globalMaxX,
+          maxY: globalMaxY,
+          maxZ: globalMaxZ
+        }
+      });
+
+      if (result.success && result.downsampledPoints) {
+        const endToEndTime = Date.now() - startTime;
+        const pythonProcessingTime = result.processingTime || 0;
+        
+        Log.Info('Tools', 'BE Python voxel downsampling completed', {
+          originalCount: result.originalCount,
+          downsampledCount: result.downsampledCount,
+          downsampledPointsLength: result.downsampledPoints.length,
+          pythonProcessingTime: `${pythonProcessingTime}ms`,
+          endToEndTime: `${endToEndTime}ms`,
+          overhead: `${endToEndTime - pythonProcessingTime}ms`,
+          overheadPercentage: `${((endToEndTime - pythonProcessingTime) / endToEndTime * 100).toFixed(1)}%`
+        });
+        
+        Log.Info('Tools', 'BE Python downsampled points preview', {
+          first10: result.downsampledPoints.slice(0, 10),
+          last10: result.downsampledPoints.slice(-10)
+        });
+
+        // Convert downsampled points to PointCloudPoint array (like Rust BE)
+        const downsampledPoints = [];
+        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
+          downsampledPoints.push({
+            position: {
+              x: result.downsampledPoints[i],
+              y: result.downsampledPoints[i + 1],
+              z: result.downsampledPoints[i + 2]
+            }
+          });
+        }
+
+        const pythonBEPointCloud: any = {
+          points: downsampledPoints,
+          colors: new Array(downsampledPoints.length).fill([0.0, 0.8, 1.0, 1.0]).flat(), // Light blue/cyan color
+          metadata: {
+            originalCount: result.originalCount || 0,
+            downsampledCount: result.downsampledCount || 0,
+            voxelSize: voxelSize,
+            processingTime: pythonProcessingTime,
+            endToEndTime: endToEndTime,
+            method: 'BE Python'
+          }
+        };
+
+        // Create new point cloud with downsampled points
+        const downsampledPointCloud = await serviceManager.pointService?.loadPointCloud(
+          'BE Python Voxel Downsampled',
+          pythonBEPointCloud,
+          false // Don't reposition camera
+        );
+
+        if (downsampledPointCloud) {
+          Log.Info('Tools', 'Created downsampled point cloud', {
+            id: downsampledPointCloud.id,
+            pointCount: downsampledPointCloud.points.length
+          });
+        }
+
+        // Calculate voxel count for display
+        const voxelCount = result.downsampledCount / 3;
+        
+        // Emit results to parent component (use end-to-end time for benchmark)
+        if (onBePythonResults) {
+          const benchmarkResults = {
+            originalCount: result.originalCount || 0,
+            downsampledCount: result.downsampledCount || 0,
+            processingTime: endToEndTime, // Use end-to-end time instead of just Python time
+            reductionRatio: result.reductionRatio || 0,
+            voxelCount: voxelCount
+          };
+          onBePythonResults(benchmarkResults);
+        }
+      } else {
+        Log.Error('Tools', 'Backend Python voxel downsampling failed', {
+          result: result,
+          error: result.error,
+          success: result.success
+        });
+      }
+    } catch (error) {
+      Log.Error('Tools', 'Backend Python voxel downsampling error', {
+        error: error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+    } finally {
+      setIsProcessing(false);
+      isProcessingRef.current = false;
+    }
+  };
+
   const handleTsVoxelDownsampling = async () => {
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
@@ -2125,6 +2320,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                 <div className="tools-col-7">Rust Worker</div>
                 <div className="tools-col-8">BE C++</div>
                 <div className="tools-col-9">BE Rust</div>
+                <div className="tools-col-10">BE Python</div>
               </div>
 
               {tools.map((tool, index) => (
@@ -2381,6 +2577,23 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                         {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
                           ? 'Processing...'
                           : 'BE Rust'}
+                      </button>
+                    </div>
+                    <div className="tools-col-10">
+                      <button
+                        className="tools-be-python-btn"
+                        onClick={
+                          tool.name === 'Voxel Downsampling'
+                            ? handleBePythonVoxelDownsampling
+                            : tool.name === 'Point Cloud Smoothing'
+                            ? undefined // TODO: Add Python BE point smoothing later
+                            : undefined
+                        }
+                        disabled={isProcessing}
+                      >
+                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                          ? 'Processing...'
+                          : 'BE Python'}
                       </button>
                     </div>
                   </div>

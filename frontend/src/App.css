@@ -428,7 +428,7 @@
 
 .benchmark-content {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(8, 1fr);
   gap: 0.8rem;
 }
 
@@ -508,7 +508,7 @@
   
   .tools-table-header,
   .tools-table-row {
-    grid-template-columns: 1.5fr 1fr 0.4fr 0.4fr 0.4fr 0.4fr 0.4fr 0.4fr 0.4fr;
+    grid-template-columns: 1.5fr 1fr 0.4fr 0.4fr 0.4fr 0.4fr 0.4fr 0.4fr 0.4fr 0.4fr;
     gap: 0.2rem;
     font-size: 0.65rem;
   }
@@ -609,7 +609,7 @@
 
 .tools-table-header {
   display: grid;
-  grid-template-columns: 1.8fr 1fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr;
+  grid-template-columns: 1.8fr 1fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr;
   gap: 0.2rem;
   padding: 0.5rem 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
@@ -619,7 +619,7 @@
 
 .tools-table-row {
   display: grid;
-  grid-template-columns: 1.8fr 1fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr;
+  grid-template-columns: 1.8fr 1fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr;
   gap: 0.2rem;
   padding: 0.5rem 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -645,7 +645,8 @@
 .tools-wasm-btn,
 .tools-ts-btn,
 .tools-be-btn,
-.tools-be-rust-btn {
+.tools-be-rust-btn,
+.tools-be-python-btn {
   background: rgba(97, 218, 251, 0.8);
   color: #000;
   border: 1px solid rgba(97, 218, 251, 0.5);
@@ -711,7 +712,8 @@
 .tools-wasm-btn:hover,
 .tools-ts-btn:hover,
 .tools-be-btn:hover,
-.tools-be-rust-btn:hover {
+.tools-be-rust-btn:hover,
+.tools-be-python-btn:hover {
   background: rgba(97, 218, 251, 1);
   transform: translateY(-1px);
 }
@@ -730,6 +732,7 @@
 .tools-ts-btn:disabled,
 .tools-be-btn:disabled,
 .tools-be-rust-btn:disabled,
+.tools-be-python-btn:disabled,
 .tools-wasm-main-btn:disabled,
 .tools-wasm-rust-btn:disabled {
   opacity: 0.6;
@@ -740,7 +743,8 @@
 .tools-wasm-btn:disabled:hover,
 .tools-ts-btn:disabled:hover,
 .tools-be-btn:disabled:hover,
-.tools-be-rust-btn:disabled:hover {
+.tools-be-rust-btn:disabled:hover,
+.tools-be-python-btn:disabled:hover {
   background: rgba(97, 218, 251, 0.8);
   transform: none;
 }
@@ -814,6 +818,15 @@
 
 .tools-be-rust-btn:hover {
   background: rgba(255, 20, 147, 1);
+}
+
+.tools-be-python-btn {
+  background: rgba(34, 139, 34, 0.8);
+  border-color: rgba(34, 139, 34, 0.5);
+}
+
+.tools-be-python-btn:hover {
+  background: rgba(34, 139, 34, 1);
 }
 
 .tools-wasm-rust-btn {

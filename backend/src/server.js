@@ -112,6 +112,11 @@ wss.on('connection', (ws, req) => {
         firstBytes: data instanceof Buffer ? data.slice(0, 10).toString() : data.toString().substring(0, 10)
       });
       
+      // Check if this is a Python message
+      if (data.toString().includes('voxel_downsample_python')) {
+        console.log('🔧 Backend: Python message detected:', data.toString());
+      }
+      
       // Check if this is binary data or JSON header
       // First, try to parse as JSON string (even if it's a Buffer)
       let message;
@@ -140,6 +145,11 @@ wss.on('connection', (ws, req) => {
         } else if (message.type === 'voxel_debug_rust') {
           // Store header and wait for binary data
           pendingHeader = message;
+        } else if (message.type === 'voxel_downsample_python') {
+          // Store header and wait for binary data
+          console.log('🔧 Backend: Setting pendingHeader for voxel_downsample_python:', message);
+          console.log('🔧 Backend: Message received for Python BE processing');
+          pendingHeader = message;
         }
         return; // Exit early for JSON messages
       } catch (parseError) {
@@ -153,6 +163,19 @@ wss.on('connection', (ws, req) => {
           
           // Convert binary data to Float32Array
           const points = new Float32Array(data.buffer, data.byteOffset, data.byteLength / 4);
+          console.log('🔧 WebSocket: Binary data conversion debug', {
+            dataByteLength: data.byteLength,
+            dataByteOffset: data.byteOffset,
+            pointsLength: points.length,
+            firstFewPoints: Array.from(points.slice(0, 10))
+          });
+          
+          // Try alternative conversion method
+          const pointsAlt = new Float32Array(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+          console.log('🔧 WebSocket: Alternative conversion', {
+            pointsAltLength: pointsAlt.length,
+            firstFewPointsAlt: Array.from(pointsAlt.slice(0, 10))
+          });
           
           console.log('🔧 WebSocket: Processing with binary data', {
             type,
@@ -619,6 +642,121 @@ wss.on('connection', (ws, req) => {
             console.log('🔧 WebSocket: Sending input to Rust voxel debug process:', inputJson.substring(0, 200) + '...');
             rustProcess.stdin.write(inputJson);
             rustProcess.stdin.end();
+          } else if (type === 'voxel_downsample_python') {
+            // Handle Python voxel downsampling
+            console.log('🔧 WebSocket: Starting Python voxel downsampling process');
+            console.log('🔧 WebSocket: Processing Python BE request with type:', type);
+            console.log('🔧 WebSocket: Python globalBounds:', globalBounds);
+            const pythonExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample_python.py');
+            console.log('🔧 WebSocket: Python executable path:', pythonExecutable);
+            
+            let pythonProcess;
+            try {
+              pythonProcess = spawn('python3', [pythonExecutable]);
+            } catch (spawnError) {
+              console.error('🔧 WebSocket: Failed to spawn Python process:', spawnError);
+              ws.send(JSON.stringify({
+                type: 'voxel_downsample_python_result',
+                requestId,
+                success: false,
+                error: 'Failed to spawn Python process: ' + spawnError.message
+              }));
+              return;
+            }
+            
+            let outputData = '';
+            let errorData = '';
+            
+            pythonProcess.stdout.on('data', (data) => {
+              outputData += data.toString();
+            });
+            
+            pythonProcess.stderr.on('data', (data) => {
+              errorData += data.toString();
+            });
+            
+            pythonProcess.on('error', (error) => {
+              console.error('🔧 WebSocket: Python process error:', error);
+              ws.send(JSON.stringify({
+                type: 'voxel_downsample_python_result',
+                requestId,
+                success: false,
+                error: 'Python process failed to start'
+              }));
+            });
+            
+            pythonProcess.on('close', (code) => {
+              if (code !== 0) {
+                console.error(`🔧 WebSocket: Python process exited with code ${code}`);
+                ws.send(JSON.stringify({
+                  type: 'voxel_downsample_python_result',
+                  requestId,
+                  success: false,
+                  error: `Python process exited with code ${code}: ${errorData}`
+                }));
+                return;
+              }
+              
+              try {
+                // Parse JSON result from stdout (like Rust BE)
+                const result = JSON.parse(outputData);
+                const processingTime = Date.now() - startTime;
+                
+                if (result.success) {
+                  console.log('🔧 Python: Result success, downsampled_points length:', result.downsampled_points.length);
+                  console.log('🔧 Python: Result data:', result);
+                  
+                  ws.send(JSON.stringify({
+                    type: 'voxel_downsample_python_result',
+                    requestId,
+                    success: true,
+                    data: {
+                      downsampledPoints: result.downsampled_points,
+                      originalCount: result.original_count,
+                      downsampledCount: result.downsampled_count,
+                      processingTime: result.processing_time,
+                      voxelSize: result.voxel_size,
+                      voxelCount: result.voxel_count
+                    }
+                  }));
+                } else {
+                  ws.send(JSON.stringify({
+                    type: 'voxel_downsample_python_result',
+                    requestId,
+                    success: false,
+                    error: result.error || 'Python processing failed'
+                  }));
+                }
+              } catch (parseError) {
+                console.error('🔧 WebSocket: Failed to parse Python output:', parseError);
+                console.error('🔧 WebSocket: Raw output (stdout):', outputData);
+                console.error('🔧 WebSocket: Raw error (stderr):', errorData);
+                ws.send(JSON.stringify({
+                  type: 'voxel_downsample_python_result',
+                  requestId,
+                  success: false,
+                  error: 'Failed to parse Python output'
+                }));
+              }
+            });
+            
+            // Send JSON input to Python process (like Rust BE)
+            const input = {
+              point_cloud_data: Array.from(points),
+              voxel_size: voxelSize,
+              global_bounds: {
+                min_x: globalBounds.minX,
+                min_y: globalBounds.minY,
+                min_z: globalBounds.minZ,
+                max_x: globalBounds.maxX,
+                max_y: globalBounds.maxY,
+                max_z: globalBounds.maxZ
+              }
+            };
+            
+            console.log('🔧 Python: Sending JSON input:', JSON.stringify(input).substring(0, 200) + '...');
+            pythonProcess.stdin.write(JSON.stringify(input));
+            pythonProcess.stdin.end();
           }
           
           pendingHeader = null; // Reset for next request
