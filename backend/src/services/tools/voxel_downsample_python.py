@@ -9,6 +9,7 @@ import sys
 import json
 import time
 import math
+from collections import defaultdict
 from typing import List, Tuple, Dict, Any
 
 def voxel_downsample(points: List[float], voxel_size: float, global_bounds: Dict[str, float]) -> Tuple[List[float], int]:
@@ -50,8 +51,8 @@ def voxel_downsample(points: List[float], voxel_size: float, global_bounds: Dict
     # Calculate inverse voxel size for efficiency
     inv_voxel_size = 1.0 / voxel_size
     
-    # Use spatial hashing with bit shifting (like Rust BE)
-    voxel_map: Dict[int, Tuple[float, float, float, int]] = {}
+    # Use defaultdict to avoid if checks (faster than Dict with if checks)
+    voxel_map = defaultdict(lambda: [0.0, 0.0, 0.0, 0])  # [sum_x, sum_y, sum_z, count]
     
     # Process points in chunks for better cache locality (like Rust BE)
     CHUNK_SIZE = 1000
@@ -73,19 +74,25 @@ def voxel_downsample(points: List[float], voxel_size: float, global_bounds: Dict
                 # Create voxel key using bit shifting (like Rust BE)
                 voxel_key = (voxel_x << 32) | (voxel_y << 16) | voxel_z
                 
-                # Update voxel data (accumulate sum and count)
-                if voxel_key in voxel_map:
-                    sum_x, sum_y, sum_z, count = voxel_map[voxel_key]
-                    voxel_map[voxel_key] = (sum_x + x, sum_y + y, sum_z + z, count + 1)
-                else:
-                    voxel_map[voxel_key] = (x, y, z, 1)
+                # Update voxel data (accumulate sum and count) - no if check needed with defaultdict
+                voxel_map[voxel_key][0] += x
+                voxel_map[voxel_key][1] += y
+                voxel_map[voxel_key][2] += z
+                voxel_map[voxel_key][3] += 1
     
-    # Average points in each voxel
-    downsampled_points = []
+    # Pre-allocate result list for better performance
+    voxel_count = len(voxel_map)
+    downsampled_points = [0.0] * (voxel_count * 3)
+    
+    # Average points in each voxel and build result in one pass
+    idx = 0
     for sum_x, sum_y, sum_z, count in voxel_map.values():
-        downsampled_points.extend([sum_x / count, sum_y / count, sum_z / count])
+        downsampled_points[idx] = sum_x / count
+        downsampled_points[idx + 1] = sum_y / count
+        downsampled_points[idx + 2] = sum_z / count
+        idx += 3
     
-    return downsampled_points, len(voxel_map)
+    return downsampled_points, voxel_count
 
 def main():
     """Main function to process voxel downsampling request."""
