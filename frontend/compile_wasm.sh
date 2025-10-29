@@ -18,8 +18,14 @@ fi
 
 # Compile unified tools WASM module
 echo "Compiling unified tools WASM module..."
+EMSCRIPTEN_ROOT=$(dirname $(which emcc))
+SYSTEM_INCLUDE="${EMSCRIPTEN_ROOT}/system/include"
+
 emcc src/wasm/cpp/tools.cpp \
+  -I"${SYSTEM_INCLUDE}" \
   -o public/wasm/cpp/tools_cpp.js \
+  -std=c++17 \
+  -Wno-c++20-extensions \
   -s MODULARIZE=1 \
   -s EXPORT_NAME="ToolsModule" \
   -s ALLOW_MEMORY_GROWTH=1 \
@@ -35,6 +41,8 @@ emcc src/wasm/cpp/tools.cpp \
 echo "Compiling COPC loader WASM module..."
 emcc src/wasm/cpp/copc_loader.cpp \
   -o public/wasm/copc_loader.js \
+  -std=c++17 \
+  -Wno-c++20-extensions \
   -s MODULARIZE=1 \
   -s EXPORT_NAME="COPCModule" \
   -s ALLOW_MEMORY_GROWTH=1 \

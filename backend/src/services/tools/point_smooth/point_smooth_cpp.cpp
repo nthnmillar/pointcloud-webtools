@@ -147,34 +147,44 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
 }
 
 int main() {
-    std::string line;
-    std::getline(std::cin, line);
+    std::string jsonInput;
+    std::getline(std::cin, jsonInput);
     
-    // Parse JSON input: {"point_cloud_data": [...], "smoothing_radius": 0.5, "iterations": 3}
-    // Simple JSON parsing for our specific format
-    size_t dataStart = line.find("\"point_cloud_data\":[") + 19;
-    size_t dataEnd = line.find("],\"smoothing_radius\"");
+    // Simple JSON parsing - find the values we need
+    size_t pointsStart = jsonInput.find("\"point_cloud_data\":[");
+    size_t radiusStart = jsonInput.find("\"smoothing_radius\":");
+    size_t iterationsStart = jsonInput.find("\"iterations\":");
     
-    size_t radiusStart = line.find("\"smoothing_radius\":") + 19;
-    size_t radiusEnd = line.find(",\"iterations\"");
+    if (pointsStart == std::string::npos || radiusStart == std::string::npos || iterationsStart == std::string::npos) {
+        std::cout << "{\"success\":false,\"error\":\"Invalid JSON format\"}" << std::endl;
+        return 1;
+    }
     
-    size_t iterStart = line.find("\"iterations\":") + 13;
-    size_t iterEnd = line.find("}");
+    // Parse smoothing radius
+    size_t radiusValueStart = jsonInput.find(":", radiusStart) + 1;
+    size_t radiusValueEnd = jsonInput.find(",", radiusValueStart);
+    if (radiusValueEnd == std::string::npos) radiusValueEnd = jsonInput.find("}", radiusValueStart);
+    float smoothingRadius = std::stof(jsonInput.substr(radiusValueStart, radiusValueEnd - radiusValueStart));
     
-    // Extract values
-    std::string dataStr = line.substr(dataStart, dataEnd - dataStart);
-    std::string radiusStr = line.substr(radiusStart, radiusEnd - radiusStart);
-    std::string iterStr = line.substr(iterStart, iterEnd - iterStart);
+    // Parse iterations
+    size_t iterationsValueStart = jsonInput.find(":", iterationsStart) + 1;
+    size_t iterationsValueEnd = jsonInput.find(",", iterationsValueStart);
+    if (iterationsValueEnd == std::string::npos) iterationsValueEnd = jsonInput.find("}", iterationsValueStart);
+    int iterations = std::stoi(jsonInput.substr(iterationsValueStart, iterationsValueEnd - iterationsValueStart));
     
-    float smoothingRadius = std::stof(radiusStr);
-    int iterations = std::stoi(iterStr);
+    // Parse point cloud data array
+    size_t arrayStart = jsonInput.find("[", pointsStart) + 1;
+    size_t arrayEnd = jsonInput.find("]", arrayStart);
+    std::string arrayContent = jsonInput.substr(arrayStart, arrayEnd - arrayStart);
     
-    // Parse point cloud data
+    // Parse point data
     std::vector<float> pointData;
-    std::istringstream iss(dataStr);
+    std::istringstream iss(arrayContent);
     std::string token;
     while (std::getline(iss, token, ',')) {
-        pointData.push_back(std::stof(token));
+        if (!token.empty()) {
+            pointData.push_back(std::stof(token));
+        }
     }
     
     int pointCount = pointData.size() / 3;
@@ -210,7 +220,9 @@ int main() {
     std::cout << "],";
     std::cout << "\"original_count\":" << pointCount << ",";
     std::cout << "\"smoothed_count\":" << pointCount << ",";
-    std::cout << "\"processing_time\":" << processing_time;
+    std::cout << "\"processing_time\":" << processing_time << ",";
+    std::cout << "\"smoothing_radius\":" << smoothingRadius << ",";
+    std::cout << "\"iterations\":" << iterations;
     std::cout << "}" << std::endl;
     
     // Free memory

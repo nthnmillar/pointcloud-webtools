@@ -83,9 +83,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Initialize process pools - increase size for better parallelization
-const voxelDownsamplePool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'voxel_downsample'), 8);
-const voxelDebugPool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'voxel_debug'), 4);
-const pointSmoothPool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'point_smooth'), 4);
+const voxelDownsamplePool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample'), 8);
+const voxelDebugPool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug'), 4);
+const pointSmoothPool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'point_smooth', 'point_smooth_cpp'), 4);
 
 const app = express();
 const server = createServer(app);
@@ -277,7 +277,7 @@ wss.on('connection', (ws, req) => {
           
           } else if (type === 'voxel_downsample_rust') {
             // Handle Rust voxel downsampling
-            const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample_rust');
+            const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample_rust');
             
             let rustProcess;
             try {
@@ -372,7 +372,7 @@ wss.on('connection', (ws, req) => {
             
           } else if (type === 'point_smooth_rust') {
             // Handle Rust point cloud smoothing
-            const rustExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth_rust');
+            const rustExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth', 'point_smooth_rust');
             console.log('🔧 Rust point smooth executable:', rustExecutable);
             const rustProcess = spawn(rustExecutable);
             
@@ -453,7 +453,7 @@ wss.on('connection', (ws, req) => {
             
           } else if (type === 'point_smooth_cpp') {
             // Handle C++ point cloud smoothing
-            const cppExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth');
+            const cppExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth', 'point_smooth_cpp');
             const cppProcess = spawn(cppExecutable);
             
             // Prepare input for C++ program
@@ -531,7 +531,7 @@ wss.on('connection', (ws, req) => {
           } else if (type === 'voxel_debug_rust') {
             // Handle Rust voxel debug
             console.log('🔧 WebSocket: Starting Rust voxel debug process');
-            const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug_rust');
+            const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug_rust');
             console.log('🔧 WebSocket: Rust executable path:', rustExecutable);
             
             let rustProcess;
@@ -647,7 +647,7 @@ wss.on('connection', (ws, req) => {
             console.log('🔧 WebSocket: Starting Python voxel downsampling process');
             console.log('🔧 WebSocket: Processing Python BE request with type:', type);
             console.log('🔧 WebSocket: Python globalBounds:', globalBounds);
-            const pythonExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample_python.py');
+            const pythonExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample_python.py');
             console.log('🔧 WebSocket: Python executable path:', pythonExecutable);
             
             let pythonProcess;
@@ -815,7 +815,7 @@ app.post('/api/voxel-downsample', async (req, res) => {
     console.log('🔧 Backend: Using real C++ backend processing for voxel downsampling');
     
     // Path to the C++ executable
-    const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample');
+    const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample');
     
     // Prepare input for C++ program
     const pointCount = points.length / 3;
@@ -951,7 +951,7 @@ app.post('/api/point-smooth', async (req, res) => {
     console.log('🔧 Backend: Using real C++ backend processing for point cloud smoothing');
     
     // Path to the C++ executable
-    const cppExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth');
+    const cppExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth', 'point_smooth_cpp');
     
     // Prepare input for C++ program
     const pointCount = points.length / 3;
@@ -1073,7 +1073,7 @@ app.post('/api/voxel-debug', async (req, res) => {
     console.log('🔧 Backend: Using real C++ backend processing for voxel debug');
     
     // Path to the C++ executable
-    const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug');
+    const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug');
     
     // Prepare input for C++ program
     const pointCount = pointCloudData.length / 3;
@@ -1215,7 +1215,7 @@ app.post('/api/voxel-downsample-rust', async (req, res) => {
     console.log('🔧 Backend: Using Rust backend processing for voxel downsampling');
     
     // Path to the Rust executable
-    const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample_rust');
+    const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample_rust');
     
     // Prepare input for Rust program
     const input = {
@@ -1340,7 +1340,7 @@ app.post('/api/point-smooth-rust', async (req, res) => {
     console.log('🔧 Backend: Using Rust backend processing for point cloud smoothing');
     
     // Path to the Rust executable
-    const rustExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth_rust');
+    const rustExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth', 'point_smooth_rust');
     
     // Prepare input for Rust program
     const input = {
@@ -1458,7 +1458,7 @@ app.post('/api/voxel-debug-rust', async (req, res) => {
     console.log('🔧 Backend: Using Rust backend processing for voxel debug');
     
     // Path to the Rust executable
-    const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug_rust');
+    const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug_rust');
     
     // Prepare input for Rust program
     const input = {
