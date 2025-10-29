@@ -145,6 +145,10 @@ wss.on('connection', (ws, req) => {
         } else if (message.type === 'voxel_debug_rust') {
           // Store header and wait for binary data
           pendingHeader = message;
+        } else if (message.type === 'voxel_debug_python') {
+          // Store header and wait for binary data
+          console.log('🔧 Backend: Setting pendingHeader for voxel_debug_python:', message);
+          pendingHeader = message;
         } else if (message.type === 'voxel_downsample_python') {
           // Store header and wait for binary data
           console.log('🔧 Backend: Setting pendingHeader for voxel_downsample_python:', message);
@@ -642,6 +646,118 @@ wss.on('connection', (ws, req) => {
             console.log('🔧 WebSocket: Sending input to Rust voxel debug process:', inputJson.substring(0, 200) + '...');
             rustProcess.stdin.write(inputJson);
             rustProcess.stdin.end();
+          } else if (type === 'voxel_debug_python') {
+            // Handle Python voxel debug
+            console.log('🔧 WebSocket: Starting Python voxel debug process');
+            console.log('🔧 WebSocket: Processing Python BE request with type:', type);
+            console.log('🔧 WebSocket: Python globalBounds:', globalBounds);
+            const pythonExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug_python.py');
+            console.log('🔧 WebSocket: Python executable path:', pythonExecutable);
+            
+            let pythonProcess;
+            try {
+              pythonProcess = spawn('python3', [pythonExecutable]);
+            } catch (spawnError) {
+              console.error('🔧 WebSocket: Failed to spawn Python process:', spawnError);
+              ws.send(JSON.stringify({
+                type: 'voxel_debug_python_result',
+                requestId,
+                success: false,
+                error: 'Failed to spawn Python process: ' + spawnError.message
+              }));
+              return;
+            }
+            
+            let outputData = '';
+            let errorData = '';
+            
+            pythonProcess.stdout.on('data', (data) => {
+              outputData += data.toString();
+            });
+            
+            pythonProcess.stderr.on('data', (data) => {
+              errorData += data.toString();
+            });
+            
+            pythonProcess.on('error', (error) => {
+              console.error('🔧 WebSocket: Python process error:', error);
+              ws.send(JSON.stringify({
+                type: 'voxel_debug_python_result',
+                requestId,
+                success: false,
+                error: 'Python process failed to start'
+              }));
+            });
+            
+            pythonProcess.on('close', (code) => {
+              if (code !== 0) {
+                console.error(`🔧 WebSocket: Python process exited with code ${code}`);
+                ws.send(JSON.stringify({
+                  type: 'voxel_debug_python_result',
+                  requestId,
+                  success: false,
+                  error: `Python process exited with code ${code}: ${errorData}`
+                }));
+                return;
+              }
+              
+              try {
+                // Parse JSON result from stdout (like Rust BE)
+                const result = JSON.parse(outputData);
+                const processingTime = Date.now() - startTime;
+                
+                if (result.success) {
+                  console.log('🔧 Python: Voxel debug result success, voxel_count:', result.voxel_count);
+                  console.log('🔧 Python: Result data:', result);
+                  
+                  ws.send(JSON.stringify({
+                    type: 'voxel_debug_python_result',
+                    requestId,
+                    success: true,
+                    data: {
+                      voxelGridPositions: result.voxel_grid_positions,
+                      voxelCount: result.voxel_count,
+                      processingTime: result.processing_time
+                    }
+                  }));
+                } else {
+                  ws.send(JSON.stringify({
+                    type: 'voxel_debug_python_result',
+                    requestId,
+                    success: false,
+                    error: result.error || 'Python processing failed'
+                  }));
+                }
+              } catch (parseError) {
+                console.error('🔧 WebSocket: Failed to parse Python output:', parseError);
+                console.error('🔧 WebSocket: Raw output (stdout):', outputData);
+                console.error('🔧 WebSocket: Raw error (stderr):', errorData);
+                ws.send(JSON.stringify({
+                  type: 'voxel_debug_python_result',
+                  requestId,
+                  success: false,
+                  error: 'Failed to parse Python output'
+                }));
+              }
+            });
+            
+            // Send JSON input to Python process (like Rust BE)
+            const input = {
+              point_cloud_data: Array.from(points),
+              voxel_size: voxelSize,
+              global_bounds: {
+                min_x: globalBounds.minX,
+                min_y: globalBounds.minY,
+                min_z: globalBounds.minZ,
+                max_x: globalBounds.maxX,
+                max_y: globalBounds.maxY,
+                max_z: globalBounds.maxZ
+              }
+            };
+            
+            console.log('🔧 Python: Sending JSON input:', JSON.stringify(input).substring(0, 200) + '...');
+            pythonProcess.stdin.write(JSON.stringify(input));
+            pythonProcess.stdin.end();
           } else if (type === 'voxel_downsample_python') {
             // Handle Python voxel downsampling
             console.log('🔧 WebSocket: Starting Python voxel downsampling process');

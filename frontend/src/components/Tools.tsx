@@ -691,6 +691,32 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
+  const handleBePythonVoxelDebug = async () => {
+    if (!serviceManager?.toolsService) return;
+    
+    const startTime = performance.now();
+    try {
+      const result = await serviceManager.toolsService.showVoxelDebug(debugVoxelSize, 'BE_PYTHON', 2000);
+      const processingTime = performance.now() - startTime;
+      
+      Log.Info('Tools', 'BE Python Debug Voxel generation completed', {
+        processingTime: processingTime.toFixed(2) + 'ms',
+        voxelCount: result?.voxelCount || 0
+      });
+
+      // Emit benchmark results for debug voxel generation
+      if (onBePythonResults) {
+        onBePythonResults({
+          originalCount: 0, // Debug voxels don't have original point count
+          processingTime: processingTime,
+          voxelCount: result?.voxelCount || 0
+        });
+      }
+    } catch (error) {
+      Log.Error('Tools', 'BE Python Debug Voxel generation failed', error);
+    }
+  };
+
   const handleWasmRustVoxelDebug = async () => {
     if (!serviceManager?.toolsService) return;
     
@@ -2716,6 +2742,15 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           disabled={!showVoxelDebug || isProcessing}
                         >
                           {isProcessing ? 'Processing...' : 'BE Rust'}
+                        </button>
+                      </div>
+                      <div className="tools-col-10">
+                        <button
+                          className="tools-be-python-btn"
+                          onClick={handleBePythonVoxelDebug}
+                          disabled={!showVoxelDebug || isProcessing}
+                        >
+                          {isProcessing ? 'Processing...' : 'BE Python'}
                         </button>
                       </div>
                     </div>

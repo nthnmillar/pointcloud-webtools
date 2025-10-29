@@ -6,6 +6,7 @@ import { VoxelDownsampleDebugWASMCPP } from './VoxelDownsampleDebugWASMCPP';
 import { VoxelDownsampleDebugWASMRust } from './VoxelDownsampleDebugWASMRust';
 import { VoxelDownsampleDebugBECPP } from './VoxelDownsampleDebugBECPP';
 import { VoxelDownsampleDebugBERust } from './VoxelDownsampleDebugBERust';
+import { VoxelDownsampleDebugBEPython } from './VoxelDownsampleDebugBEPython';
 
 export interface VoxelDebugParams {
   pointCloudData: Float32Array;
@@ -35,6 +36,7 @@ export class VoxelDownsampleDebugService extends BaseService {
   public voxelDownsampleDebugWASMRust: VoxelDownsampleDebugWASMRust;
   public voxelDownsampleDebugBECPP: VoxelDownsampleDebugBECPP;
   public voxelDownsampleDebugBERust: VoxelDownsampleDebugBERust;
+  public voxelDownsampleDebugBEPython: VoxelDownsampleDebugBEPython;
 
   constructor(serviceManager: ServiceManager) {
     super();
@@ -43,6 +45,7 @@ export class VoxelDownsampleDebugService extends BaseService {
     this.voxelDownsampleDebugWASMRust = new VoxelDownsampleDebugWASMRust(serviceManager);
     this.voxelDownsampleDebugBECPP = new VoxelDownsampleDebugBECPP(serviceManager);
     this.voxelDownsampleDebugBERust = new VoxelDownsampleDebugBERust();
+    this.voxelDownsampleDebugBEPython = new VoxelDownsampleDebugBEPython();
   }
 
   async initialize(): Promise<void> {
@@ -50,12 +53,14 @@ export class VoxelDownsampleDebugService extends BaseService {
       this.voxelDownsampleDebugTS.initialize(),
       this.voxelDownsampleDebugWASMCPP.initialize(),
       this.voxelDownsampleDebugWASMRust.initialize(),
-      this.voxelDownsampleDebugBECPP.initialize()
+      this.voxelDownsampleDebugBECPP.initialize(),
+      this.voxelDownsampleDebugBERust.initialize(),
+      this.voxelDownsampleDebugBEPython.initialize()
     ]);
     this.isInitialized = true;
   }
 
-  async generateVoxelCenters(params: VoxelDebugParams, implementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' | 'BE_RUST'): Promise<VoxelDebugResult> {
+  async generateVoxelCenters(params: VoxelDebugParams, implementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' | 'BE_RUST' | 'BE_PYTHON'): Promise<VoxelDebugResult> {
     try {
       Log.Info('VoxelDownsampleDebugService', `Routing to ${implementation} implementation`, {
         implementation,
@@ -87,6 +92,9 @@ export class VoxelDownsampleDebugService extends BaseService {
         case 'BE_RUST':
           result = await this.voxelDownsampleDebugBERust.generateVoxelCenters(params);
           break;
+        case 'BE_PYTHON':
+          result = await this.voxelDownsampleDebugBEPython.generateVoxelCenters(params);
+          break;
         default:
           throw new Error(`Unknown implementation: ${implementation}`);
       }
@@ -112,6 +120,8 @@ export class VoxelDownsampleDebugService extends BaseService {
     this.voxelDownsampleDebugWASMCPP.dispose();
     this.voxelDownsampleDebugWASMRust.dispose();
     this.voxelDownsampleDebugBECPP.dispose();
+    this.voxelDownsampleDebugBERust.dispose();
+    this.voxelDownsampleDebugBEPython.dispose();
     this.removeAllObservers();
   }
 }

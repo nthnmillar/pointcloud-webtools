@@ -172,7 +172,7 @@ export class ToolsService extends BaseService {
   }
 
   // Voxel debug methods
-  async showVoxelDebug(voxelSize: number, implementation?: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' | 'BE_RUST', maxVoxels?: number): Promise<{ voxelCount: number; processingTime: number } | null> {
+  async showVoxelDebug(voxelSize: number, implementation?: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' | 'BE_RUST' | 'BE_PYTHON', maxVoxels?: number): Promise<{ voxelCount: number; processingTime: number } | null> {
     
     // Clear any existing debug visualization first
     this.hideVoxelDebug();
@@ -281,6 +281,9 @@ export class ToolsService extends BaseService {
         } else if (implementation === 'BE_RUST') {
           // Light blue/cyan to match .tools-be-rust-btn: rgba(97, 218, 251, 0.8)
           color = { r: 97/255, g: 218/255, b: 251/255 };
+        } else if (implementation === 'BE_PYTHON') {
+          // Green to match .tools-be-python-btn: rgba(50, 205, 50, 0.8)
+          color = { r: 50/255, g: 205/255, b: 50/255 };
         }
         // TS is the default (darker blue color)
         

@@ -62,7 +62,7 @@ interface BenchmarkProps {
     smoothingRadius?: number;
     iterations?: number;
   } | null;
-  bePythonResults?: {
+  beRustResults?: {
     originalCount: number;
     downsampledCount?: number;
     smoothedCount?: number;
