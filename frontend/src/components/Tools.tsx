@@ -375,7 +375,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Process with Rust WASM Main thread - NO FALLBACKS
       const result = await serviceManager.toolsService.performVoxelDownsamplingRustWasmMain({
         pointCloudData,
-        voxelSize,
+        voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
         globalBounds: {
           minX: globalMinX,
           minY: globalMinY,
@@ -431,7 +431,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
             hasClassification: true,
             originalCount: result.originalCount,
             downsampledCount: result.downsampledCount,
-            voxelSize: voxelSize,
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             processingTime: result.processingTime || 0
           },
         };
@@ -831,7 +831,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       const workerResult = await workerManager.current.processVoxelDownsampling(
         'WASM_CPP',
         pointCloudData,
-        voxelSize,
+        showVoxelDebug ? debugVoxelSize : voxelSize,
         {
           minX: globalMinX,
           minY: globalMinY,
@@ -907,7 +907,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
               hasClassification: true,
               originalCount: result.originalCount,
               downsampledCount: result.downsampledCount,
-              voxelSize: voxelSize,
+              voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
               processingTime: result.processingTime || 0
             },
           };
@@ -1002,7 +1002,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Process with BE C++ service
       const result = await serviceManager.toolsService.voxelDownsampleBackend({
         pointCloudData,
-        voxelSize,
+        voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
         globalBounds: {
           minX: globalMinX,
           minY: globalMinY,
@@ -1052,7 +1052,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
             hasClassification: true,
             originalCount: result.originalCount,
             downsampledCount: result.downsampledCount,
-            voxelSize: voxelSize,
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             processingTime: result.processingTime || 0
           },
         };
@@ -1170,7 +1170,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Process with Backend Rust service (use same voxel size as debug squares)
       const result = await serviceManager.toolsService.voxelDownsampleBERust({
         pointCloudData,
-        voxelSize: debugVoxelSize,
+        voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
         globalBounds: {
           minX: globalMinX,
           minY: globalMinY,
@@ -1227,7 +1227,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
             hasClassification: true,
             originalCount: result.originalCount,
             downsampledCount: result.downsampledCount,
-            voxelSize: voxelSize,
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             processingTime: result.processingTime,
             reductionRatio: result.reductionRatio
           }
@@ -1371,7 +1371,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
 
       const result = await serviceManager.toolsService.voxelDownsampleBEPython({
         pointCloudData,
-        voxelSize,
+        voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
         globalBounds: {
           minX: globalMinX,
           minY: globalMinY,
@@ -1419,7 +1419,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           metadata: {
             originalCount: result.originalCount || 0,
             downsampledCount: result.downsampledCount || 0,
-            voxelSize: voxelSize,
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             processingTime: pythonProcessingTime,
             endToEndTime: endToEndTime,
             method: 'BE Python'
@@ -1533,7 +1533,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Process with TypeScript service
       const result = await serviceManager.toolsService.voxelDownsampleTS({
         pointCloudData,
-        voxelSize,
+        voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
         globalBounds: {
           minX: globalMinX,
           minY: globalMinY,
@@ -1583,7 +1583,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
             hasClassification: true,
             originalCount: result.originalCount,
             downsampledCount: result.downsampledCount,
-            voxelSize: voxelSize,
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             processingTime: result.processingTime,
             method: 'TypeScript'
           },
@@ -1977,7 +1977,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Use WASM C++ Main Thread (no worker)
       const result = await serviceManager.toolsService.performVoxelDownsamplingWASMCPP({
         pointCloudData,
-        voxelSize,
+        voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
         globalBounds: {
           minX: globalMinX,
           minY: globalMinY,
@@ -2027,7 +2027,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
             hasClassification: true,
             originalCount: result.originalCount,
             downsampledCount: result.downsampledCount,
-            voxelSize: voxelSize,
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             processingTime: result.processingTime || 0
           },
         };
@@ -2154,7 +2154,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       const workerResult = await workerManager.current.processVoxelDownsampling(
         'WASM_RUST',
         pointCloudData,
-        voxelSize,
+        showVoxelDebug ? debugVoxelSize : voxelSize,
         globalBounds
       );
 
@@ -2212,7 +2212,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
               hasClassification: true,
               originalCount: result.originalCount,
               downsampledCount: result.downsampledCount,
-              voxelSize: voxelSize,
+              voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
               processingTime: result.processingTime || 0
             },
           };
