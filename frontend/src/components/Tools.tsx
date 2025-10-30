@@ -1622,7 +1622,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   };
 
   // Point Cloud Smoothing - Core processing function
-  const processPointCloudSmoothing = async (method: 'TS' | 'WASM' | 'WASM_CPP_MAIN' | 'WASM_RUST' | 'BE' | 'BE_RUST'): Promise<{
+  const processPointCloudSmoothing = async (method: 'TS' | 'WASM' | 'WASM_CPP_MAIN' | 'WASM_RUST' | 'BE' | 'BE_RUST' | 'BE_PYTHON'): Promise<{
     originalCount: number;
     smoothedCount?: number;
     processingTime: number;
@@ -1682,8 +1682,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Use appropriate threading based on method
       let result;
       
-      if (method === 'TS' || method === 'BE' || method === 'BE_RUST' || method === 'WASM_CPP_MAIN') {
-        // TS, BE, BE_RUST, and WASM_CPP_MAIN run on main thread (TS is lightweight, BE/BE_RUST are separate processes, WASM_CPP_MAIN is main thread WASM)
+      if (method === 'TS' || method === 'BE' || method === 'BE_RUST' || method === 'BE_PYTHON' || method === 'WASM_CPP_MAIN') {
+        // TS, BE, BE_RUST, BE_PYTHON, and WASM_CPP_MAIN run on main thread (TS is lightweight, BE/BE_RUST/BE_PYTHON are separate processes, WASM_CPP_MAIN is main thread WASM)
         if (method === 'TS') {
           result = await serviceManager.toolsService.performPointCloudSmoothingTS({
             points: pointCloudData,
@@ -1698,6 +1698,12 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           });
         } else if (method === 'BE_RUST') {
           result = await serviceManager.toolsService.performPointCloudSmoothingBERust({
+            pointCloudData: pointCloudData,
+            smoothingRadius,
+            iterations: smoothingIterations
+          });
+        } else if (method === 'BE_PYTHON') {
+          result = await serviceManager.toolsService.performPointCloudSmoothingBEPython({
             pointCloudData: pointCloudData,
             smoothingRadius,
             iterations: smoothingIterations
@@ -2301,6 +2307,21 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
+  const handleBePythonPointCloudSmoothing = async () => {
+    const startTime = performance.now();
+    const results = await processPointCloudSmoothing('BE_PYTHON');
+    const endToEndTime = performance.now() - startTime;
+    
+    if (results) {
+      // Override processing time with end-to-end measurement
+      const endToEndResults = {
+        ...results,
+        processingTime: endToEndTime
+      };
+      onBePythonResults?.(endToEndResults);
+    }
+  };
+
   const tools = [
     {
       name: 'Voxel Downsampling',
@@ -2612,7 +2633,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           tool.name === 'Voxel Downsampling'
                             ? handleBePythonVoxelDownsampling
                             : tool.name === 'Point Cloud Smoothing'
-                            ? undefined // TODO: Add Python BE point smoothing later
+                            ? handleBePythonPointCloudSmoothing
                             : undefined
                         }
                         disabled={isProcessing}
