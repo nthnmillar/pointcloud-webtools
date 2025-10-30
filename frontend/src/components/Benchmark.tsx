@@ -250,70 +250,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
               </div>
             </div>
 
-            {/* WASM C++ Worker Column */}
-            <div className="benchmark-column">
-              <h4>C++ Worker</h4>
-              <div className="benchmark-metrics">
-                <div className="metric-item">
-                  <span className="metric-label">Time Taken:</span>
-                  <span className="metric-value">
-                    {wasmResults ? `${wasmResults.processingTime.toFixed(0)} ms` : '-- ms'}
-                  </span>
-                </div>
-                <div className="metric-item">
-                  <span className="metric-label">Original Points:</span>
-                  <span className="metric-value">
-                    {wasmResults ? wasmResults.originalCount.toLocaleString() : '--'}
-                  </span>
-                </div>
-                {isVoxelTool && (
-                  <>
-                    <div className="metric-item">
-                      <span className="metric-label">Downsampled:</span>
-                      <span className="metric-value">
-                        {wasmResults ? wasmResults.downsampledCount?.toLocaleString() || '--' : '--'}
-                      </span>
-                    </div>
-                    <div className="metric-item">
-                      <span className="metric-label">Reduction:</span>
-                      <span className="metric-value">
-                        {wasmResults && wasmResults.reductionRatio ? `${((wasmResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
-                      </span>
-                    </div>
-                    <div className="metric-item">
-                      <span className="metric-label">Voxels:</span>
-                      <span className="metric-value">
-                        {wasmResults ? wasmResults.voxelCount?.toLocaleString() || '--' : '--'}
-                      </span>
-                    </div>
-                  </>
-                )}
-                {isSmoothingTool && (
-                  <>
-                    <div className="metric-item">
-                      <span className="metric-label">Smoothed:</span>
-                      <span className="metric-value">
-                        {wasmResults ? wasmResults.smoothedCount?.toLocaleString() || '--' : '--'}
-                      </span>
-                    </div>
-                    <div className="metric-item">
-                      <span className="metric-label">Radius:</span>
-                      <span className="metric-value">
-                        {wasmResults ? `${wasmResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
-                      </span>
-                    </div>
-                    <div className="metric-item">
-                      <span className="metric-label">Iterations:</span>
-                      <span className="metric-value">
-                        {wasmResults ? wasmResults.iterations?.toString() || '--' : '--'}
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Rust WASM Main Column */}
+            {/* Rust WASM Main Column (moved to be next to C++ Main) */}
             <div className="benchmark-column">
               <h4>Rust Main</h4>
               <div className="benchmark-metrics">
@@ -369,6 +306,69 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                       <span className="metric-label">Iterations:</span>
                       <span className="metric-value">
                         {rustWasmMainResults ? rustWasmMainResults.iterations || '--' : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* WASM C++ Worker Column (moved after Rust Main) */}
+            <div className="benchmark-column">
+              <h4>C++ Worker</h4>
+              <div className="benchmark-metrics">
+                <div className="metric-item">
+                  <span className="metric-label">Time Taken:</span>
+                  <span className="metric-value">
+                    {wasmResults ? `${wasmResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                  </span>
+                </div>
+                <div className="metric-item">
+                  <span className="metric-label">Original Points:</span>
+                  <span className="metric-value">
+                    {wasmResults ? wasmResults.originalCount.toLocaleString() : '--'}
+                  </span>
+                </div>
+                {isVoxelTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Downsampled:</span>
+                      <span className="metric-value">
+                        {wasmResults ? wasmResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Reduction:</span>
+                      <span className="metric-value">
+                        {wasmResults && wasmResults.reductionRatio ? `${((wasmResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Voxels:</span>
+                      <span className="metric-value">
+                        {wasmResults ? wasmResults.voxelCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {isSmoothingTool && (
+                  <>
+                    <div className="metric-item">
+                      <span className="metric-label">Smoothed:</span>
+                      <span className="metric-value">
+                        {wasmResults ? wasmResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Radius:</span>
+                      <span className="metric-value">
+                        {wasmResults ? `${wasmResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
+                      </span>
+                    </div>
+                    <div className="metric-item">
+                      <span className="metric-label">Iterations:</span>
+                      <span className="metric-value">
+                        {wasmResults ? wasmResults.iterations?.toString() || '--' : '--'}
                       </span>
                     </div>
                   </>
@@ -441,7 +441,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
 
             {/* Backend Column */}
             <div className="benchmark-column">
-              <h4>BE C++</h4>
+              <h4>C++ BE</h4>
               <div className="benchmark-metrics">
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
@@ -504,7 +504,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
 
             {/* Backend Rust Column */}
             <div className="benchmark-column">
-              <h4>BE Rust</h4>
+              <h4>Rust BE</h4>
               <div className="benchmark-metrics">
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
@@ -567,7 +567,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
 
             {/* Backend Python Column */}
             <div className="benchmark-column">
-              <h4>BE Python</h4>
+              <h4>Python BE</h4>
               <div className="benchmark-metrics">
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>

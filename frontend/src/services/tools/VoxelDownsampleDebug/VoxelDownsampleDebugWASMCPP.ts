@@ -32,15 +32,25 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
 
   async initialize(): Promise<void> {
     try {
-      // Load actual C++ WASM module for real benchmarking
-      // The module is loaded via script tag in index.html
+      // Prefer global module if present (legacy load via script tag)
       if (typeof window !== 'undefined' && (window as any).ToolsModule) {
         this.module = await (window as any).ToolsModule();
         this.isInitialized = true;
-        Log.Info('VoxelDownsampleDebugWASMCPP', 'C++ WASM module loaded successfully for real benchmarking');
-      } else {
-        throw new Error('ToolsModule not found on window object');
+        Log.Info('VoxelDownsampleDebugWASMCPP', 'C++ WASM module loaded from window.ToolsModule');
+        return;
       }
+
+      // Fallback: dynamic import like other services (robust to load order)
+      Log.Info('VoxelDownsampleDebugWASMCPP', 'window.ToolsModule not found, attempting dynamic import');
+      // Note: this file is one directory deeper than WasmFirstService, so we need an extra '../'
+      const ToolsModuleNs: any = await import('../../../../public/wasm/cpp/tools_cpp.js');
+      const factory = ToolsModuleNs.default || ToolsModuleNs.ToolsModule;
+      if (!factory) {
+        throw new Error('WASM module factory not found in tools_cpp.js');
+      }
+      this.module = await factory();
+      this.isInitialized = true;
+      Log.Info('VoxelDownsampleDebugWASMCPP', 'C++ WASM module loaded via dynamic import');
     } catch (error) {
       Log.Error('VoxelDownsampleDebugWASMCPP', 'Failed to load C++ WASM module', error);
       this.isInitialized = false;
@@ -49,19 +59,25 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
   }
 
   async generateVoxelCenters(params: VoxelDebugParams): Promise<VoxelDebugResult> {
+    // Ensure module is initialized (handles cases where init didn't run yet)
+    if (!this.isInitialized || !this.module) {
+      try {
+        await this.initialize();
+      } catch (e) {
+        Log.Error('VoxelDownsampleDebugWASMCPP', 'Initialization failed on first use', e);
+        return { success: false, error: 'C++ WASM module required for benchmarking - no fallback allowed' };
+      }
+    }
+
     console.log('🔧 WASM Debug: Using C++ WASM module for voxel debug generation', {
       pointCount: params.pointCloudData.length / 3,
       voxelSize: params.voxelSize,
       bounds: params.globalBounds
     });
     
+    // Double-check after init attempt
     if (!this.isInitialized || !this.module) {
-      console.error('❌ C++ WASM module not available');
-      Log.Error('VoxelDownsampleDebugWASMCPP', 'C++ WASM module required for benchmarking');
-      return {
-        success: false,
-        error: 'C++ WASM module required for benchmarking - no fallback allowed'
-      };
+      return { success: false, error: 'C++ WASM module required for benchmarking - no fallback allowed' };
     }
 
     try {

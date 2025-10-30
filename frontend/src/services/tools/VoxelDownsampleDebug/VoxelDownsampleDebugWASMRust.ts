@@ -38,7 +38,11 @@ export class VoxelDownsampleDebugWASMRust extends BaseService {
 
   async generateVoxelCenters(params: VoxelDebugParams): Promise<VoxelDebugResult> {
     if (!this.isInitialized || !this.wasmModule) {
-      throw new Error('Rust WASM module not initialized');
+      try {
+        await this.initialize();
+      } catch (e) {
+        return { success: false, error: 'Rust WASM module not initialized' };
+      }
     }
 
     const startTime = performance.now();
