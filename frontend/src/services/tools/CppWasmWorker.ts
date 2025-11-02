@@ -2,7 +2,7 @@ import { Log } from '../../utils/Log';
 
 // Define types for C++ WASM worker
 export interface CppWasmWorkerMessage {
-  type: 'INITIALIZE' | 'VOXEL_DOWNSAMPLE' | 'POINT_CLOUD_SMOOTHING';
+  type: 'INITIALIZE' | 'VOXEL_DOWNSAMPLE' | 'POINT_CLOUD_SMOOTHING' | 'VOXEL_DEBUG';
   messageId: number;
   data?: {
     pointCloudData: Float32Array;
@@ -27,9 +27,11 @@ export interface CppWasmWorkerResponse {
   data?: {
     downsampledPoints?: Float32Array;
     smoothedPoints?: Float32Array;
+    voxelCenters?: Float32Array;
     originalCount: number;
     downsampledCount?: number;
     smoothedCount?: number;
+    voxelCount?: number;
     processingTime: number;
   };
   error?: string;
@@ -137,6 +139,25 @@ export class CppWasmWorker {
       type: 'POINT_CLOUD_SMOOTHING',
       messageId,
       data: { pointCloudData, smoothingRadius, iterations }
+    };
+
+    return this.sendMessageToWorker(message);
+  }
+
+  async processVoxelDebug(
+    pointCloudData: Float32Array,
+    voxelSize: number,
+    globalBounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number }
+  ): Promise<CppWasmWorkerResponse> {
+    if (!this.isInitialized || !this.worker) {
+      throw new Error('Worker not initialized');
+    }
+
+    const messageId = this.nextMessageId++;
+    const message: CppWasmWorkerMessage = {
+      type: 'VOXEL_DEBUG',
+      messageId,
+      data: { pointCloudData, voxelSize, globalBounds }
     };
 
     return this.sendMessageToWorker(message);

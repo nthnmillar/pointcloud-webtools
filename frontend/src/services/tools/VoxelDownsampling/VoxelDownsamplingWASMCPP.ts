@@ -90,26 +90,15 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
       Log.Info('VoxelDownsamplingWASM', 'Calling WASM function with params', {
         pointCloudDataLength: params.pointCloudData.length,
         voxelSize: params.voxelSize,
-        bounds: params.globalBounds,
-        firstFewPoints: Array.from(params.pointCloudData.slice(0, 9))
-      });
-      
-      // Convert Float32Array to regular array for WASM compatibility
-      const pointArray = Array.from(params.pointCloudData);
-      
-      Log.Info('VoxelDownsamplingWASM', 'Converted to array', {
-        pointArrayLength: pointArray.length,
-        firstFewArrayValues: pointArray.slice(0, 9),
-        voxelSize: params.voxelSize,
         bounds: params.globalBounds
       });
       
-      // Try optimized function first, fallback to original if not available
+      // Use Float32Array directly - no conversion needed (matches Worker implementation)
       let result;
       try {
         Log.Info('VoxelDownsamplingWASM', 'Using voxel downsampling');
         result = this.module.voxelDownsample(
-          params.pointCloudData, // Use Float32Array directly
+          params.pointCloudData, // Use Float32Array directly - same as Worker
           params.voxelSize,
           params.globalBounds.minX,
           params.globalBounds.minY,
@@ -120,8 +109,6 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
         throw error;
       }
 
-      const processingTime = performance.now() - startTime;
-      
       Log.Info('VoxelDownsamplingWASM', 'WASM function returned', {
         resultType: typeof result,
         resultLength: result ? (result.size ? result.size() : result.length) : 'undefined',
@@ -130,7 +117,7 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
         resultConstructor: result ? result.constructor.name : 'undefined'
       });
 
-      // Convert result to Float32Array
+      // Convert result to Float32Array (same conversion as Worker - included in timing)
       let downsampledPoints: Float32Array;
       let resultSize: number;
       
@@ -149,6 +136,9 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
           downsampledPoints[i * 3 + 2] = point.z;
         }
       }
+
+      // Time AFTER conversion (matches Worker implementation timing)
+      const processingTime = performance.now() - startTime;
       
       if (resultSize === 0) {
         Log.Warn('VoxelDownsamplingWASM', 'WASM function returned empty result', {

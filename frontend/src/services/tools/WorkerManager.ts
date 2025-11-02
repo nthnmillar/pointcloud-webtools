@@ -106,6 +106,34 @@ export class WorkerManager {
     }
   }
 
+  async processVoxelDebug(
+    method: 'WASM_CPP' | 'WASM_RUST',
+    pointCloudData: Float32Array,
+    voxelSize: number,
+    globalBounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number }
+  ) {
+    if (!this.isInitialized) {
+      throw new Error('Workers not initialized');
+    }
+
+    switch (method) {
+      case 'WASM_CPP':
+        if (!this.cppWorker) {
+          throw new Error('C++ WASM worker not available');
+        }
+        return await this.cppWorker.processVoxelDebug(pointCloudData, voxelSize, globalBounds);
+
+      case 'WASM_RUST':
+        if (!this.rustWorker) {
+          throw new Error('Rust WASM worker not available');
+        }
+        return await this.rustWorker.processVoxelDebug(pointCloudData, voxelSize, globalBounds);
+
+      default:
+        throw new Error(`Unsupported method: ${method}`);
+    }
+  }
+
   private cleanup(): void {
     if (this.cppWorker) {
       this.cppWorker.dispose();

@@ -2,7 +2,7 @@ import { Log } from '../../utils/Log';
 
 // Define types for Rust WASM worker
 export interface RustWasmWorkerMessage {
-  type: 'INITIALIZE' | 'VOXEL_DOWNSAMPLE' | 'POINT_CLOUD_SMOOTHING';
+  type: 'INITIALIZE' | 'VOXEL_DOWNSAMPLE' | 'POINT_CLOUD_SMOOTHING' | 'VOXEL_DEBUG';
   messageId: number;
   data?: {
     pointCloudData: Float32Array;
@@ -27,9 +27,11 @@ export interface RustWasmWorkerResponse {
   data?: {
     downsampledPoints?: Float32Array;
     smoothedPoints?: Float32Array;
+    voxelCenters?: Float32Array;
     originalCount: number;
     downsampledCount?: number;
     smoothedCount?: number;
+    voxelCount?: number;
     processingTime: number;
   };
   error?: string;
@@ -117,6 +119,25 @@ export class RustWasmWorker {
       type: 'POINT_CLOUD_SMOOTHING',
       messageId,
       data: { pointCloudData, smoothingRadius, iterations }
+    };
+
+    return this.sendMessageToWorker(message);
+  }
+
+  async processVoxelDebug(
+    pointCloudData: Float32Array,
+    voxelSize: number,
+    globalBounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number }
+  ): Promise<RustWasmWorkerResponse> {
+    if (!this.isInitialized || !this.worker) {
+      throw new Error('Worker not initialized');
+    }
+
+    const messageId = this.nextMessageId++;
+    const message: RustWasmWorkerMessage = {
+      type: 'VOXEL_DEBUG',
+      messageId,
+      data: { pointCloudData, voxelSize, globalBounds }
     };
 
     return this.sendMessageToWorker(message);

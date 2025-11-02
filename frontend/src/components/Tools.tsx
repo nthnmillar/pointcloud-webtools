@@ -639,6 +639,204 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
+  const handleCppWasmWorkerVoxelDebug = async () => {
+    if (!serviceManager?.toolsService || !workerManager.current) return;
+    
+    if (!workerManager.current.isReady) {
+      Log.Error('Tools', 'Workers not initialized - cannot process debug voxels');
+      return;
+    }
+
+    const startTime = performance.now();
+    try {
+      // Get all point cloud IDs
+      const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
+      
+      if (allPointCloudIds.length === 0) {
+        Log.Error('Tools', 'No point clouds found in scene');
+        return;
+      }
+
+      // Collect all points from all point clouds
+      const allPositions: number[] = [];
+      let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
+      let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
+
+      for (const pointCloudId of allPointCloudIds) {
+        const pointCloud = serviceManager.pointService?.getPointCloud(pointCloudId);
+        if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
+          for (const point of pointCloud.points) {
+            allPositions.push(point.position.x, point.position.y, point.position.z);
+            
+            globalMinX = Math.min(globalMinX, point.position.x);
+            globalMinY = Math.min(globalMinY, point.position.y);
+            globalMinZ = Math.min(globalMinZ, point.position.z);
+            globalMaxX = Math.max(globalMaxX, point.position.x);
+            globalMaxY = Math.max(globalMaxY, point.position.y);
+            globalMaxZ = Math.max(globalMaxZ, point.position.z);
+          }
+        }
+      }
+
+      if (allPositions.length === 0) {
+        Log.Error('Tools', 'No valid points found for debug voxel processing');
+        return;
+      }
+
+      const pointCloudData = new Float32Array(allPositions);
+      const globalBounds = {
+        minX: globalMinX,
+        minY: globalMinY,
+        minZ: globalMinZ,
+        maxX: globalMaxX,
+        maxY: globalMaxY,
+        maxZ: globalMaxZ
+      };
+
+      // Process with C++ Worker
+      const workerResult = await workerManager.current.processVoxelDebug(
+        'WASM_CPP',
+        pointCloudData,
+        debugVoxelSize,
+        globalBounds
+      );
+
+      if (workerResult.type !== 'SUCCESS' || !workerResult.data?.voxelCenters) {
+        Log.Error('Tools', 'C++ WASM Worker debug voxel generation failed', workerResult.error);
+        return;
+      }
+
+      const processingTime = performance.now() - startTime;
+      const voxelCenters = workerResult.data.voxelCenters;
+      const voxelCount = workerResult.data.voxelCount || voxelCenters.length / 3;
+
+      // Display the voxel centers using the service
+      if (serviceManager.toolsService?.voxelDownsampleService?.voxelDownsampleDebug) {
+        serviceManager.toolsService.voxelDownsampleService.voxelDownsampleDebug.showVoxelDebugWithCenters(
+          voxelCenters,
+          debugVoxelSize,
+          { r: 0, g: 0.4, b: 1 }, // Blue color for C++ Worker
+          2000
+        );
+      }
+
+      Log.Info('Tools', 'C++ WASM Worker Debug Voxel generation completed', {
+        processingTime: processingTime.toFixed(2) + 'ms',
+        voxelCount
+      });
+
+      // Emit benchmark results for debug voxel generation - use onWasmResults for C++ Worker column
+      if (onWasmResults) {
+        onWasmResults({
+          originalCount: 0, // Debug voxels don't have original point count
+          processingTime: processingTime,
+          voxelCount: voxelCount,
+        });
+      }
+    } catch (error) {
+      Log.Error('Tools', 'C++ WASM Worker Debug Voxel generation failed', error);
+    }
+  };
+
+  const handleRustWasmWorkerVoxelDebug = async () => {
+    if (!serviceManager?.toolsService || !workerManager.current) return;
+    
+    if (!workerManager.current.isReady) {
+      Log.Error('Tools', 'Workers not initialized - cannot process debug voxels');
+      return;
+    }
+
+    const startTime = performance.now();
+    try {
+      // Get all point cloud IDs
+      const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
+      
+      if (allPointCloudIds.length === 0) {
+        Log.Error('Tools', 'No point clouds found in scene');
+        return;
+      }
+
+      // Collect all points from all point clouds
+      const allPositions: number[] = [];
+      let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
+      let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
+
+      for (const pointCloudId of allPointCloudIds) {
+        const pointCloud = serviceManager.pointService?.getPointCloud(pointCloudId);
+        if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
+          for (const point of pointCloud.points) {
+            allPositions.push(point.position.x, point.position.y, point.position.z);
+            
+            globalMinX = Math.min(globalMinX, point.position.x);
+            globalMinY = Math.min(globalMinY, point.position.y);
+            globalMinZ = Math.min(globalMinZ, point.position.z);
+            globalMaxX = Math.max(globalMaxX, point.position.x);
+            globalMaxY = Math.max(globalMaxY, point.position.y);
+            globalMaxZ = Math.max(globalMaxZ, point.position.z);
+          }
+        }
+      }
+
+      if (allPositions.length === 0) {
+        Log.Error('Tools', 'No valid points found for debug voxel processing');
+        return;
+      }
+
+      const pointCloudData = new Float32Array(allPositions);
+      const globalBounds = {
+        minX: globalMinX,
+        minY: globalMinY,
+        minZ: globalMinZ,
+        maxX: globalMaxX,
+        maxY: globalMaxY,
+        maxZ: globalMaxZ
+      };
+
+      // Process with Rust Worker
+      const workerResult = await workerManager.current.processVoxelDebug(
+        'WASM_RUST',
+        pointCloudData,
+        debugVoxelSize,
+        globalBounds
+      );
+
+      if (workerResult.type !== 'SUCCESS' || !workerResult.data?.voxelCenters) {
+        Log.Error('Tools', 'Rust WASM Worker debug voxel generation failed', workerResult.error);
+        return;
+      }
+
+      const processingTime = performance.now() - startTime;
+      const voxelCenters = workerResult.data.voxelCenters;
+      const voxelCount = workerResult.data.voxelCount || voxelCenters.length / 3;
+
+      // Display the voxel centers using the service
+      if (serviceManager.toolsService?.voxelDownsampleService?.voxelDownsampleDebug) {
+        serviceManager.toolsService.voxelDownsampleService.voxelDownsampleDebug.showVoxelDebugWithCenters(
+          voxelCenters,
+          debugVoxelSize,
+          { r: 1, g: 0.4, b: 0.28 }, // Orange/red color for Rust Worker
+          2000
+        );
+      }
+
+      Log.Info('Tools', 'Rust WASM Worker Debug Voxel generation completed', {
+        processingTime: processingTime.toFixed(2) + 'ms',
+        voxelCount
+      });
+
+      // Emit benchmark results for debug voxel generation - use onWasmRustResults for Rust Worker column
+      if (onWasmRustResults) {
+        onWasmRustResults({
+          originalCount: 0, // Debug voxels don't have original point count
+          processingTime: processingTime,
+          voxelCount: voxelCount,
+        });
+      }
+    } catch (error) {
+      Log.Error('Tools', 'Rust WASM Worker Debug Voxel generation failed', error);
+    }
+  };
+
   const handleBeVoxelDebug = async () => {
     if (!serviceManager?.toolsService) return;
     
@@ -2720,16 +2918,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                       </div>
                       <div className="tools-col-5">
                         <button
-                          className="tools-wasm-btn"
-                          disabled={true}
-                          style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                          title="Worker threads not applicable for debug visualization"
-                        >
-                          N/A
-                        </button>
-                      </div>
-                      <div className="tools-col-6">
-                        <button
                           className="tools-rust-wasm-main-btn"
                           onClick={handleRustWasmMainVoxelDebug}
                           disabled={!showVoxelDebug || isProcessing}
@@ -2737,14 +2925,22 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           {isProcessing ? 'Processing...' : 'Rust Main'}
                         </button>
                       </div>
+                      <div className="tools-col-6">
+                        <button
+                          className="tools-wasm-btn"
+                          onClick={handleCppWasmWorkerVoxelDebug}
+                          disabled={!showVoxelDebug || isProcessing}
+                        >
+                          {isProcessing ? 'Processing...' : 'C++ Worker'}
+                        </button>
+                      </div>
                       <div className="tools-col-7">
                         <button
                           className="tools-wasm-rust-btn"
-                          disabled={true}
-                          style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                          title="Worker threads not applicable for debug visualization"
+                          onClick={handleRustWasmWorkerVoxelDebug}
+                          disabled={!showVoxelDebug || isProcessing}
                         >
-                          N/A
+                          {isProcessing ? 'Processing...' : 'Rust Worker'}
                         </button>
                       </div>
                       <div className="tools-col-8">

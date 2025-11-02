@@ -118,6 +118,34 @@ async function handlePointCloudSmoothing(data: any, messageId: number): Promise<
   self.postMessage(response, { transfer: [smoothedPoints.buffer] });
 }
 
+// Handle voxel debug generation
+async function handleVoxelDebug(data: any, messageId: number): Promise<void> {
+  const startTime = performance.now();
+  const result = wasmModule.generate_voxel_centers(
+    data.pointCloudData,
+    data.voxelSize,
+    data.globalBounds.minX,
+    data.globalBounds.minY,
+    data.globalBounds.minZ
+  );
+  const processingTime = performance.now() - startTime;
+  const voxelCenters = new Float32Array(result);
+  const voxelCount = voxelCenters.length / 3;
+
+  const response = {
+    type: 'SUCCESS',
+    method: 'WASM_RUST',
+    messageId,
+    data: {
+      voxelCenters,
+      voxelCount,
+      processingTime
+    }
+  };
+
+  self.postMessage(response, { transfer: [voxelCenters.buffer] });
+}
+
 // Message handler
 self.onmessage = async function (e: any) {
   const { type, data, messageId } = e.data;
@@ -147,6 +175,10 @@ self.onmessage = async function (e: any) {
 
       case 'POINT_CLOUD_SMOOTHING':
         await handlePointCloudSmoothing(data, messageId);
+        break;
+
+      case 'VOXEL_DEBUG':
+        await handleVoxelDebug(data, messageId);
         break;
 
       default:

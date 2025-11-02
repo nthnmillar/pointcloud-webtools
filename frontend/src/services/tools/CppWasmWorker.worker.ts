@@ -10,6 +10,8 @@ interface ToolsModule {
     [index: number]: { x: number; y: number; z: number };
   };
   pointCloudSmoothing(inputPoints: Float32Array, smoothingRadius?: number, iterations?: number): Float32Array;
+  showVoxelDebug(inputPoints: Float32Array, voxelSize: number): void;
+  getVoxelDebugCenters(): Float32Array | number[];
 }
 
 // Simple logging function for worker context
@@ -202,6 +204,58 @@ async function processPointCloudSmoothing(data: {
   };
 }
 
+// Process voxel debug generation
+async function processVoxelDebug(data: {
+  pointCloudData: Float32Array;
+  voxelSize: number;
+  globalBounds: {
+    minX: number;
+    minY: number;
+    minZ: number;
+    maxX: number;
+    maxY: number;
+    maxZ: number;
+  };
+}) {
+  if (!toolsModule) {
+    throw new Error('WASM module not initialized');
+  }
+
+  const startTime = performance.now();
+  const { pointCloudData, voxelSize } = data;
+  
+  WorkerLog.info('Processing voxel debug generation', {
+    pointCount: pointCloudData.length / 3,
+    voxelSize,
+    globalBounds: data.globalBounds
+  });
+
+  // Use showVoxelDebug to generate voxel centers
+  toolsModule.showVoxelDebug(pointCloudData, voxelSize);
+  
+  // Get the generated voxel centers
+  const voxelCenters = toolsModule.getVoxelDebugCenters();
+  
+  // Convert to Float32Array if needed
+  const centersArray = voxelCenters instanceof Float32Array 
+    ? voxelCenters 
+    : new Float32Array(voxelCenters || []);
+
+  const processingTime = performance.now() - startTime;
+  const voxelCount = centersArray.length / 3;
+  
+  WorkerLog.info('Voxel debug generation completed', {
+    voxelCount,
+    processingTime
+  });
+
+  return {
+    voxelCenters: centersArray,
+    voxelCount,
+    processingTime
+  };
+}
+
 // Message handler
 self.onmessage = async function(e) {
   const { type, messageId, data } = e.data;
@@ -232,6 +286,14 @@ self.onmessage = async function(e) {
         messageId,
         data: result
       }, [result.smoothedPoints.buffer]);
+    } else if (type === 'VOXEL_DEBUG') {
+      const result = await processVoxelDebug(data);
+      self.postMessage({
+        type: 'SUCCESS',
+        method: 'WASM_CPP',
+        messageId,
+        data: result
+      }, [result.voxelCenters.buffer]);
     } else {
       throw new Error(`Unknown message type: ${type}`);
     }
