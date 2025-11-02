@@ -9,12 +9,18 @@ Voxel downsampling reduces point cloud density by averaging points within voxel 
 All implementations use **identical algorithms** to ensure fair comparison:
 
 - **Voxel Calculation**: `Math.floor()` / `std::floor()` for consistent coordinate calculation
-- **Bounds**: Uses provided `globalBounds` (not calculated internally)
-- **Hashing**: Integer-based hashing with bit shifting (`(voxelX << 32) | (voxelY << 16) | voxelZ`)
+- **Bounds**: Uses pre-calculated `globalBounds` passed as a parameter (not calculated inside the algorithm) - ensures all implementations use identical bounds values
+- **Hashing**: Creates unique keys for each voxel coordinate to group points efficiently in a hash map
+  - **C++/Rust/Python**: Integer-based hashing with bit shifting (`(voxelX << 32) | (voxelY << 16) | voxelZ`) - packs three coordinates into one 64-bit integer key
+    - How it works: Shifts `voxelX` left by 32 bits (upper 32 bits), `voxelY` left by 16 bits (middle 16 bits), and keeps `voxelZ` in the lower 16 bits, then combines them with bitwise OR (`|`)
+    - Example: If voxelX=100, voxelY=50, voxelZ=25, this creates a single integer key like `4294967296025`
+    - Why: Integer keys are faster than string keys for hash map lookups
+  - **TypeScript**: String-based keys (`"${voxelX},${voxelY},${voxelZ}"`) due to JavaScript's 32-bit integer limitations for bitwise operations
 - **Optimizations**: 
-  - Pre-calculated inverse voxel size (multiplication instead of division)
-  - Chunked processing for cache locality (1024 points per chunk)
-  - Direct memory access where possible
+  - Pre-calculated inverse voxel size (multiplication instead of division) - calculates `1.0 / voxelSize` once, then multiplies instead of dividing for each point (multiplication is faster)
+    - **Purpose**: Determines which voxel grid cell each point belongs to. `floor()` rounds down to the nearest integer (e.g., `floor(5.25) = 5`) to convert world coordinates to voxel grid coordinates.
+  - Chunked processing for cache locality (1024 points per chunk) - processes points in small groups rather than all at once, keeping related data in CPU cache for faster access (cache is much faster than RAM)
+  - Direct memory access where possible - avoids copying data to reduce overhead
 
 ## Implementation Details
 
