@@ -24,6 +24,7 @@ struct OutputData {
     downsampled_points: Vec<f32>,
     original_count: usize,
     downsampled_count: usize,
+    voxel_count: usize,  // Same as downsampled_count (each point = one voxel)
     processing_time: f64,
 }
 
@@ -56,12 +57,14 @@ fn main() {
     
     let processing_time = start_time.elapsed().as_secs_f64() * 1000.0; // Convert to milliseconds
     
-    // Prepare output
-    let downsampled_count = downsampled_points.len();
+    // Prepare output - downsampled_count is number of points, not floats
+    let downsampled_count = downsampled_points.len() / 3;
+    let voxel_count = downsampled_count;  // Each downsampled point represents one voxel
     let output = OutputData {
         downsampled_points,
         original_count: input.point_cloud_data.len() / 3,
         downsampled_count,
+        voxel_count,
         processing_time,
     };
     
@@ -88,20 +91,21 @@ fn voxel_downsample(
                 let y = chunk[i + 1];
                 let z = chunk[i + 2];
                 
-                // Calculate voxel coordinates (same as C++ version)
-                let voxel_x = ((x - bounds.min_x) * inv_voxel_size) as i32;
-                let voxel_y = ((y - bounds.min_y) * inv_voxel_size) as i32;
-                let voxel_z = ((z - bounds.min_z) * inv_voxel_size) as i32;
+                // Calculate voxel coordinates - use floor() to match TypeScript/Frontend Rust Math.floor()
+                let voxel_x = ((x - bounds.min_x) * inv_voxel_size).floor() as i32;
+                let voxel_y = ((y - bounds.min_y) * inv_voxel_size).floor() as i32;
+                let voxel_z = ((z - bounds.min_z) * inv_voxel_size).floor() as i32;
                 
                 // Create voxel key using bit shifting for better performance
                 let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
                 
-                // Update voxel data
-                let entry = voxel_map.entry(voxel_key).or_insert((0.0, 0.0, 0.0, 0));
-                entry.0 += x;
-                entry.1 += y;
-                entry.2 += z;
-                entry.3 += 1;
+                // Update voxel data - use and_modify pattern to match frontend Rust
+                voxel_map.entry(voxel_key).and_modify(|(sum_x, sum_y, sum_z, count)| {
+                    *sum_x += x;
+                    *sum_y += y;
+                    *sum_z += z;
+                    *count += 1;
+                }).or_insert((x, y, z, 1));
             }
         }
     }

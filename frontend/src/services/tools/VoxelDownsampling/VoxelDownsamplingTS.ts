@@ -52,10 +52,11 @@ export class VoxelDownsamplingTS extends BaseService {
         const y = params.pointCloudData[i * 3 + 1];
         const z = params.pointCloudData[i * 3 + 2];
         
-        // Calculate voxel coordinates
-        const voxelX = Math.floor((x - params.globalBounds.minX) / params.voxelSize);
-        const voxelY = Math.floor((y - params.globalBounds.minY) / params.voxelSize);
-        const voxelZ = Math.floor((z - params.globalBounds.minZ) / params.voxelSize);
+        // Calculate voxel coordinates - use multiplication for consistency with other implementations
+        const invVoxelSize = 1.0 / params.voxelSize;
+        const voxelX = Math.floor((x - params.globalBounds.minX) * invVoxelSize);
+        const voxelY = Math.floor((y - params.globalBounds.minY) * invVoxelSize);
+        const voxelZ = Math.floor((z - params.globalBounds.minZ) * invVoxelSize);
         
         const voxelKey = `${voxelX},${voxelY},${voxelZ}`;
         

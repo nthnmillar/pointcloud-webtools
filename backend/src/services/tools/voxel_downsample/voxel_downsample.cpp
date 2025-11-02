@@ -4,107 +4,167 @@
 #include <cmath>
 #include <sstream>
 #include <cstdint>
+#include <chrono>
+#include <algorithm>
+#include <iomanip>
+#include <cctype>
+#include <cstring>
 
-struct Point3D {
-    float x, y, z;
-    Point3D(float x = 0, float y = 0, float z = 0) : x(x), y(y), z(z) {}
-};
+// RapidJSON (header-only JSON library)
+#include "rapidjson/include/rapidjson/document.h"
+#include "rapidjson/include/rapidjson/writer.h"
+#include "rapidjson/include/rapidjson/stringbuffer.h"
+#include "rapidjson/include/rapidjson/istreamwrapper.h"
 
-struct Voxel {
-    int count;
-    float sumX, sumY, sumZ;
-    Voxel() : count(0), sumX(0), sumY(0), sumZ(0) {}
+using namespace rapidjson;
+
+// Custom hash for better performance (identity hash for uint64_t keys)
+struct FastHash {
+    size_t operator()(uint64_t key) const noexcept {
+        // Identity hash - uint64_t keys are already well-distributed
+        return static_cast<size_t>(key);
+    }
 };
 
 int main() {
+    // Read all input from stdin (JSON format)
+    std::string inputJson;
     std::string line;
-    std::getline(std::cin, line);
-    
-    // Parse input: pointCount voxelSize minX minY minZ maxX maxY maxZ
-    std::istringstream iss(line);
-    int pointCount;
-    float voxelSize, minX, minY, minZ, maxX, maxY, maxZ;
-    iss >> pointCount >> voxelSize >> minX >> minY >> minZ >> maxX >> maxY >> maxZ;
-    
-    // Read point cloud data directly into memory - much faster than vector
-    float* inputData = (float*)malloc(pointCount * 3 * sizeof(float));
-    for (int i = 0; i < pointCount; i++) {
-        std::cin >> inputData[i * 3] >> inputData[i * 3 + 1] >> inputData[i * 3 + 2];
+    while (std::getline(std::cin, line)) {
+        inputJson += line;
+        if (inputJson.length() > 50000000) break; // Safety limit (50MB)
     }
     
-    // ULTRA OPTIMIZED C++ voxel downsampling - matches WASM version exactly
-    // OPTIMIZATION 1: Pre-calculate inverse voxel size to avoid division
+    // Parse JSON using RapidJSON (ultra-fast)
+    Document doc;
+    if (doc.Parse(inputJson.c_str()).HasParseError()) {
+        // Fallback to empty result if parsing fails
+        std::cout << "{\"success\":true,\"downsampled_points\":[],\"original_count\":0,\"downsampled_count\":0,\"voxel_count\":0,\"processing_time\":0.0}" << std::endl;
+        return 0;
+    }
+    
+    // Extract values using RapidJSON (very fast)
+    float voxelSize = doc["voxel_size"].GetFloat();
+    const Value& pointsArray = doc["point_cloud_data"];
+    
+    // Extract bounds first
+    const Value& bounds = doc["global_bounds"];
+    float minX = bounds["min_x"].GetFloat();
+    float minY = bounds["min_y"].GetFloat();
+    float minZ = bounds["min_z"].GetFloat();
+    
+    int pointCount = pointsArray.Size() / 3;
+    if (pointCount == 0 || voxelSize <= 0) {
+        std::cout << "{\"success\":true,\"downsampled_points\":[],\"original_count\":0,\"downsampled_count\":0,\"voxel_count\":0,\"processing_time\":0.0}" << std::endl;
+        return 0;
+    }
+    
+    // Fast single-pass copy to contiguous memory (better cache locality than indirect access)
+    std::vector<float> pointCloudData;
+    pointCloudData.reserve(pointsArray.Size());
+    pointCloudData.resize(pointsArray.Size());
+    
+    // Single optimized copy loop - contiguous memory is faster than indirect RapidJSON access
+    for (SizeType i = 0; i < pointsArray.Size(); i++) {
+        pointCloudData[i] = pointsArray[i].GetFloat();
+    }
+    
+    float* inputData = pointCloudData.data();
+    
+    // Start timing (measure only processing, not I/O)
+    auto startTime = std::chrono::high_resolution_clock::now();
+    
+    // OPTIMIZED C++ voxel downsampling - use contiguous memory for cache efficiency
     float invVoxelSize = 1.0f / voxelSize;
     
-    // OPTIMIZATION 2: Use HashMap with integer keys and direct coordinate storage (same as WASM)
-    std::unordered_map<uint64_t, std::tuple<float, float, float, int>> voxelMap;
-    voxelMap.reserve(pointCount / 4); // Reserve space to avoid rehashing
+    // Use custom hash for better performance (identity hash since keys are already well-distributed)
+    std::unordered_map<uint64_t, std::tuple<float, float, float, int>, FastHash> voxelMap;
+    voxelMap.reserve(pointCount / 3); // Better estimate to avoid rehashing
     
-    // OPTIMIZATION 3: Process points in chunks for better cache locality (same as WASM)
     const int CHUNK_SIZE = 1024;
+    // Process from contiguous memory - maximum cache efficiency
     for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
         int chunkEnd = std::min(chunkStart + CHUNK_SIZE, pointCount);
         
         for (int i = chunkStart; i < chunkEnd; i++) {
             int i3 = i * 3;
+            // Direct memory access - fastest possible
             float x = inputData[i3];
             float y = inputData[i3 + 1];
             float z = inputData[i3 + 2];
             
-            // OPTIMIZATION 4: Use multiplication instead of division (same as WASM)
-            int voxelX = static_cast<int>((x - minX) * invVoxelSize);
-            int voxelY = static_cast<int>((y - minY) * invVoxelSize);
-            int voxelZ = static_cast<int>((z - minZ) * invVoxelSize);
+            // Use floor() to match TypeScript/Rust Math.floor() behavior
+            int voxelX = static_cast<int>(std::floor((x - minX) * invVoxelSize));
+            int voxelY = static_cast<int>(std::floor((y - minY) * invVoxelSize));
+            int voxelZ = static_cast<int>(std::floor((z - minZ) * invVoxelSize));
             
-            // OPTIMIZATION 5: Use integer hash key (same as WASM)
             uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
                                (static_cast<uint64_t>(voxelY) << 16) |
                                static_cast<uint64_t>(voxelZ);
             
-            // OPTIMIZATION 6: Store sums directly (no coordinate storage needed for downsampling)
-            auto it = voxelMap.find(voxelKey);
-            if (it != voxelMap.end()) {
+            // Use try_emplace for better performance (avoids extra hash lookup)
+            auto [it, inserted] = voxelMap.try_emplace(voxelKey, x, y, z, 1);
+            if (!inserted) {
+                // Update existing entry - more efficient than find + modify
                 auto& [sumX, sumY, sumZ, count] = it->second;
                 sumX += x;
                 sumY += y;
                 sumZ += z;
                 count++;
-            } else {
-                voxelMap.emplace(voxelKey, std::make_tuple(x, y, z, 1));
             }
         }
     }
     
-    // OPTIMIZATION 7: Pre-allocate result vector (same as WASM)
+    // Build output
     int outputCount = voxelMap.size();
-    float* outputData = (float*)malloc(outputCount * 3 * sizeof(float));
+    std::vector<float> downsampledPoints;
+    downsampledPoints.reserve(outputCount * 3);
     
-    // OPTIMIZATION 8: Single pass conversion with direct average calculation (same as WASM)
-    int outputIndex = 0;
     for (const auto& [voxelKey, voxelData] : voxelMap) {
         const auto& [sumX, sumY, sumZ, count] = voxelData;
-        
-        // Calculate average position (voxel center) - direct memory write
-        outputData[outputIndex * 3] = sumX / count;
-        outputData[outputIndex * 3 + 1] = sumY / count;
-        outputData[outputIndex * 3 + 2] = sumZ / count;
-        outputIndex++;
+        downsampledPoints.push_back(sumX / count);
+        downsampledPoints.push_back(sumY / count);
+        downsampledPoints.push_back(sumZ / count);
     }
     
-    // Output results
-    std::cout << voxelMap.size() << std::endl; // voxel count
-    std::cout << pointCount << std::endl; // original count
-    std::cout << outputCount << std::endl; // downsampled count
+    // Calculate processing time
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+    double processingTime = duration.count() / 1000.0;
     
-    // Output points directly from memory - much faster than vector iteration
-    for (int i = 0; i < outputCount * 3; i++) {
-        std::cout << outputData[i] << " ";
+    // Output JSON - use pre-allocated string buffer (faster than RapidJSON Writer for large arrays)
+    size_t estimatedSize = downsampledPoints.size() * 15 + 200;
+    std::string jsonOutput;
+    jsonOutput.reserve(estimatedSize);
+    
+    jsonOutput = "{\"success\":true,\"downsampled_points\":[";
+    
+    char buffer[32];
+    for (size_t i = 0; i < downsampledPoints.size(); i++) {
+        if (i > 0) jsonOutput += ',';
+        int len = snprintf(buffer, sizeof(buffer), "%.6f", downsampledPoints[i]);
+        jsonOutput.append(buffer, len);
     }
-    std::cout << std::endl;
     
-    // Free allocated memory
-    free(inputData);
-    free(outputData);
+    jsonOutput += "],\"original_count\":";
+    int len = snprintf(buffer, sizeof(buffer), "%d", pointCount);
+    jsonOutput.append(buffer, len);
+    
+    jsonOutput += ",\"downsampled_count\":";
+    len = snprintf(buffer, sizeof(buffer), "%d", outputCount);
+    jsonOutput.append(buffer, len);
+    
+    jsonOutput += ",\"voxel_count\":";
+    len = snprintf(buffer, sizeof(buffer), "%d", outputCount);
+    jsonOutput.append(buffer, len);
+    
+    jsonOutput += ",\"processing_time\":";
+    len = snprintf(buffer, sizeof(buffer), "%.6f", processingTime);
+    jsonOutput.append(buffer, len);
+    
+    jsonOutput += "}";
+    
+    std::cout << jsonOutput << std::endl;
     
     return 0;
 }

@@ -86,6 +86,9 @@ int voxelDownsampleInternal(
             return 0;
         }
 
+        // Pre-calculate inverse voxel size to avoid division
+        float invVoxelSize = 1.0f / voxelSize;
+
         // Use integer hash for maximum performance
         struct Voxel {
             int count;
@@ -103,10 +106,10 @@ int voxelDownsampleInternal(
             float y = inputData[i3 + 1];
             float z = inputData[i3 + 2];
             
-            // Calculate voxel coordinates
-            int voxelX = static_cast<int>((x - globalMinX) / voxelSize);
-            int voxelY = static_cast<int>((y - globalMinY) / voxelSize);
-            int voxelZ = static_cast<int>((z - globalMinZ) / voxelSize);
+            // Calculate voxel coordinates - use floor() to match TypeScript/Rust Math.floor()
+            int voxelX = static_cast<int>(std::floor((x - globalMinX) * invVoxelSize));
+            int voxelY = static_cast<int>(std::floor((y - globalMinY) * invVoxelSize));
+            int voxelZ = static_cast<int>(std::floor((z - globalMinZ) * invVoxelSize));
             
             // Create integer hash key - much faster than string
             uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) | 

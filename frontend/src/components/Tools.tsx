@@ -1457,7 +1457,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         });
 
         // Calculate voxel count for display
-        const voxelCount = result.downsampledCount / 3;
+        // Each downsampled point represents one voxel
+        const voxelCount = result.voxelCount || result.downsampledCount || 0;
         
         // Emit results to parent component (use end-to-end time for benchmark)
         if (onBeRustResults) {
@@ -1638,8 +1639,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           });
         }
 
-        // Calculate voxel count for display
-        const voxelCount = result.downsampledCount / 3;
+        // Each downsampled point represents one voxel
+        const voxelCount = result.voxelCount || result.downsampledCount || 0;
         
         // Emit results to parent component (use end-to-end time for benchmark)
         if (onBePythonResults) {

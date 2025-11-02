@@ -66,10 +66,10 @@ def voxel_downsample(points: List[float], voxel_size: float, global_bounds: Dict
                 if math.isnan(x) or math.isnan(y) or math.isnan(z) or math.isinf(x) or math.isinf(y) or math.isinf(z):
                     continue
                 
-                # Calculate voxel coordinates (same as Rust BE)
-                voxel_x = int((x - min_x) * inv_voxel_size)
-                voxel_y = int((y - min_y) * inv_voxel_size)
-                voxel_z = int((z - min_z) * inv_voxel_size)
+                # Calculate voxel coordinates - use floor() to match TypeScript/Rust Math.floor()
+                voxel_x = int(math.floor((x - min_x) * inv_voxel_size))
+                voxel_y = int(math.floor((y - min_y) * inv_voxel_size))
+                voxel_z = int(math.floor((z - min_z) * inv_voxel_size))
                 
                 # Create voxel key using bit shifting (like Rust BE)
                 voxel_key = (voxel_x << 32) | (voxel_y << 16) | voxel_z

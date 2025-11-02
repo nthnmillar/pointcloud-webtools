@@ -198,17 +198,21 @@ wss.on('connection', (ws, req) => {
             // Handle C++ voxel downsampling
             const cppProcess = await voxelDownsamplePool.getProcess();
           
-          // Prepare input for C++ program
-          const pointCount = points.length / 3;
-          const input = `${pointCount} ${voxelSize} ${globalBounds.minX} ${globalBounds.minY} ${globalBounds.minZ} ${globalBounds.maxX} ${globalBounds.maxY} ${globalBounds.maxZ}\n`;
+          // Prepare input for C++ program (JSON format, like Rust/Python BE)
+          const input = JSON.stringify({
+            point_cloud_data: Array.from(points),
+            voxel_size: voxelSize,
+            global_bounds: {
+              min_x: globalBounds.minX,
+              min_y: globalBounds.minY,
+              min_z: globalBounds.minZ,
+              max_x: globalBounds.maxX,
+              max_y: globalBounds.maxY,
+              max_z: globalBounds.maxZ
+            }
+          });
           
-          // Add point cloud data - optimized with array join
-          const pointDataArray = [];
-          for (let i = 0; i < points.length; i += 3) {
-            pointDataArray.push(`${points[i]} ${points[i + 1]} ${points[i + 2]}`);
-          }
-          
-          const fullInput = input + pointDataArray.join('\n') + '\n';
+          const fullInput = input;
           
           let outputBuffer = '';
           
@@ -217,38 +221,56 @@ wss.on('connection', (ws, req) => {
           });
           
           cppProcess.stdout.on('end', () => {
-            const lines = outputBuffer.trim().split('\n');
-            
-            let voxelCount = 0;
-            let originalCount = 0;
-            let downsampledCount = 0;
-            let downsampledPoints = [];
-            
-            if (lines.length >= 4) {
-              voxelCount = parseInt(lines[0]);
-              originalCount = parseInt(lines[1]);
-              downsampledCount = parseInt(lines[2]);
-              const pointsString = lines[3].trim();
-              const points = pointsString.split(' ').map(parseFloat).filter(p => !isNaN(p));
-              downsampledPoints = points;
+            try {
+              // Try parsing as JSON (new format)
+              const result = JSON.parse(outputBuffer);
+              const processingTime = Date.now() - startTime;
+              
+              voxelDownsamplePool.releaseProcess(cppProcess);
+              
+              ws.send(JSON.stringify({
+                type: 'voxel_downsample_result',
+                requestId,
+                success: true,
+                downsampledPoints: result.downsampled_points,
+                originalCount: result.original_count,
+                downsampledCount: result.downsampled_count,
+                voxelCount: result.voxel_count || result.downsampled_count,
+                processingTime: result.processing_time
+              }));
+            } catch (parseError) {
+              // Fallback to old text format
+              const lines = outputBuffer.trim().split('\n');
+              
+              let voxelCount = 0;
+              let originalCount = 0;
+              let downsampledCount = 0;
+              let downsampledPoints = [];
+              
+              if (lines.length >= 4) {
+                voxelCount = parseInt(lines[0]);
+                originalCount = parseInt(lines[1]);
+                downsampledCount = parseInt(lines[2]);
+                const pointsString = lines[3].trim();
+                const points = pointsString.split(' ').map(parseFloat).filter(p => !isNaN(p));
+                downsampledPoints = points;
+              }
+              
+              const processingTime = Date.now() - startTime;
+              
+              voxelDownsamplePool.releaseProcess(cppProcess);
+              
+              ws.send(JSON.stringify({
+                type: 'voxel_downsample_result',
+                requestId,
+                success: true,
+                downsampledPoints,
+                originalCount,
+                downsampledCount,
+                voxelCount,
+                processingTime
+              }));
             }
-            
-            const processingTime = Date.now() - startTime;
-            
-            // Release process back to pool
-            voxelDownsamplePool.releaseProcess(cppProcess);
-            
-            // Send result back via WebSocket
-            ws.send(JSON.stringify({
-              type: 'voxel_downsample_result',
-              requestId,
-              success: true,
-              downsampledPoints,
-              originalCount,
-              downsampledCount,
-              voxelCount,
-              processingTime
-            }));
           });
           
           cppProcess.stderr.on('data', (data) => {
@@ -360,6 +382,7 @@ wss.on('connection', (ws, req) => {
                     downsampledPoints: result.downsampled_points,
                     originalCount: result.original_count,
                     downsampledCount: result.downsampled_count,
+                    voxelCount: result.voxel_count || result.downsampled_count,  // Use voxel_count if available
                     processingTime: result.processing_time
                   }
                 }));
@@ -1040,17 +1063,21 @@ app.post('/api/voxel-downsample', async (req, res) => {
     // Path to the C++ executable
     const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample');
     
-    // Prepare input for C++ program
-    const pointCount = points.length / 3;
-    const input = `${pointCount} ${voxelSize} ${globalBounds.minX} ${globalBounds.minY} ${globalBounds.minZ} ${globalBounds.maxX} ${globalBounds.maxY} ${globalBounds.maxZ}\n`;
+    // Prepare input for C++ program (JSON format, like Rust/Python BE)
+    const input = JSON.stringify({
+      point_cloud_data: Array.from(points),
+      voxel_size: voxelSize,
+      global_bounds: {
+        min_x: globalBounds.minX,
+        min_y: globalBounds.minY,
+        min_z: globalBounds.minZ,
+        max_x: globalBounds.maxX,
+        max_y: globalBounds.maxY,
+        max_z: globalBounds.maxZ
+      }
+    });
     
-    // Add point cloud data - optimized with array join (much faster than string concatenation)
-    const pointDataArray = [];
-    for (let i = 0; i < points.length; i += 3) {
-      pointDataArray.push(`${points[i]} ${points[i + 1]} ${points[i + 2]}`);
-    }
-    
-    const fullInput = input + pointDataArray.join('\n') + '\n';
+    const fullInput = input;
     
     // Get process from pool
     const cppProcess = await voxelDownsamplePool.getProcess();
@@ -1067,41 +1094,65 @@ app.post('/api/voxel-downsample', async (req, res) => {
     });
     
     cppProcess.stdout.on('end', () => {
-      console.log('🔧 Backend: C++ stdout complete:', outputBuffer);
-      const lines = outputBuffer.trim().split('\n');
+      console.log('🔧 Backend: C++ stdout complete (length):', outputBuffer.length);
       
-      if (lines.length >= 4) {
-        voxelCount = parseInt(lines[0]);
-        originalCount = parseInt(lines[1]);
-        downsampledCount = parseInt(lines[2]);
-        const pointsString = lines[3].trim();
-        const points = pointsString.split(' ').map(parseFloat).filter(p => !isNaN(p));
-        downsampledPoints = points;
-        console.log('🔧 Backend: Parsed downsampledPoints:', downsampledPoints.length / 3, 'points');
+      try {
+        // Try parsing as JSON (new format)
+        const result = JSON.parse(outputBuffer);
+        const processingTime = Date.now() - startTime;
+        
+        console.log('🔧 Backend: C++ voxel downsampling completed (JSON format)', {
+          originalCount: result.original_count,
+          downsampledCount: result.downsampled_count,
+          voxelCount: result.voxel_count,
+          processingTime: result.processing_time,
+          totalTime: processingTime
+        });
+        
+        // Release process back to pool
+        voxelDownsamplePool.releaseProcess(cppProcess);
+        
+        res.json({
+          success: true,
+          downsampledPoints: result.downsampled_points,
+          originalCount: result.original_count,
+          downsampledCount: result.downsampled_count,
+          voxelCount: result.voxel_count || result.downsampled_count,
+          reductionRatio: result.original_count / result.downsampled_count,
+          processingTime: result.processing_time,
+          method: 'Backend C++ (real)'
+        });
+      } catch (parseError) {
+        // Fallback to old text format
+        console.log('🔧 Backend: Falling back to text format parsing');
+        const lines = outputBuffer.trim().split('\n');
+        
+        if (lines.length >= 4) {
+          voxelCount = parseInt(lines[0]);
+          originalCount = parseInt(lines[1]);
+          downsampledCount = parseInt(lines[2]);
+          const pointsString = lines[3].trim();
+          const points = pointsString.split(' ').map(parseFloat).filter(p => !isNaN(p));
+          downsampledPoints = points;
+          console.log('🔧 Backend: Parsed downsampledPoints:', downsampledPoints.length / 3, 'points');
+        }
+        
+        const processingTime = Date.now() - startTime;
+        const reductionRatio = originalCount / downsampledCount;
+        
+        voxelDownsamplePool.releaseProcess(cppProcess);
+        
+        res.json({
+          success: true,
+          downsampledPoints: downsampledPoints,
+          originalCount: originalCount,
+          downsampledCount: downsampledCount,
+          voxelCount: voxelCount,
+          reductionRatio: reductionRatio,
+          processingTime: processingTime,
+          method: 'Backend C++ (real)'
+        });
       }
-      
-      // Send response after processing stdout
-      const processingTime = Date.now() - startTime;
-      const reductionRatio = originalCount / downsampledCount;
-      
-      console.log('🔧 Backend: C++ voxel downsampling processing completed', {
-        voxelCount: voxelCount,
-        processingTime: processingTime + 'ms'
-      });
-      
-      // Release process back to pool
-      voxelDownsamplePool.releaseProcess(cppProcess);
-      
-      res.json({
-        success: true,
-        downsampledPoints: downsampledPoints,
-        originalCount: originalCount,
-        downsampledCount: downsampledCount,
-        voxelCount: voxelCount,
-        reductionRatio: reductionRatio,
-        processingTime: processingTime,
-        method: 'Backend C++ (real)'
-      });
     });
     
     cppProcess.stderr.on('data', (data) => {
@@ -1508,6 +1559,7 @@ app.post('/api/voxel-downsample-rust', async (req, res) => {
           downsampledPoints: result.downsampled_points,
           originalCount: result.original_count,
           downsampledCount: result.downsampled_count,
+          voxelCount: result.voxel_count || result.downsampled_count,  // Use voxel_count if available, fallback to downsampled_count
           processingTime: result.processing_time
         });
       } catch (parseError) {

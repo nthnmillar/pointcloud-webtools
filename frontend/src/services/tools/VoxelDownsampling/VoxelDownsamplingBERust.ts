@@ -77,7 +77,7 @@ export class VoxelDownsamplingBERust extends BaseService {
                   downsampledCount: data.downsampledCount,
                   processingTime: data.processingTime,
                   reductionRatio: data.originalCount / data.downsampledCount,
-                  voxelCount: data.downsampledCount / 3
+                  voxelCount: data.voxelCount || data.downsampledCount  // Each point = one voxel, use voxelCount if provided
                 };
                 resolve(result);
               } else {

@@ -5,15 +5,15 @@ edition = "2021"
 
 [[bin]]
 name = "voxel_downsample_rust"
-path = "voxel_downsample_rust.rs"
+path = "voxel_downsample/voxel_downsample_rust.rs"
 
 [[bin]]
 name = "point_smooth_rust"
-path = "point_smooth_rust.rs"
+path = "point_smooth/point_smooth_rust.rs"
 
 [[bin]]
 name = "voxel_debug_rust"
-path = "voxel_debug_rust.rs"
+path = "voxel_debug/voxel_debug_rust.rs"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
