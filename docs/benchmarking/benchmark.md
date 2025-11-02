@@ -35,9 +35,9 @@ Detailed benchmark results for each tool:
    - Same bounds handling
    - Same hashing strategies
 
-2. **Optimization Level**: Each implementation is optimized for its platform
-   - Compiler flags: `-O3 -march=native -ffast-math -flto`
-   - Platform-specific optimizations (e.g., RapidJSON for C++, serde_json for Rust)
+2. **Optimization Level**: Each implementation uses production-level optimizations
+   - **C++/Rust**: Compiled with maximum optimization settings
+   - **Platform-specific libraries**: RapidJSON for C++ (fast JSON parsing), serde_json for Rust (efficient serialization)
 
 3. **Timing**: Processing time measures only the algorithm execution (network I/O, JSON parsing, and data copying are excluded). All implementations produce identical results (same voxel counts and point positions).
 
