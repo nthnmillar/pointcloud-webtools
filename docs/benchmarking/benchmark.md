@@ -1,40 +1,16 @@
 # Benchmarking
 
-This project provides comprehensive benchmarks comparing point cloud processing tools across multiple languages (TypeScript, C++, Rust, Python) and execution environments (browser WASM, backend servers). Benchmarking is one of the core purposes - comparing performance across languages and execution environments to inform technology choices.
+This project provides comprehensive benchmarks comparing point cloud processing tools across multiple languages (TypeScript, C++, Rust, Python) and execution environments (browser WASM, backend servers). Benchmarking is the main purpose - comparing performance across languages and execution environments to inform technology choices.
 
 ## 🛠️ Tools
 
-### 1. Voxel Downsampling
-Reduces point cloud density by averaging points within voxel grid cells.
+All tools are implemented across the same execution environments:
 
-**Implementations:**
-- TypeScript (TS)
-- C++ WASM (Main Thread & Worker)
-- Rust WASM (Main Thread & Worker)
-- C++ Backend
-- Rust Backend
-- Python Backend
+- **Voxel Downsampling** - Reduces point cloud density by averaging points within voxel grid cells
+- **Voxel Debug Visualization** - Generates and visualizes voxel grid centers for debugging
+- **Point Cloud Smoothing** - Applies Gaussian filtering to smooth point cloud data
 
-**Features:**
-- All implementations use `Math.floor()` / `std::floor()` for consistency
-- Identical voxel coordinate calculation
-- Optimized with integer hashing and chunked processing
-
-### 2. Voxel Debug Visualization
-Generates and visualizes voxel grid centers for debugging voxel downsampling.
-
-**Implementations:**
-- TypeScript (TS)
-- C++ WASM (Main Thread & Worker)
-- Rust WASM (Main Thread & Worker)
-- C++ Backend
-- Rust Backend
-- Python Backend
-
-### 3. Point Cloud Smoothing
-Applies Gaussian filtering to smooth point cloud data.
-
-**Implementations:**
+**Implementations per tool:**
 - TypeScript (TS)
 - C++ WASM (Main Thread & Worker)
 - Rust WASM (Main Thread & Worker)
@@ -54,8 +30,6 @@ Detailed benchmark results for each tool:
 
 ## Benchmark Methodology
 
-All benchmarks are designed for **fair comparison**:
-
 1. **Algorithm Consistency**: All implementations use identical algorithms
    - Same voxel coordinate calculation (`floor()`)
    - Same bounds handling
@@ -65,9 +39,7 @@ All benchmarks are designed for **fair comparison**:
    - Compiler flags: `-O3 -march=native -ffast-math -flto`
    - Platform-specific optimizations (e.g., RapidJSON for C++, serde_json for Rust)
 
-3. **Measurement**: Processing time measured internally (excludes I/O overhead)
-
-4. **Verification**: All implementations produce **identical results** (same voxel counts and point positions)
+3. **Timing**: Processing time measures only the algorithm execution (network I/O, JSON parsing, and data copying are excluded). All implementations produce identical results (same voxel counts and point positions).
 
 ## 🧪 Testing
 
