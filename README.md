@@ -50,6 +50,8 @@ yarn dev:backend   # Backend on http://localhost:3003
 
 ## 📊 Benchmark Reports
 
+- **[Summary](docs/benchmark-summary.md)** - Executive summary and overall findings
+
 Detailed benchmark results for each tool:
 
 - **[Voxel Downsampling](docs/benchmark-voxel-downsampling.md)** - Reduce point density using voxel grids
@@ -146,15 +148,24 @@ All benchmarks are designed for **fair comparison**:
 ## 🎯 Key Findings
 
 ### Performance Summary
-- **Rust Backend**: Fastest overall (optimized HashMap + serde_json)
-- **C++ Backend**: ~2x slower than Rust (std::unordered_map overhead)
-- **Python Backend**: Slowest but highly readable and maintainable
-- **WASM**: Excellent for browser-based processing with minimal server load
+- **Rust**: Fastest overall (both WASM and backend)
+- **C++ Backend**: Performance depends on algorithm type:
+  - HashMap-heavy (voxel downsampling): ~2x slower than Rust
+  - Grid-based (point smoothing): Nearly equal to Rust
+- **Python Backend**: Slowest (18-36x slower) but highly readable
+- **WASM**: Excellent for browser-based processing, Rust WASM consistently fastest
+
+### Critical Insight: Algorithm Characteristics Matter
+Performance gaps between languages depend on **algorithm characteristics**:
+- **HashMap-heavy workloads**: Rust has significant advantage (2x faster)
+- **Grid-based workloads**: Rust and C++ are nearly equivalent
+- This helps predict when language choice matters most
 
 ### Best Practices
 - Use **Web Workers** for WASM processing to avoid blocking the main thread
+- **Rust** recommended for new projects (best performance-to-maintainability)
+- **C++** viable alternative, especially for grid-based algorithms
 - Backend processing preferred for large datasets (>1M points)
-- Rust provides best performance-to-maintainability ratio
 
 ## 📝 Supported Formats
 
