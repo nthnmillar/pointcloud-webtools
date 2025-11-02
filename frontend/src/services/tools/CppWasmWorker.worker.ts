@@ -230,8 +230,14 @@ async function processVoxelDebug(data: {
     globalBounds: data.globalBounds
   });
 
-  // Use showVoxelDebug to generate voxel centers
-  toolsModule.showVoxelDebug(pointCloudData, voxelSize);
+  // Use showVoxelDebug to generate voxel centers (pass bounds for identical results)
+  toolsModule.showVoxelDebug(
+    pointCloudData, 
+    voxelSize,
+    data.globalBounds.minX,
+    data.globalBounds.minY,
+    data.globalBounds.minZ
+  );
   
   // Get the generated voxel centers
   const voxelCenters = toolsModule.getVoxelDebugCenters();

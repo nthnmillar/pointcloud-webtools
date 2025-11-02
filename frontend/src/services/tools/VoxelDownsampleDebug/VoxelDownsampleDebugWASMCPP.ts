@@ -83,11 +83,13 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
     try {
       const startTime = performance.now();
       
-      // OPTIMIZATION: Use direct Float32Array without Array.from() conversion
-      // The C++ code now uses typed_memory_view for efficient access
+      // Pass bounds to C++ to match TypeScript/Rust (ensures identical results)
       this.module.showVoxelDebug(
         params.pointCloudData,  // Direct Float32Array - no conversion!
-        params.voxelSize
+        params.voxelSize,
+        params.globalBounds.minX,
+        params.globalBounds.minY,
+        params.globalBounds.minZ
       );
       
       const processingTime = performance.now() - startTime;

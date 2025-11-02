@@ -347,7 +347,8 @@ void showVoxelDebug() {
 }
 
 // Optimized voxel debug with efficient memory access
-void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize) {
+// Uses provided bounds to match TypeScript/Rust implementations exactly
+void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize, float minX, float minY, float minZ) {
     if (inputPoints.isNull() || inputPoints.isUndefined() || voxelSize <= 0) {
         g_voxelDebug.voxelCenters.clear();
         return;
@@ -361,30 +362,7 @@ void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize) {
         return;
     }
     
-    // OPTIMIZATION 1: Use efficient element access without copying
-    // Direct access to Float32Array elements without memory copying
-    
-    // OPTIMIZATION 2: Single-pass bounds calculation with efficient access
-    float minX = inputPoints.call<float>("at", 0);
-    float minY = inputPoints.call<float>("at", 1);
-    float minZ = inputPoints.call<float>("at", 2);
-    float maxX = minX, maxY = minY, maxZ = minZ;
-    
-    // Unrolled loop for better performance
-    for (int i = 0; i < pointCount; i++) {
-        int i3 = i * 3;
-        float x = inputPoints.call<float>("at", i3);
-        float y = inputPoints.call<float>("at", i3 + 1);
-        float z = inputPoints.call<float>("at", i3 + 2);
-        
-        // Branchless min/max for better performance
-        minX = (x < minX) ? x : minX;
-        minY = (y < minY) ? y : minY;
-        minZ = (z < minZ) ? z : minZ;
-        maxX = (x > maxX) ? x : maxX;
-        maxY = (y > maxY) ? y : maxY;
-        maxZ = (z > maxZ) ? z : maxZ;
-    }
+    // Use provided bounds (same as TypeScript/Rust) - ensures identical results
     
     // OPTIMIZATION 3: Pre-calculate inverse voxel size to avoid division
     float invVoxelSize = 1.0f / voxelSize;
@@ -405,9 +383,10 @@ void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize) {
             float z = inputPoints.call<float>("at", i3 + 2);
             
             // OPTIMIZATION 6: Use multiplication instead of division
-            int voxelX = static_cast<int>((x - minX) * invVoxelSize);
-            int voxelY = static_cast<int>((y - minY) * invVoxelSize);
-            int voxelZ = static_cast<int>((z - minZ) * invVoxelSize);
+            // Use floor() to match TypeScript/Rust Math.floor() behavior (handles negative correctly)
+            int voxelX = static_cast<int>(std::floor((x - minX) * invVoxelSize));
+            int voxelY = static_cast<int>(std::floor((y - minY) * invVoxelSize));
+            int voxelZ = static_cast<int>(std::floor((z - minZ) * invVoxelSize));
             
             // OPTIMIZATION 7: Better hash function for better distribution
             uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
@@ -457,12 +436,16 @@ bool isVoxelDebugVisible() {
 }
 
 emscripten::val getVoxelDebugCenters() {
-    emscripten::val result = emscripten::val::global("Float32Array").new_(g_voxelDebug.voxelCenters.size() * 3);
+    size_t voxelCount = g_voxelDebug.voxelCenters.size();
+    emscripten::val result = emscripten::val::global("Float32Array").new_(voxelCount * 3);
     
-    for (size_t i = 0; i < g_voxelDebug.voxelCenters.size(); i++) {
-        result.set(i * 3, g_voxelDebug.voxelCenters[i].x);
-        result.set(i * 3 + 1, g_voxelDebug.voxelCenters[i].y);
-        result.set(i * 3 + 2, g_voxelDebug.voxelCenters[i].z);
+    // Use .set() method - safe and works correctly
+    // Direct memory access requires WASM heap backing which isn't guaranteed
+    for (size_t i = 0; i < voxelCount; i++) {
+        int i3 = static_cast<int>(i * 3);
+        result.set(i3, g_voxelDebug.voxelCenters[i].x);
+        result.set(i3 + 1, g_voxelDebug.voxelCenters[i].y);
+        result.set(i3 + 2, g_voxelDebug.voxelCenters[i].z);
     }
     
     return result;
@@ -484,7 +467,7 @@ EMSCRIPTEN_BINDINGS(tools_module) {
     emscripten::function("voxelDownsample", &voxelDownsample);
     emscripten::function("pointCloudSmoothing", &pointCloudSmoothing);
     emscripten::function("showVoxelDebug", emscripten::select_overload<void()>(&showVoxelDebug));
-    emscripten::function("showVoxelDebug", emscripten::select_overload<void(const emscripten::val&, float)>(&showVoxelDebug));
+    emscripten::function("showVoxelDebug", emscripten::select_overload<void(const emscripten::val&, float, float, float, float)>(&showVoxelDebug));
     emscripten::function("hideVoxelDebug", &hideVoxelDebug);
     emscripten::function("getVoxelDebugCenters", &getVoxelDebugCenters);
     emscripten::function("getVoxelDebugSize", &getVoxelDebugSize);

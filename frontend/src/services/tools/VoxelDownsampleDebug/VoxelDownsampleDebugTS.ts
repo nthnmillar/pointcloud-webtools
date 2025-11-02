@@ -44,7 +44,9 @@ export class VoxelDownsampleDebugTS extends BaseService {
       
       const pointCount = params.pointCloudData.length / 3;
       
-      // OPTIMIZATION 1: Use Set for unique voxel coordinates (same as Rust)
+      // OPTIMIZATION 1: Use Set for unique voxel coordinates
+      // Note: JavaScript bitwise ops are 32-bit only, so string keys are necessary
+      // But we optimize the extraction to avoid repeated parsing overhead
       const voxelCoords = new Set<string>();
       
       // OPTIMIZATION 2: Pre-calculate inverse voxel size to avoid division
@@ -69,7 +71,10 @@ export class VoxelDownsampleDebugTS extends BaseService {
           const voxelY = Math.floor((y - minY) * invVoxelSize);
           const voxelZ = Math.floor((z - minZ) * invVoxelSize);
           
-          // OPTIMIZATION 5: Store unique voxel coordinates only (same as Rust)
+          // OPTIMIZATION 5: Store unique voxel coordinates as composite key
+          // JavaScript bitwise ops are 32-bit, so use string key BUT optimized format
+          // Format: "x,y,z" for Set uniqueness, but we'll parse efficiently later
+          // Using template string is still faster than split+map in extraction loop
           const voxelKey = `${voxelX},${voxelY},${voxelZ}`;
           voxelCoords.add(voxelKey);
         }
@@ -86,11 +91,17 @@ export class VoxelDownsampleDebugTS extends BaseService {
       const offsetZ = minZ + halfVoxelSize;
       
       let index = 0;
+      // OPTIMIZATION 8: Pre-compile regex for faster parsing (reuse across iterations)
+      const parseRegex = /^(-?\d+),(-?\d+),(-?\d+)$/;
       for (const voxelKey of voxelCoords) {
-        // Parse voxel coordinates from string key
-        const [voxelX, voxelY, voxelZ] = voxelKey.split(',').map(Number);
+        // Extract voxel coordinates using regex (faster than split+map for 3 values)
+        const match = voxelKey.match(parseRegex);
+        if (!match) continue;  // Safety check
+        const voxelX = parseInt(match[1], 10);
+        const voxelY = parseInt(match[2], 10);
+        const voxelZ = parseInt(match[3], 10);
         
-        // OPTIMIZATION 8: Direct grid position calculation (same as C++/Rust)
+        // OPTIMIZATION 9: Direct grid position calculation (same as C++/Rust)
         const gridX = offsetX + voxelX * params.voxelSize;
         const gridY = offsetY + voxelY * params.voxelSize;
         const gridZ = offsetZ + voxelZ * params.voxelSize;
