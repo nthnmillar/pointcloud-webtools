@@ -6,47 +6,35 @@ A comprehensive benchmarking and testing platform for point cloud processing usi
 
 ## Overview
 
-This project benchmarks point cloud processing tools across different implementations:
+This project provides a platform for building and **benchmarking** point cloud processing tools across different implementations. Benchmarking is one of the core purposes - comparing performance across languages and execution environments to inform technology choices.
+
+**Current Tools:**
 - **Frontend (Browser)**: TypeScript, C++ WASM, Rust WASM
 - **Backend (Server)**: C++, Rust, Python
 - **Execution Modes**: Main Thread, Web Workers (for WASM)
 
-All implementations use **identical algorithms** to ensure fair, accurate performance comparisons.
+All implementations use **identical algorithms** to ensure fair, accurate performance comparisons. More tools are planned for future development.
+
+**Current Implementations:**
+- Voxel Downsampling
+- Voxel Debug Visualization
+- Point Cloud Smoothing
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Node.js 18+ and yarn
-- C++ compiler (g++ or clang)
-- Rust compiler (cargo)
-- Python 3.x
-
-### Installation
-
 ```bash
-# Install all dependencies
-yarn install:all
+# Install dependencies
+yarn
 
-# Build WASM modules
-cd frontend
-./compile_wasm.sh
-
-# Rebuild backend executables
-cd ../backend/src/services/tools
-cargo build --release
-cd voxel_downsample && g++ -O3 -std=c++17 -march=native -ffast-math -flto -I. -o voxel_downsample voxel_downsample.cpp
-```
-
-### Running
-
-```bash
-# Start both frontend and backend
+# Start development server (frontend + backend)
 yarn dev
-
-# Or run separately
-yarn dev:frontend  # Frontend on http://localhost:5173
-yarn dev:backend   # Backend on http://localhost:3003
 ```
+
+### Prerequisites
+- **Node.js 18+** and yarn
+- **Emscripten** (`emcc`) - Required for building C++ WASM modules (frontend auto-builds on startup)
+- **Rust** (cargo) - Required for building Rust WASM modules (`wasm-pack` auto-installs if missing)
+- **Python 3.x** - Optional, only needed for Python backend tools
 
 ## 📊 Benchmark Reports
 
@@ -111,23 +99,6 @@ Applies Gaussian filtering to smooth point cloud data.
 - **WebSocket**: Real-time communication for backend processing
 - **Executables**: Standalone C++/Rust/Python binaries
 
-## 📁 Project Structure
-
-```
-pointcloud-webtools/
-├── frontend/              # React frontend
-│   ├── src/
-│   │   ├── components/    # UI components
-│   │   ├── services/      # Tool services and WASM integration
-│   │   └── wasm/          # WASM source code
-│   └── public/wasm/       # Compiled WASM modules
-├── backend/               # Node.js backend
-│   └── src/
-│       └── services/tools/ # Backend tool implementations
-├── docs/                  # Benchmark reports
-└── README.md             # This file
-```
-
 ## 🔬 Benchmark Methodology
 
 All benchmarks are designed for **fair comparison**:
@@ -147,25 +118,12 @@ All benchmarks are designed for **fair comparison**:
 
 ## 🎯 Key Findings
 
-### Performance Summary
 - **Rust**: Fastest overall (both WASM and backend)
-- **C++ Backend**: Performance depends on algorithm type:
-  - HashMap-heavy (voxel downsampling): ~2x slower than Rust
-  - Grid-based (point smoothing): Nearly equal to Rust
-- **Python Backend**: Slowest (18-36x slower) but highly readable
-- **WASM**: Excellent for browser-based processing, Rust WASM consistently fastest
+- **C++**: Performance depends on algorithm type - HashMap-heavy workloads favor Rust (2x faster), grid-based workloads are nearly equivalent
+- **Python**: Slowest but highly readable
+- **Critical Insight**: Algorithm characteristics determine when language choice matters most
 
-### Critical Insight: Algorithm Characteristics Matter
-Performance gaps between languages depend on **algorithm characteristics**:
-- **HashMap-heavy workloads**: Rust has significant advantage (2x faster)
-- **Grid-based workloads**: Rust and C++ are nearly equivalent
-- This helps predict when language choice matters most
-
-### Best Practices
-- Use **Web Workers** for WASM processing to avoid blocking the main thread
-- **Rust** recommended for new projects (best performance-to-maintainability)
-- **C++** viable alternative, especially for grid-based algorithms
-- Backend processing preferred for large datasets (>1M points)
+See the [Benchmark Summary](docs/benchmark-summary.md) for detailed performance analysis and platform recommendations.
 
 ## 📝 Supported Formats
 
@@ -188,11 +146,3 @@ Each tool can be tested individually through the web interface:
 ## 📄 License
 
 See [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **RapidJSON**: Fast C++ JSON library
-- **serde/serde_json**: Rust serialization framework
-- **Babylon.js**: 3D rendering engine
-- **Emscripten**: C++ to WebAssembly compiler
-- **wasm-bindgen**: Rust to WebAssembly bindings
