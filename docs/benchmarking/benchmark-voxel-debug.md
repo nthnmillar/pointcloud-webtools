@@ -4,57 +4,18 @@
 
 Voxel debug visualization generates and displays voxel grid centers for debugging and visualizing voxel downsampling. This benchmark compares performance across multiple implementations.
 
-## Algorithm Consistency
+## Algorithm-Specific Details
 
-All implementations use **identical algorithms**:
+Voxel debug visualization generates unique voxel grid centers:
+- Uses HashSet/Set to track unique voxel coordinates (no averaging needed)
+- Outputs one point per unique voxel (the center of each voxel grid cell)
+- Similar to voxel downsampling but simpler (no averaging calculations)
 
-- **Voxel Calculation**: `Math.floor()` / `std::floor()` for consistent coordinates
-- **Bounds**: Uses provided `globalBounds` (not calculated internally)
-- **Output**: Generates unique voxel centers (one point per unique voxel)
-- **Optimizations**: Integer hashing, chunked processing, pre-calculated inverses
+**Implementation-Specific Notes:**
+- **Rust WASM**: Uses `HashSet<(i32, i32, i32)>` with tuple keys (more efficient than integer packing for this use case)
+- **TypeScript**: Uses pre-compiled regex for parsing string keys back to coordinates
 
-## Implementation Details
-
-### TypeScript (TS)
-- **Location**: `frontend/src/services/tools/VoxelDownsampleDebug/VoxelDownsampleDebugTS.ts`
-- **Data Structure**: `Set<string>` with `${voxelX},${voxelY},${voxelZ}` keys
-- **Optimizations**: Pre-compiled regex for parsing, chunked processing
-- **Note**: Uses string keys due to JavaScript's 32-bit bitwise limitation
-
-### C++ WASM Main Thread
-- **Location**: `frontend/src/wasm/cpp/tools.cpp` → `showVoxelDebug()`
-- **Data Structure**: `std::unordered_set<uint64_t>` with integer keys
-- **Optimizations**: Direct memory access, integer hashing, chunked processing
-
-### C++ WASM Worker
-- **Location**: `frontend/src/services/tools/CppWasmWorker.worker.ts`
-- **Execution**: Web Worker (separate thread)
-- **Performance**: Same as Main Thread
-
-### Rust WASM Main Thread
-- **Location**: `frontend/src/wasm/rust/src/lib.rs` → `generate_voxel_centers()`
-- **Data Structure**: `HashSet<(i32, i32, i32)>` with tuple keys
-- **Optimizations**: Direct slice access, efficient hashing
-
-### Rust WASM Worker
-- **Location**: `frontend/src/services/tools/RustWasmWorker.worker.ts`
-- **Execution**: Web Worker (separate thread)
-- **Performance**: Same as Main Thread
-
-### C++ Backend
-- **Location**: `backend/src/services/tools/voxel_debug/voxel_debug.cpp`
-- **Output Format**: Space-separated floats
-- **Optimizations**: Integer hashing, chunked processing
-
-### Rust Backend
-- **Location**: `backend/src/services/tools/voxel_debug/voxel_debug_rust.rs`
-- **JSON Output**: Uses serde_json
-- **Optimizations**: HashSet with tuple keys, efficient serialization
-
-### Python Backend
-- **Location**: `backend/src/services/tools/voxel_debug/voxel_debug_python.py`
-- **Data Structure**: `set()` with tuple keys
-- **Optimizations**: Chunked processing, efficient JSON output
+See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algorithm consistency details.
 
 ## Benchmark Results
 

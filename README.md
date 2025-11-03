@@ -53,4 +53,4 @@ This repository includes comprehensive benchmarking tools and results. See [docs
 ## 📝 Supported Formats
 
 - **LAZ/LAS**: Traditional point cloud formats
-- **COPC**: Cloud Optimized Point Cloud with LOD support
+<!-- - **COPC**: Cloud Optimized Point Cloud with LOD support -->

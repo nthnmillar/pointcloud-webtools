@@ -4,67 +4,19 @@
 
 Point cloud smoothing applies Gaussian filtering to smooth point cloud data, reducing noise and improving visual quality. This benchmark compares performance across multiple implementations using **O(n) spatial hashing** for efficient neighbor search.
 
-## Algorithm Consistency
+## Algorithm-Specific Details
 
-All implementations use **identical O(n) spatial hashing algorithm**:
+Point cloud smoothing uses **O(n) spatial hashing** algorithm (different from voxel operations):
 
 - **Method**: Gaussian-weighted averaging of neighbors within smoothing radius
-- **Spatial Indexing**: Grid-based spatial hash (O(n) complexity)
-- **Neighbor Search**: Checks 3x3x3 = 27 neighboring grid cells per point
+- **Spatial Indexing**: Grid-based spatial hash (O(n) complexity) - organizes points into a 3D grid for efficient neighbor lookup
+- **Neighbor Search**: Checks 3x3x3 = 27 neighboring grid cells per point (only checks nearby cells, not all points)
 - **Iterations**: Multiple passes for stronger smoothing
-- **Optimizations**: Pre-calculated squared radius, pre-allocated grids, chunked processing
+- **Algorithm Type**: Grid-based operations (different from HashMap-heavy voxel downsampling)
 
-## Implementation Details
+**Key Difference**: This algorithm uses grid-based neighbor search, which is different from HashMap-heavy operations. This explains why C++ performs similarly to Rust here (unlike voxel downsampling where Rust is 2x faster).
 
-### TypeScript (TS)
-- **Location**: `frontend/src/services/tools/PointCloudSmoothing/PointCloudSmoothingTS.ts`
-- **Algorithm**: O(n) spatial hashing with grid-based neighbor search
-- **Optimizations**: Pre-allocated grids, pre-calculated inverse cell size
-- **Use Case**: Small-medium datasets, reference implementation
-
-### C++ WASM Main Thread
-- **Location**: `frontend/src/wasm/cpp/tools.cpp` → `pointCloudSmoothing()`
-- **Algorithm**: O(n) spatial hashing (identical to other implementations)
-- **Optimizations**: Direct memory access, pre-allocated grids, optimized grid indexing
-- **Use Case**: Browser-based smoothing
-
-### C++ WASM Worker
-- **Location**: `frontend/src/services/tools/CppWasmWorker.worker.ts`
-- **Execution**: Web Worker (separate thread)
-- **Performance**: Slightly slower than Main Thread due to message passing overhead
-- **Use Case**: Background processing without UI blocking
-
-### Rust WASM Main Thread
-- **Location**: `frontend/src/wasm/rust/src/lib.rs` → `point_cloud_smoothing()`
-- **Algorithm**: O(n) spatial hashing (identical algorithm)
-- **Optimizations**: Efficient slice operations, optimized grid operations
-- **Use Case**: Browser-based smoothing
-
-### Rust WASM Worker
-- **Location**: `frontend/src/services/tools/RustWasmWorker.worker.ts`
-- **Execution**: Web Worker (separate thread)
-- **Performance**: Fastest WASM implementation
-- **Use Case**: Background processing (best browser performance)
-
-### C++ Backend
-- **Location**: `backend/src/services/tools/point_smooth/point_smooth_cpp.cpp`
-- **Algorithm**: O(n) spatial hashing (identical to WASM)
-- **JSON**: Manual JSON parsing/formatting
-- **Optimizations**: Direct memory access, pre-allocated grids
-- **Use Case**: Server-side smoothing for large datasets
-
-### Rust Backend
-- **Location**: `backend/src/services/tools/point_smooth/point_smooth_rust.rs`
-- **Algorithm**: O(n) spatial hashing (identical to WASM)
-- **JSON**: serde_json for efficient I/O
-- **Optimizations**: Efficient data structures, optimized grid operations
-- **Use Case**: Server-side smoothing (fastest backend option)
-
-### Python Backend
-- **Location**: `backend/src/services/tools/point_smooth/point_smooth_python.py`
-- **Algorithm**: O(n) spatial hashing (identical algorithm, line-for-line equivalent)
-- **Optimizations**: Pre-allocated lists, same optimizations as Rust/C++
-- **Use Case**: Server-side smoothing (readable, maintainable, but slower)
+See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algorithm consistency details.
 
 ## Benchmark Results
 

@@ -4,81 +4,14 @@
 
 Voxel downsampling reduces point cloud density by averaging points within voxel grid cells. This benchmark compares performance across multiple implementations and execution environments.
 
-## Algorithm Consistency
+## Algorithm-Specific Details
 
-All implementations use **identical algorithms** to ensure fair comparison:
+Voxel downsampling averages points within each voxel grid cell:
+- Points are grouped by their voxel coordinates using HashMap/HashSet
+- Each voxel produces one downsampled point (average of all points in that voxel)
+- Algorithm uses HashMap-heavy operations (grouping and averaging)
 
-- **Voxel Calculation**: `Math.floor()` / `std::floor()` for consistent coordinate calculation
-- **Bounds**: Uses pre-calculated `globalBounds` passed as a parameter (not calculated inside the algorithm) - ensures all implementations use identical bounds values
-- **Hashing**: Creates unique keys for each voxel coordinate to group points efficiently in a hash map
-  - **C++/Rust/Python**: Integer-based hashing with bit shifting (`(voxelX << 32) | (voxelY << 16) | voxelZ`) - packs three coordinates into one 64-bit integer key
-    - How it works: Shifts `voxelX` left by 32 bits (upper 32 bits), `voxelY` left by 16 bits (middle 16 bits), and keeps `voxelZ` in the lower 16 bits, then combines them with bitwise OR (`|`)
-    - Example: If voxelX=100, voxelY=50, voxelZ=25, this creates a single integer key like `4294967296025`
-    - Why: Integer keys are faster than string keys for hash map lookups
-  - **TypeScript**: String-based keys (`"${voxelX},${voxelY},${voxelZ}"`) due to JavaScript's 32-bit integer limitations for bitwise operations
-- **Optimizations**: 
-  - Pre-calculated inverse voxel size (multiplication instead of division) - calculates `1.0 / voxelSize` once, then multiplies instead of dividing for each point (multiplication is faster)
-    - **Purpose**: Determines which voxel grid cell each point belongs to. `floor()` rounds down to the nearest integer (e.g., `floor(5.25) = 5`) to convert world coordinates to voxel grid coordinates.
-  - Chunked processing for cache locality (1024 points per chunk) - processes points in small groups rather than all at once, keeping related data in CPU cache for faster access (cache is much faster than RAM)
-  - Direct memory access where possible - avoids copying data to reduce overhead
-
-## Implementation Details
-
-### TypeScript (TS)
-- **Location**: `frontend/src/services/tools/VoxelDownsampling/VoxelDownsamplingTS.ts`
-- **Optimizations**: String-based HashMap keys (JavaScript 32-bit limitation)
-- **Use Case**: Reference implementation, small datasets
-
-### C++ WASM Main Thread
-- **Location**: `frontend/src/wasm/cpp/tools.cpp` → `voxelDownsampleInternal()`
-- **Compilation**: Emscripten with `-O3 --bind`
-- **Optimizations**: Direct memory access, integer hashing, chunked processing
-- **Use Case**: Browser-based processing on main thread
-
-### C++ WASM Worker
-- **Location**: `frontend/src/services/tools/CppWasmWorker.worker.ts`
-- **Execution**: Web Worker (separate thread)
-- **Performance**: Same as Main Thread but doesn't block UI
-- **Use Case**: Background processing without UI blocking
-
-### Rust WASM Main Thread
-- **Location**: `frontend/src/wasm/rust/src/lib.rs` → `voxel_downsample()`
-- **Compilation**: `wasm-bindgen` with `--release`
-- **Optimizations**: Direct slice access, integer hashing
-- **Use Case**: Browser-based processing on main thread
-
-### Rust WASM Worker
-- **Location**: `frontend/src/services/tools/RustWasmWorker.worker.ts`
-- **Execution**: Web Worker (separate thread)
-- **Performance**: Same as Main Thread but doesn't block UI
-- **Use Case**: Background processing without UI blocking
-
-### C++ Backend
-- **Location**: `backend/src/services/tools/voxel_downsample/voxel_downsample.cpp`
-- **JSON Library**: RapidJSON (header-only, optimized)
-- **Compilation**: `g++ -O3 -std=c++17 -march=native -ffast-math -flto`
-- **Optimizations**: 
-  - RapidJSON for fast JSON parsing
-  - Custom identity hash function
-  - `try_emplace()` for efficient HashMap operations
-  - Pre-allocated string buffers for JSON output
-- **Use Case**: Server-side processing for large datasets
-
-### Rust Backend
-- **Location**: `backend/src/services/tools/voxel_downsample/voxel_downsample_rust.rs`
-- **JSON Library**: serde_json (highly optimized)
-- **Compilation**: `cargo build --release`
-- **Optimizations**:
-  - `serde_json` for ultra-fast JSON parsing
-  - Rust's optimized HashMap (FxHash-based)
-  - `entry().and_modify()` pattern for efficient updates
-- **Use Case**: Server-side processing (fastest option)
-
-### Python Backend
-- **Location**: `backend/src/services/tools/voxel_downsample/voxel_downsample_python.py`
-- **JSON Library**: Standard `json` module (C-optimized)
-- **Optimizations**: `defaultdict` for efficient updates, chunked processing
-- **Use Case**: Server-side processing (readable, maintainable)
+See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algorithm consistency details.
 
 ## Benchmark Results
 
