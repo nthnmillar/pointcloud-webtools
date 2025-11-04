@@ -115,8 +115,10 @@ export class VoxelDownsamplingWASMRust extends BaseService {
         processingTime: processingTime.toFixed(2) + 'ms'
       });
 
-      // Convert result back to Float32Array
-      const downsampledPoints = new Float32Array(result);
+      // Rust now returns Float32Array directly - use it without conversion
+      const downsampledPoints = result instanceof Float32Array 
+        ? result 
+        : new Float32Array(result);
 
       return {
         success: true,

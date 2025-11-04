@@ -7,6 +7,7 @@ export class PointCloudToolsRust {
   /**
    * Voxel downsampling implementation in Rust - MAXIMUM OPTIMIZATION
    * Uses direct memory access and integer hashing for maximum performance
+   * Returns Float32Array directly for zero-copy access
    */
   voxel_downsample(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
   /**
@@ -27,7 +28,7 @@ export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_pointcloudtoolsrust_free: (a: number, b: number) => void;
   readonly pointcloudtoolsrust_new: () => number;
-  readonly pointcloudtoolsrust_voxel_downsample: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
+  readonly pointcloudtoolsrust_voxel_downsample: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => any;
   readonly pointcloudtoolsrust_point_cloud_smooth: (a: number, b: number, c: number, d: number, e: number) => [number, number];
   readonly pointcloudtoolsrust_generate_voxel_centers: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
   readonly __wbindgen_export_0: WebAssembly.Table;

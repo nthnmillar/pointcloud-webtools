@@ -39,6 +39,11 @@ function getFloat32ArrayMemory0() {
     return cachedFloat32ArrayMemory0;
 }
 
+function getArrayF32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getFloat32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+
 let WASM_VECTOR_LEN = 0;
 
 function passArrayF32ToWasm0(arg, malloc) {
@@ -46,11 +51,6 @@ function passArrayF32ToWasm0(arg, malloc) {
     getFloat32ArrayMemory0().set(arg, ptr / 4);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
-}
-
-function getArrayF32FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getFloat32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
 }
 
 const PointCloudToolsRustFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -79,6 +79,7 @@ export class PointCloudToolsRust {
     /**
      * Voxel downsampling implementation in Rust - MAXIMUM OPTIMIZATION
      * Uses direct memory access and integer hashing for maximum performance
+     * Returns Float32Array directly for zero-copy access
      * @param {Float32Array} points
      * @param {number} voxel_size
      * @param {number} min_x
@@ -90,9 +91,7 @@ export class PointCloudToolsRust {
         const ptr0 = passArrayF32ToWasm0(points, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.pointcloudtoolsrust_voxel_downsample(this.__wbg_ptr, ptr0, len0, voxel_size, min_x, min_y, min_z);
-        var v2 = getArrayF32FromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v2;
+        return ret;
     }
     /**
      * Point cloud smoothing implementation in Rust
@@ -174,6 +173,11 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbg_wbindgenthrow_451ec1a8469d7eb6 = function(arg0, arg1) {
         throw new Error(getStringFromWasm0(arg0, arg1));
+    };
+    imports.wbg.__wbindgen_cast_cd07b1914aa3d62c = function(arg0, arg1) {
+        // Cast intrinsic for `Ref(Slice(F32)) -> NamedExternref("Float32Array")`.
+        const ret = getArrayF32FromWasm0(arg0, arg1);
+        return ret;
     };
     imports.wbg.__wbindgen_init_externref_table = function() {
         const table = wasm.__wbindgen_export_0;

@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
 use std::collections::{HashMap, HashSet};
+use js_sys::Float32Array;
 
 // Import the `console.log` function from the browser
 #[wasm_bindgen]
@@ -17,7 +18,9 @@ macro_rules! console_log {
 
 #[wasm_bindgen]
 pub struct PointCloudToolsRust {
-    // Optimized implementation - no longer using voxel_map for debug
+    // Store result vectors to keep WASM memory alive for zero-copy views
+    // This allows Float32Array::view() to work without copying
+    result_buffer: Option<Vec<f32>>,
 }
 
 #[wasm_bindgen]
@@ -26,30 +29,35 @@ impl PointCloudToolsRust {
     pub fn new() -> PointCloudToolsRust {
         console_log!("Rust WASM: PointCloudToolsRust initialized");
         PointCloudToolsRust {
-            // Optimized implementation - no initialization needed
+            result_buffer: None,
         }
     }
 
     /// Voxel downsampling implementation in Rust - MAXIMUM OPTIMIZATION
     /// Uses direct memory access and integer hashing for maximum performance
+    /// Returns Float32Array directly for zero-copy access
     #[wasm_bindgen]
     pub fn voxel_downsample(
-        &self,
+        &mut self,
         points: &[f32],
         voxel_size: f32,
         min_x: f32,
         min_y: f32,
         min_z: f32,
-    ) -> Vec<f32> {
+    ) -> Float32Array {
         // OPTIMIZATION 1: Pre-calculate inverse voxel size to avoid division
         let inv_voxel_size = 1.0 / voxel_size;
         
+        // Calculate point count first
+        let point_count = points.len() / 3;
+        
         // OPTIMIZATION 2: Use HashMap with integer keys and direct coordinate storage
-        let mut voxel_map: HashMap<u64, (f32, f32, f32, i32)> = HashMap::new();
+        // Pre-allocate with estimated capacity to avoid reallocations
+        let estimated_voxels = point_count / 100; // Rough estimate: ~1% of points become voxels
+        let mut voxel_map: HashMap<u64, (f32, f32, f32, i32)> = HashMap::with_capacity(estimated_voxels);
         
         // OPTIMIZATION 3: Process points in chunks for better cache locality
         const CHUNK_SIZE: usize = 1024;
-        let point_count = points.len() / 3;
         
         for chunk_start in (0..point_count).step_by(CHUNK_SIZE) {
             let chunk_end = (chunk_start + CHUNK_SIZE).min(point_count);
@@ -93,7 +101,19 @@ impl PointCloudToolsRust {
             result.push(avg_z);
         }
         
-        result
+        // OPTIMIZATION 9: Return Float32Array using memory view (zero-copy)
+        // Store Vec in struct to keep WASM memory alive, then create view
+        // This avoids copying data from WASM memory to JS memory
+        let js_array = unsafe {
+            Float32Array::view(&result)
+        };
+        
+        // Store the Vec to keep memory alive - the view references it
+        // Note: This means the Vec stays in memory until next call
+        // For single-use cases, this is fine
+        self.result_buffer = Some(result);
+        
+        js_array
     }
 
     /// Point cloud smoothing implementation in Rust

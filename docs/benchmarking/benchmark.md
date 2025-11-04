@@ -70,13 +70,7 @@ Each implementation uses production-level optimizations:
 
 ### Timing
 
-**Frontend implementations (TypeScript, WASM)**: Measure from function call start to result completion, including algorithm execution and result conversion.
-
-**Backend implementations**: 
-- **Rust BE & Python BE**: Measure **end-to-end** from button press to visual result (includes network I/O, JSON parsing, data copying, algorithm execution, and visualization)
-- **C++ BE**: Uses backend's internal timing which starts after JSON parsing and data copying (excludes I/O overhead but includes algorithm execution)
-
-**Note**: Backend executables internally measure algorithm execution time (after JSON parsing). Rust and Python BE frontend handlers override this with end-to-end timing, while C++ BE uses the internal timing. This means C++ BE timing excludes network I/O overhead, making direct comparisons with Rust/Python BE timing slightly different in scope.
+All implementations measure **end-to-end** timing from button press to visual result displayed, including data copying, JSON parsing, network I/O, algorithm execution, and visualization. This provides a realistic comparison of actual user experience.
 
 All implementations produce identical results (same voxel counts and point positions).
 

@@ -1,5 +1,5 @@
 import { Scene, PointsCloudSystem, Vector3, Color4 } from '@babylonjs/core';
-import type { PointCloudData, RenderOptions } from './PointCloud';
+import type { PointCloudData, RenderOptions, PointCloudMetadata } from './PointCloud';
 import { Log } from '../../utils/Log';
 
 /**
@@ -17,6 +17,125 @@ export class PointMesh {
 
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /**
+   * Create a point cloud mesh from Float32Array directly (optimized for WASM results)
+   * This avoids creating intermediate JS objects
+   */
+  async createPointCloudMeshFromFloat32Array(
+    id: string,
+    positions: Float32Array,
+    color: { r: number; g: number; b: number } = { r: 1, g: 1, b: 1 },
+    metadata: Partial<PointCloudMetadata>,
+    options: RenderOptions,
+    batchSize: number = 1000
+  ): Promise<any> {
+    Log.Debug('PointMesh', 'Creating point cloud mesh from Float32Array', { id, pointCount: positions.length / 3 });
+    
+    if (!this.scene) {
+      Log.Error('PointMesh', 'No scene available');
+      return null;
+    }
+
+    if (positions.length === 0 || positions.length % 3 !== 0) {
+      Log.Error('PointMesh', 'Invalid positions array');
+      return null;
+    }
+
+    const startTime = performance.now();
+    const pointCount = positions.length / 3;
+
+    // Remove existing mesh if it exists
+    this.removeMesh(id);
+
+    // Create PointsCloudSystem with optimized capacity
+    const pcs = new PointsCloudSystem(`pointCloud_${id}`, 1, this.scene);
+    this.meshes.set(id, pcs);
+
+    // Apply level-of-detail based on point count
+    const lodPointCount = this.calculateLODPointCount(pointCount, options);
+    const step = pointCount > lodPointCount ? Math.floor(pointCount / lodPointCount) : 1;
+    const pointsToRender = Math.min(lodPointCount, pointCount);
+
+    // Pre-allocate arrays for better performance
+    const transformedPositions = new Float32Array(pointsToRender * 3);
+    const colors = new Float32Array(pointsToRender * 4);
+
+    // Process points in batches
+    let renderIndex = 0;
+    for (let i = 0; i < pointCount && renderIndex < pointsToRender; i += step) {
+      const srcIndex = i * 3;
+      const dstIndex = renderIndex * 3;
+      const colorIndex = renderIndex * 4;
+
+      // Convert coordinates from robotics (X=forward, Y=left, Z=up) to Babylon.js (X=right, Y=up, Z=forward)
+      transformedPositions[dstIndex] = -positions[srcIndex + 1]; // left -> right
+      transformedPositions[dstIndex + 1] = positions[srcIndex + 2]; // up -> up
+      transformedPositions[dstIndex + 2] = positions[srcIndex]; // forward -> forward
+
+      // Set color
+      colors[colorIndex] = color.r;
+      colors[colorIndex + 1] = color.g;
+      colors[colorIndex + 2] = color.b;
+      colors[colorIndex + 3] = 1; // A
+
+      renderIndex++;
+    }
+
+    // Add points using the pre-allocated arrays
+    try {
+      pcs.addPoints(
+        renderIndex,
+        (particle: { position: Vector3; color: Color4 }, index: number) => {
+          const arrayIndex = index * 3;
+          const colorIndex = index * 4;
+
+          particle.position.set(
+            transformedPositions[arrayIndex],
+            transformedPositions[arrayIndex + 1],
+            transformedPositions[arrayIndex + 2]
+          );
+
+          particle.color.set(
+            colors[colorIndex],
+            colors[colorIndex + 1],
+            colors[colorIndex + 2],
+            colors[colorIndex + 3]
+          );
+        }
+      );
+    } catch (error) {
+      Log.Error('PointMesh', 'Failed to add points', { id, error: error instanceof Error ? error.message : 'Unknown error' });
+      return null;
+    }
+
+    // Make the system visible immediately
+    pcs.setParticles();
+
+    // Build the mesh
+    try {
+      if (typeof pcs.buildMeshAsync === 'function') {
+        await pcs.buildMeshAsync();
+        
+        if (pcs.mesh && pcs.mesh.material) {
+          pcs.mesh.material.pointSize = options.pointSize;
+          pcs.mesh.setEnabled(true);
+          pcs.mesh.isVisible = true;
+        }
+      }
+    } catch (error) {
+      Log.Error('PointMesh', 'Error building mesh', { id, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+
+    // Update performance stats
+    const renderTime = performance.now() - startTime;
+    this.performanceStats.lastRenderTime = renderTime;
+    this.performanceStats.totalPointsRendered += renderIndex;
+    this.performanceStats.averageRenderTime =
+      (this.performanceStats.averageRenderTime + renderTime) / 2;
+
+    return pcs;
   }
 
   /**

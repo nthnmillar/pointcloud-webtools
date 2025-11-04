@@ -272,6 +272,90 @@ export class PointService extends BaseService {
   }
 
   /**
+   * Create point cloud mesh from Float32Array directly (optimized for WASM results)
+   * This avoids creating intermediate JS objects
+   */
+  async createPointCloudMeshFromFloat32Array(
+    id: string,
+    positions: Float32Array,
+    color: { r: number; g: number; b: number } = { r: 1, g: 1, b: 1 },
+    metadata: Partial<PointCloudMetadata>
+  ): Promise<void> {
+    try {
+      Log.InfoClass(this, 'Creating point cloud from Float32Array', { id, pointCount: positions.length / 3 });
+
+      // Calculate bounds from Float32Array
+      const bounds = this.calculateBoundsFromFloat32Array(positions);
+
+      // Store minimal point cloud data
+      const pointCloudData: PointCloudData = {
+        points: [], // Empty - we don't store points, just metadata
+        metadata: {
+          name: metadata.name || 'Point Cloud',
+          totalPoints: positions.length / 3,
+          bounds,
+          hasColor: true,
+          hasIntensity: false,
+          hasClassification: false,
+          ...metadata
+        }
+      };
+      this.pointClouds.set(id, pointCloudData);
+
+      if (!this.activePointCloudId) {
+        this.activePointCloudId = id;
+      }
+
+      // Create the mesh directly using optimized method
+      if (this.pointMesh) {
+        await this.pointMesh.createPointCloudMeshFromFloat32Array(
+          id,
+          positions,
+          color,
+          metadata,
+          this.getRenderOptions()
+        );
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Calculate bounds from Float32Array (optimized)
+   */
+  private calculateBoundsFromFloat32Array(positions: Float32Array): {
+    min: Point3D;
+    max: Point3D;
+  } {
+    if (positions.length === 0 || positions.length % 3 !== 0) {
+      return { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } };
+    }
+
+    let minX = positions[0], maxX = positions[0];
+    let minY = positions[1], maxY = positions[1];
+    let minZ = positions[2], maxZ = positions[2];
+
+    for (let i = 0; i < positions.length; i += 3) {
+      const x = positions[i];
+      const y = positions[i + 1];
+      const z = positions[i + 2];
+
+      minX = x < minX ? x : minX;
+      maxX = x > maxX ? x : maxX;
+      minY = y < minY ? y : minY;
+      maxY = y > maxY ? y : maxY;
+      minZ = z < minZ ? z : minZ;
+      maxZ = z > maxZ ? z : maxZ;
+    }
+
+    return {
+      min: { x: minX, y: minY, z: minZ },
+      max: { x: maxX, y: maxY, z: maxZ },
+    };
+  }
+
+  /**
    * Create point cloud mesh directly (bypasses loadPointCloud)
    */
   async createPointCloudMesh(id: string, data: PointCloudData): Promise<void> {

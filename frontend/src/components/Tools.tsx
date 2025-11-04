@@ -3,6 +3,61 @@ import { ServiceManager } from '../services/ServiceManager';
 import { Log } from '../utils/Log';
 import { WorkerManager } from '../services/tools/WorkerManager';
 
+
+/**
+ * Convert Float32Array to point cloud points with bounds calculation in single pass
+ * This optimizes both conversion and bounds calculation together
+ * DEPRECATED: Use createPointCloudMeshFromFloat32Array instead for better performance
+ */
+function convertFloat32ArrayToPoints(
+  points: Float32Array,
+  color: { r: number; g: number; b: number } = { r: 1, g: 1, b: 1 }
+): { points: Array<{ position: { x: number; y: number; z: number }; color: { r: number; g: number; b: number }; intensity: number; classification: number }>; bounds: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } } {
+  const result: Array<{ position: { x: number; y: number; z: number }; color: { r: number; g: number; b: number }; intensity: number; classification: number }> = [];
+  
+  if (points.length === 0 || points.length % 3 !== 0) {
+    return {
+      points: [],
+      bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } },
+    };
+  }
+
+  let minX = points[0], maxX = points[0];
+  let minY = points[1], maxY = points[1];
+  let minZ = points[2], maxZ = points[2];
+
+  // Convert and calculate bounds in single pass
+  for (let i = 0; i < points.length; i += 3) {
+    const x = points[i];
+    const y = points[i + 1];
+    const z = points[i + 2];
+    
+    // Calculate bounds
+    minX = x < minX ? x : minX;
+    maxX = x > maxX ? x : maxX;
+    minY = y < minY ? y : minY;
+    maxY = y > maxY ? y : maxY;
+    minZ = z < minZ ? z : minZ;
+    maxZ = z > maxZ ? z : maxZ;
+
+    // Create point object
+    result.push({
+      position: { x, y, z },
+      color,
+      intensity: 1,
+      classification: 0,
+    });
+  }
+
+  return {
+    points: result,
+    bounds: {
+      min: { x: minX, y: minY, z: minZ },
+      max: { x: maxX, y: maxY, z: maxZ },
+    },
+  };
+}
+
 interface ToolsProps {
   serviceManager: ServiceManager | null;
   className?: string;
@@ -318,6 +373,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       return;
     }
 
+    // Start end-to-end timing (button press to visual result)
+    const startTime = performance.now();
+
     setIsProcessing(true);
     isProcessingRef.current = true;
 
@@ -394,64 +452,42 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           downsampledCount: result.downsampledCount
         });
 
-        // Convert result to point cloud format
-        const downsampledPoints = [];
-        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
-          downsampledPoints.push({
-            position: { 
-              x: result.downsampledPoints[i], 
-              y: result.downsampledPoints[i + 1], 
-              z: result.downsampledPoints[i + 2] 
-            },
-            color: { r: 1, g: 0.4, b: 0.28 }, // Orange/red color for Rust WASM Main processed points
-            intensity: 1,
-            classification: 0,
-          });
-        }
-
-        const rustWasmMainPointCloud = {
-          points: downsampledPoints,
-          metadata: {
+        // Use optimized Float32Array method to avoid object creation overhead
+        const rustWasmMainId = `rust_wasm_main_downsampled_${Date.now()}`;
+        await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
+          rustWasmMainId,
+          result.downsampledPoints,
+          { r: 1, g: 0.4, b: 0.28 }, // Orange/red color for Rust WASM Main processed points
+          {
             name: 'Rust WASM Main Downsampled Point Cloud',
-            totalPoints: downsampledPoints.length,
-            bounds: {
-              min: { 
-                x: Math.min(...downsampledPoints.map(p => p.position.x)), 
-                y: Math.min(...downsampledPoints.map(p => p.position.y)), 
-                z: Math.min(...downsampledPoints.map(p => p.position.z)) 
-              },
-              max: { 
-                x: Math.max(...downsampledPoints.map(p => p.position.x)), 
-                y: Math.max(...downsampledPoints.map(p => p.position.y)), 
-                z: Math.max(...downsampledPoints.map(p => p.position.z)) 
-              }
-            },
-            hasColor: true,
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             hasIntensity: true,
             hasClassification: true,
-            originalCount: result.originalCount,
-            downsampledCount: result.downsampledCount,
-            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-            processingTime: result.processingTime || 0
-          },
-        };
+          }
+        );
 
-        const rustWasmMainId = `rust_wasm_main_downsampled_${Date.now()}`;
-        await serviceManager.pointService?.loadPointCloud(rustWasmMainId, rustWasmMainPointCloud, false);
+        // Calculate end-to-end timing (button press to visual result)
+        const endToEndTime = performance.now() - startTime;
+        const rustWasmMainProcessingTime = result.processingTime || 0;
 
-        if (rustWasmMainPointCloud) {
-          onRustWasmMainResults?.({
-            originalCount: result.originalCount || 0,
-            downsampledCount: result.downsampledCount || 0,
-            processingTime: result.processingTime || 0
-          });
+        Log.Info('Tools', 'Rust WASM Main timing breakdown', {
+          rustWasmMainProcessingTime: `${rustWasmMainProcessingTime}ms`,
+          endToEndTime: `${endToEndTime.toFixed(2)}ms`,
+          overhead: `${(endToEndTime - rustWasmMainProcessingTime).toFixed(2)}ms`,
+          overheadPercentage: `${((endToEndTime - rustWasmMainProcessingTime) / endToEndTime * 100).toFixed(1)}%`
+        });
 
-          Log.Info('Tools', 'Rust WASM Main voxel downsampling completed', {
-            originalCount: result.originalCount,
-            downsampledCount: result.downsampledCount,
-            processingTime: result.processingTime
-          });
-        }
+        onRustWasmMainResults?.({
+          originalCount: result.originalCount || 0,
+          downsampledCount: result.downsampledCount || 0,
+          processingTime: endToEndTime // Use end-to-end time instead of just Rust WASM Main time
+        });
+
+        Log.Info('Tools', 'Rust WASM Main voxel downsampling completed', {
+          originalCount: result.originalCount,
+          downsampledCount: result.downsampledCount,
+          processingTime: endToEndTime.toFixed(2) + 'ms'
+        });
       } else {
         Log.Error('Tools', 'Rust WASM Main voxel downsampling failed', result.error);
       }
@@ -706,7 +742,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         return;
       }
 
-      const processingTime = performance.now() - startTime;
       const voxelCenters = workerResult.data.voxelCenters;
       const voxelCount = workerResult.data.voxelCount || voxelCenters.length / 3;
 
@@ -719,6 +754,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           2000
         );
       }
+
+      // Calculate end-to-end timing after visualization completes
+      const processingTime = performance.now() - startTime;
 
       Log.Info('Tools', 'C++ WASM Worker Debug Voxel generation completed', {
         processingTime: processingTime.toFixed(2) + 'ms',
@@ -805,7 +843,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         return;
       }
 
-      const processingTime = performance.now() - startTime;
       const voxelCenters = workerResult.data.voxelCenters;
       const voxelCount = workerResult.data.voxelCount || voxelCenters.length / 3;
 
@@ -818,6 +855,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           2000
         );
       }
+
+      // Calculate end-to-end timing after visualization completes
+      const processingTime = performance.now() - startTime;
 
       Log.Info('Tools', 'Rust WASM Worker Debug Voxel generation completed', {
         processingTime: processingTime.toFixed(2) + 'ms',
@@ -959,6 +999,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       return;
     }
 
+    // Start end-to-end timing (button press to visual result)
+    const startTime = performance.now();
+
     // Set processing state immediately to prevent debug toggle from being turned off
     setIsProcessing(true);
     isProcessingRef.current = true;
@@ -1063,70 +1106,44 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
             downsampledCount: result.downsampledCount
           });
           
-          // Convert downsampled points to PointCloudPoint array
-          const downsampledPoints = [];
-          for (let i = 0; i < result.downsampledPoints.length; i += 3) {
-            downsampledPoints.push({
-              position: {
-                x: result.downsampledPoints[i],
-                y: result.downsampledPoints[i + 1],
-                z: result.downsampledPoints[i + 2],
-              },
-              color: { r: 0, g: 1, b: 0 }, // Green color for WASM processed points
-              intensity: 1,
-              classification: 0,
-            });
-          }
-          
-          Log.Info('Tools', 'Converted downsampled points', {
-            downsampledPointsArrayLength: downsampledPoints.length
-          });
-
-          // Create point cloud for WASM result
-          const wasmPointCloud = {
-            points: downsampledPoints,
-            metadata: {
+          // Use optimized Float32Array method to avoid object creation overhead
+          const wasmId = `wasm_downsampled_${Date.now()}`;
+          await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
+            wasmId,
+            result.downsampledPoints,
+            { r: 0, g: 1, b: 0 }, // Green color for WASM processed points
+            {
               name: 'WASM Downsampled Point Cloud',
-              totalPoints: downsampledPoints.length,
-              bounds: {
-                min: {
-                  x: Math.min(...downsampledPoints.map(p => p.position.x)),
-                  y: Math.min(...downsampledPoints.map(p => p.position.y)),
-                  z: Math.min(...downsampledPoints.map(p => p.position.z))
-                },
-                max: {
-                  x: Math.max(...downsampledPoints.map(p => p.position.x)),
-                  y: Math.max(...downsampledPoints.map(p => p.position.y)),
-                  z: Math.max(...downsampledPoints.map(p => p.position.z))
-                }
-              },
-              hasColor: true,
+              voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
               hasIntensity: true,
               hasClassification: true,
-              originalCount: result.originalCount,
-              downsampledCount: result.downsampledCount,
-              voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-              processingTime: result.processingTime || 0
-            },
-          };
+            }
+          );
 
-          // Add WASM result to the scene
-          const wasmId = `wasm_downsampled_${Date.now()}`;
-          await serviceManager.pointService?.loadPointCloud(wasmId, wasmPointCloud, false);
+          // Calculate end-to-end timing (button press to visual result)
+          const endToEndTime = performance.now() - startTime;
+          const wasmProcessingTime = result.processingTime || 0;
+
+          Log.Info('Tools', 'WASM C++ Worker timing breakdown', {
+            wasmProcessingTime: `${wasmProcessingTime}ms`,
+            endToEndTime: `${endToEndTime.toFixed(2)}ms`,
+            overhead: `${(endToEndTime - wasmProcessingTime).toFixed(2)}ms`,
+            overheadPercentage: `${((endToEndTime - wasmProcessingTime) / endToEndTime * 100).toFixed(1)}%`
+          });
 
           Log.Info('Tools', 'WASM voxel downsampling completed', {
             originalCount: result.originalCount || 0,
             downsampledCount: result.downsampledCount || 0,
             reduction: result.originalCount && result.downsampledCount ? ((result.originalCount - result.downsampledCount) / result.originalCount * 100).toFixed(2) + '%' : '--',
-            processingTime: result.processingTime ? result.processingTime.toFixed(2) + 'ms' : '--'
+            processingTime: endToEndTime.toFixed(2) + 'ms'
           });
 
-          // Emit results to parent component
+          // Emit results to parent component (use end-to-end time for benchmark)
           if (onWasmResults) {
             onWasmResults({
               originalCount: result.originalCount || 0,
               downsampledCount: result.downsampledCount || 0,
-              processingTime: result.processingTime || 0,
+              processingTime: endToEndTime, // Use end-to-end time instead of just WASM time
               reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
               voxelCount: result.downsampledCount || 0
             });
@@ -1145,6 +1162,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       Log.Error('Tools', 'Tools service not available');
       return;
     }
+
+    // Start end-to-end timing (button press to visual result)
+    const startTime = performance.now();
 
     try {
       // Get all point cloud IDs
@@ -1212,69 +1232,47 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       });
 
       if (result.success && result.downsampledPoints) {
-        // Convert downsampled points to PointCloudPoint array
-        const downsampledPoints = [];
-        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
-          downsampledPoints.push({
-            position: {
-              x: result.downsampledPoints[i],
-              y: result.downsampledPoints[i + 1],
-              z: result.downsampledPoints[i + 2],
-            },
-            color: { r: 1, g: 0, b: 0 }, // Red color for Backend processed points
-            intensity: 1,
-            classification: 0,
-          });
-        }
-
-        // Create point cloud for Backend result
-        const backendPointCloud = {
-          points: downsampledPoints,
-          metadata: {
+        // Use optimized Float32Array method to avoid object creation overhead
+        const backendId = `backend_downsampled_${Date.now()}`;
+        await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
+          backendId,
+          result.downsampledPoints,
+          { r: 1, g: 0, b: 0 }, // Red color for Backend processed points
+          {
             name: 'Backend Downsampled Point Cloud',
-            totalPoints: downsampledPoints.length,
-            bounds: {
-              min: {
-                x: Math.min(...downsampledPoints.map(p => p.position.x)),
-                y: Math.min(...downsampledPoints.map(p => p.position.y)),
-                z: Math.min(...downsampledPoints.map(p => p.position.z))
-              },
-              max: {
-                x: Math.max(...downsampledPoints.map(p => p.position.x)),
-                y: Math.max(...downsampledPoints.map(p => p.position.y)),
-                z: Math.max(...downsampledPoints.map(p => p.position.z))
-              }
-            },
-            hasColor: true,
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             hasIntensity: true,
             hasClassification: true,
-            originalCount: result.originalCount,
-            downsampledCount: result.downsampledCount,
-            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-            processingTime: result.processingTime || 0
-          },
-        };
+          }
+        );
 
-        // Add Backend result to the scene
-        const backendId = `backend_downsampled_${Date.now()}`;
-        await serviceManager.pointService?.loadPointCloud(backendId, backendPointCloud, false); // Don't reposition camera
+        // Calculate end-to-end timing (button press to visual result)
+        const endToEndTime = performance.now() - startTime;
+        const cppProcessingTime = result.processingTime || 0;
+        
+        Log.Info('Tools', 'C++ BE timing breakdown', {
+          cppProcessingTime: `${cppProcessingTime}ms`,
+          endToEndTime: `${endToEndTime}ms`,
+          overhead: `${endToEndTime - cppProcessingTime}ms`,
+          overheadPercentage: `${((endToEndTime - cppProcessingTime) / endToEndTime * 100).toFixed(1)}%`
+        });
 
         Log.Info('Tools', 'Backend voxel downsampling completed', {
           originalCount: result.originalCount || 0,
           downsampledCount: result.downsampledCount || 0,
           reduction: result.originalCount && result.downsampledCount ? ((result.originalCount - result.downsampledCount) / result.originalCount * 100).toFixed(2) + '%' : '--',
-          processingTime: result.processingTime ? result.processingTime.toFixed(2) + 'ms' : '--'
+          processingTime: endToEndTime.toFixed(2) + 'ms'
         });
 
         // Calculate voxel count for BE results (same as WASM calculation)
         const voxelCount = result.downsampledCount || 0; // Each downsampled point represents one voxel
         
-        // Emit results to parent component
+        // Emit results to parent component (use end-to-end time for benchmark)
         if (onBeResults) {
           onBeResults({
             originalCount: result.originalCount || 0,
             downsampledCount: result.downsampledCount || 0,
-            processingTime: result.processingTime || 0,
+            processingTime: endToEndTime, // Use end-to-end time instead of just C++ time
             reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
             voxelCount: voxelCount
           });
@@ -1295,7 +1293,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
 
     try {
       // Start end-to-end timing
-      const startTime = Date.now();
+      const startTime = performance.now();
       
       // Get all point cloud IDs FIRST (before clearing)
       const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
@@ -1387,66 +1385,21 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           reductionRatio: result.reductionRatio
         });
 
-        // Convert downsampled points to PointCloudPoint array
-        const downsampledPoints = [];
-        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
-          downsampledPoints.push({
-            position: {
-              x: result.downsampledPoints[i],
-              y: result.downsampledPoints[i + 1],
-              z: result.downsampledPoints[i + 2],
-            },
-            color: { r: 1, g: 0.5, b: 0 }, // Orange color for Rust BE processed points
-            intensity: 1,
-            classification: 0,
-          });
-        }
-
-        // Create point cloud for Rust BE result
-        const rustBEPointCloud = {
-          points: downsampledPoints,
-          metadata: {
+        // Use optimized Float32Array method to avoid object creation overhead
+        await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
+          'BE Rust Voxel Downsampled',
+          result.downsampledPoints,
+          { r: 1, g: 0.5, b: 0 }, // Orange color for Rust BE processed points
+          {
             name: 'Rust BE Downsampled Point Cloud',
-            totalPoints: downsampledPoints.length,
-            bounds: {
-              min: {
-                x: Math.min(...downsampledPoints.map(p => p.position.x)),
-                y: Math.min(...downsampledPoints.map(p => p.position.y)),
-                z: Math.min(...downsampledPoints.map(p => p.position.z))
-              },
-              max: {
-                x: Math.max(...downsampledPoints.map(p => p.position.x)),
-                y: Math.max(...downsampledPoints.map(p => p.position.y)),
-                z: Math.max(...downsampledPoints.map(p => p.position.z))
-              }
-            },
-            hasColor: true,
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             hasIntensity: true,
             hasClassification: true,
-            originalCount: result.originalCount,
-            downsampledCount: result.downsampledCount,
-            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-            processingTime: result.processingTime,
-            reductionRatio: result.reductionRatio
           }
-        };
-
-        // Create new point cloud with downsampled points
-        const downsampledPointCloud = await serviceManager.pointService?.loadPointCloud(
-          'BE Rust Voxel Downsampled',
-          rustBEPointCloud,
-          false // Don't reposition camera
         );
 
-        if (downsampledPointCloud) {
-          Log.Info('Tools', 'Created downsampled point cloud', {
-            id: downsampledPointCloud.id,
-            pointCount: downsampledPointCloud.points.length
-          });
-        }
-
         // Calculate end-to-end timing (button press to point clouds appearing)
-        const endToEndTime = Date.now() - startTime;
+        const endToEndTime = performance.now() - startTime;
         const rustProcessingTime = result.processingTime || 0;
         
         Log.Info('Tools', 'Rust BE timing breakdown', {
@@ -1498,7 +1451,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
 
     try {
       // Start end-to-end timing
-      const startTime = Date.now();
+      const startTime = performance.now();
       
       // Get all point cloud IDs FIRST (before clearing)
       const allPointCloudIds = serviceManager.pointService?.pointCloudIds || [];
@@ -1582,7 +1535,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       });
 
       if (result.success && result.downsampledPoints) {
-        const endToEndTime = Date.now() - startTime;
+        const endToEndTime = performance.now() - startTime;
         const pythonProcessingTime = result.processingTime || 0;
         
         Log.Info('Tools', 'BE Python voxel downsampling completed', {
@@ -1600,44 +1553,18 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           last10: result.downsampledPoints.slice(-10)
         });
 
-        // Convert downsampled points to PointCloudPoint array (like Rust BE)
-        const downsampledPoints = [];
-        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
-          downsampledPoints.push({
-            position: {
-              x: result.downsampledPoints[i],
-              y: result.downsampledPoints[i + 1],
-              z: result.downsampledPoints[i + 2]
-            }
-          });
-        }
-
-        const pythonBEPointCloud: any = {
-          points: downsampledPoints,
-          colors: new Array(downsampledPoints.length).fill([0.0, 0.8, 1.0, 1.0]).flat(), // Light blue/cyan color
-          metadata: {
-            originalCount: result.originalCount || 0,
-            downsampledCount: result.downsampledCount || 0,
-            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-            processingTime: pythonProcessingTime,
-            endToEndTime: endToEndTime,
-            method: 'BE Python'
-          }
-        };
-
-        // Create new point cloud with downsampled points
-        const downsampledPointCloud = await serviceManager.pointService?.loadPointCloud(
+        // Use optimized Float32Array method to avoid object creation overhead
+        await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           'BE Python Voxel Downsampled',
-          pythonBEPointCloud,
-          false // Don't reposition camera
+          result.downsampledPoints,
+          { r: 0.0, g: 0.8, b: 1.0 }, // Light blue/cyan color for Python BE
+          {
+            name: 'Python BE Downsampled Point Cloud',
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
+            hasIntensity: true,
+            hasClassification: true,
+          }
         );
-
-        if (downsampledPointCloud) {
-          Log.Info('Tools', 'Created downsampled point cloud', {
-            id: downsampledPointCloud.id,
-            pointCount: downsampledPointCloud.points.length
-          });
-        }
 
         // Each downsampled point represents one voxel
         const voxelCount = result.voxelCount || result.downsampledCount || 0;
@@ -1677,6 +1604,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       Log.Error('Tools', 'Tools service not available');
       return;
     }
+
+    // Start end-to-end timing (button press to visual result)
+    const startTime = performance.now();
 
     try {
       // Get all point cloud IDs
@@ -1744,59 +1674,36 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       });
 
       if (result.success && result.downsampledPoints) {
-        // Convert downsampled points to PointCloudPoint array
-        const downsampledPoints = [];
-        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
-          downsampledPoints.push({
-            position: {
-              x: result.downsampledPoints[i],
-              y: result.downsampledPoints[i + 1],
-              z: result.downsampledPoints[i + 2],
-            },
-            color: { r: 0, g: 0, b: 1 }, // Blue color for TypeScript downsampled points
-            intensity: 1,
-            classification: 0,
-          });
-        }
-
-        // Create point cloud for TypeScript result
-        const tsPointCloud = {
-          points: downsampledPoints,
-          metadata: {
+        // Use optimized Float32Array method to avoid object creation overhead
+        const tsId = `ts_downsampled_${Date.now()}`;
+        await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
+          tsId,
+          result.downsampledPoints,
+          { r: 0, g: 0, b: 1 }, // Blue color for TypeScript downsampled points
+          {
             name: 'TypeScript Downsampled Point Cloud',
-            totalPoints: downsampledPoints.length,
-            bounds: {
-              min: {
-                x: Math.min(...downsampledPoints.map(p => p.position.x)),
-                y: Math.min(...downsampledPoints.map(p => p.position.y)),
-                z: Math.min(...downsampledPoints.map(p => p.position.z))
-              },
-              max: {
-                x: Math.max(...downsampledPoints.map(p => p.position.x)),
-                y: Math.max(...downsampledPoints.map(p => p.position.y)),
-                z: Math.max(...downsampledPoints.map(p => p.position.z))
-              }
-            },
-            hasColor: true,
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             hasIntensity: true,
             hasClassification: true,
-            originalCount: result.originalCount,
-            downsampledCount: result.downsampledCount,
-            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-            processingTime: result.processingTime,
-            method: 'TypeScript'
-          },
-        };
+          }
+        );
 
-        // Add TypeScript result to the scene
-        const tsId = `ts_downsampled_${Date.now()}`;
-        await serviceManager.pointService?.loadPointCloud(tsId, tsPointCloud, false); // Don't reposition camera
+        // Calculate end-to-end timing (button press to visual result)
+        const endToEndTime = performance.now() - startTime;
+        const tsProcessingTime = result.processingTime || 0;
+
+        Log.Info('Tools', 'TypeScript timing breakdown', {
+          tsProcessingTime: `${tsProcessingTime}ms`,
+          endToEndTime: `${endToEndTime.toFixed(2)}ms`,
+          overhead: `${(endToEndTime - tsProcessingTime).toFixed(2)}ms`,
+          overheadPercentage: `${((endToEndTime - tsProcessingTime) / endToEndTime * 100).toFixed(1)}%`
+        });
 
         Log.Info('Tools', 'TypeScript voxel downsampling completed', {
           originalCount: result.originalCount,
           downsampledCount: result.downsampledCount,
           reduction: result.originalCount && result.downsampledCount ? ((result.originalCount - result.downsampledCount) / result.originalCount * 100).toFixed(2) + '%' : '--',
-          processingTime: result.processingTime ? result.processingTime.toFixed(2) + 'ms' : '--'
+          processingTime: endToEndTime.toFixed(2) + 'ms'
         });
 
         // Calculate voxel count for TS results (same as WASM calculation)
@@ -1807,7 +1714,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           onTsResults({
             originalCount: result.originalCount || 0,
             downsampledCount: result.downsampledCount || 0,
-            processingTime: result.processingTime || 0,
+            processingTime: endToEndTime, // Use end-to-end time instead of just TypeScript time
             reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
             voxelCount: voxelCount
           });
@@ -2119,6 +2026,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       return;
     }
 
+    // Start end-to-end timing (button press to visual result)
+    const startTime = performance.now();
+
     // Set processing state immediately
     setIsProcessing(true);
     isProcessingRef.current = true;
@@ -2188,67 +2098,43 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       });
 
       if (result.success && result.downsampledPoints) {
-        // Convert Float32Array to point cloud format
-        const downsampledPoints = [];
-        for (let i = 0; i < result.downsampledPoints.length; i += 3) {
-          downsampledPoints.push({
-            position: {
-              x: result.downsampledPoints[i],
-              y: result.downsampledPoints[i + 1],
-              z: result.downsampledPoints[i + 2],
-            },
-            color: { r: 0, g: 1, b: 0 }, // Green color for WASM C++ Main processed points
-            intensity: 1,
-            classification: 0,
-          });
-        }
-
-        // Create point cloud for WASM C++ Main result
-        const wasmCppMainPointCloud = {
-          points: downsampledPoints,
-          metadata: {
+        // Use optimized Float32Array method to avoid object creation overhead
+        const wasmCppMainId = `wasm_cpp_main_downsampled_${Date.now()}`;
+        await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
+          wasmCppMainId,
+          result.downsampledPoints,
+          { r: 0, g: 1, b: 0 }, // Green color for WASM C++ Main processed points
+          {
             name: 'WASM C++ Main Downsampled Point Cloud',
-            totalPoints: downsampledPoints.length,
-            bounds: {
-              min: {
-                x: Math.min(...downsampledPoints.map(p => p.position.x)),
-                y: Math.min(...downsampledPoints.map(p => p.position.y)),
-                z: Math.min(...downsampledPoints.map(p => p.position.z))
-              },
-              max: {
-                x: Math.max(...downsampledPoints.map(p => p.position.x)),
-                y: Math.max(...downsampledPoints.map(p => p.position.y)),
-                z: Math.max(...downsampledPoints.map(p => p.position.z))
-              }
-            },
-            hasColor: true,
+            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             hasIntensity: true,
             hasClassification: true,
-            originalCount: result.originalCount,
-            downsampledCount: result.downsampledCount,
-            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-            processingTime: result.processingTime || 0
-          },
-        };
+          }
+        );
 
-        // Add WASM C++ Main result to the scene
-        const wasmCppMainId = `wasm_cpp_main_downsampled_${Date.now()}`;
-        await serviceManager.pointService?.loadPointCloud(wasmCppMainId, wasmCppMainPointCloud, false);
+        // Calculate end-to-end timing (button press to visual result)
+        const endToEndTime = performance.now() - startTime;
+        const wasmCppMainProcessingTime = result.processingTime || 0;
 
-        if (wasmCppMainPointCloud) {
-          // Update benchmark results
-          onWasmCppMainResults?.({
-            originalCount: result.originalCount || 0,
-            downsampledCount: result.downsampledCount || 0,
-            processingTime: result.processingTime || 0
-          });
+        Log.Info('Tools', 'WASM C++ Main timing breakdown', {
+          wasmCppMainProcessingTime: `${wasmCppMainProcessingTime}ms`,
+          endToEndTime: `${endToEndTime.toFixed(2)}ms`,
+          overhead: `${(endToEndTime - wasmCppMainProcessingTime).toFixed(2)}ms`,
+          overheadPercentage: `${((endToEndTime - wasmCppMainProcessingTime) / endToEndTime * 100).toFixed(1)}%`
+        });
 
-          Log.Info('Tools', 'WASM C++ Main voxel downsampling completed', {
-            originalCount: result.originalCount,
-            downsampledCount: result.downsampledCount,
-            processingTime: result.processingTime
-          });
-        }
+        // Update benchmark results (use end-to-end time for benchmark)
+        onWasmCppMainResults?.({
+          originalCount: result.originalCount || 0,
+          downsampledCount: result.downsampledCount || 0,
+          processingTime: endToEndTime // Use end-to-end time instead of just WASM C++ Main time
+        });
+
+        Log.Info('Tools', 'WASM C++ Main voxel downsampling completed', {
+          originalCount: result.originalCount,
+          downsampledCount: result.downsampledCount,
+          processingTime: endToEndTime.toFixed(2) + 'ms'
+        });
       } else {
         Log.Error('Tools', 'WASM C++ Main voxel downsampling failed', result.error);
       }
@@ -2282,6 +2168,9 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       Log.Error('Tools', 'Tools service not available');
       return;
     }
+
+    // Start end-to-end timing (button press to visual result)
+    const startTime = performance.now();
 
     // Set processing state immediately
     setIsProcessing(true);
@@ -2420,19 +2309,30 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           const wasmRustId = `wasm_rust_downsampled_${Date.now()}`;
           await serviceManager.pointService?.loadPointCloud(wasmRustId, wasmRustPointCloud, false);
 
+          // Calculate end-to-end timing (button press to visual result)
+          const endToEndTime = performance.now() - startTime;
+          const wasmRustProcessingTime = result.processingTime || 0;
+
+          Log.Info('Tools', 'WASM Rust Worker timing breakdown', {
+            wasmRustProcessingTime: `${wasmRustProcessingTime}ms`,
+            endToEndTime: `${endToEndTime.toFixed(2)}ms`,
+            overhead: `${(endToEndTime - wasmRustProcessingTime).toFixed(2)}ms`,
+            overheadPercentage: `${((endToEndTime - wasmRustProcessingTime) / endToEndTime * 100).toFixed(1)}%`
+          });
+
           Log.Info('Tools', 'WASM Rust voxel downsampling completed', {
             originalCount: result.originalCount || 0,
             downsampledCount: result.downsampledCount || 0,
             reduction: result.originalCount && result.downsampledCount ? ((result.originalCount - result.downsampledCount) / result.originalCount * 100).toFixed(2) + '%' : '--',
-            processingTime: result.processingTime ? result.processingTime.toFixed(2) + 'ms' : '--'
+            processingTime: endToEndTime.toFixed(2) + 'ms'
           });
 
-          // Emit results to parent component
+          // Emit results to parent component (use end-to-end time for benchmark)
           if (onWasmRustResults) {
             onWasmRustResults({
               originalCount: result.originalCount || 0,
               downsampledCount: result.downsampledCount || 0,
-              processingTime: result.processingTime || 0,
+              processingTime: endToEndTime, // Use end-to-end time instead of just WASM Rust time
               reductionRatio: result.originalCount && result.downsampledCount ? result.originalCount / result.downsampledCount : 1,
               voxelCount: result.downsampledCount || 0
             });

@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
 
@@ -20,8 +21,8 @@ extern "C" {
                                   float smoothingRadius, int iterations);
 }
 
-// Optimized voxel downsampling function
-std::vector<Point3D> voxelDownsample(
+// Optimized voxel downsampling function - returns Float32Array directly
+emscripten::val voxelDownsample(
     const emscripten::val& inputPoints, 
     float voxelSize,
     float globalMinX = 0.0f,
@@ -29,20 +30,29 @@ std::vector<Point3D> voxelDownsample(
     float globalMinZ = 0.0f
 ) {
     if (inputPoints.isNull() || inputPoints.isUndefined() || voxelSize <= 0) {
-        return std::vector<Point3D>();
+        return emscripten::val::global("Float32Array").new_();
     }
     
     int length = inputPoints["length"].as<int>();
     int pointCount = length / 3;
     
-    // Allocate memory for input and output data
-    float* inputPtr = (float*)malloc(length * sizeof(float));
-    float* outputPtr = (float*)malloc(length * sizeof(float));
+    if (length <= 0 || length % 3 != 0) {
+        return emscripten::val::global("Float32Array").new_();
+    }
     
-    // Copy input data to WASM memory efficiently
+    // OPTIMIZATION: Copy input data efficiently
+    // Note: Direct memory access requires the Float32Array to be in WASM memory
+    // Since it's passed from JS, we need to copy it to WASM memory
+    float* inputPtr = (float*)malloc(length * sizeof(float));
+    
+    // Copy input data efficiently - element-by-element is necessary when
+    // the Float32Array is not in WASM memory
     for (int i = 0; i < length; i++) {
         inputPtr[i] = inputPoints.call<float>("at", i);
     }
+    
+    // Allocate output buffer
+    float* outputPtr = (float*)malloc(length * sizeof(float));
     
     // Call the optimized function
     int outputCount = voxelDownsampleInternal(
@@ -55,22 +65,20 @@ std::vector<Point3D> voxelDownsample(
         outputPtr
     );
     
-    // Convert output to Point3D vector
-    std::vector<Point3D> result;
-    for (int i = 0; i < outputCount; i++) {
-        result.push_back(Point3D(
-            outputPtr[i * 3],
-            outputPtr[i * 3 + 1],
-            outputPtr[i * 3 + 2]
-        ));
+    // Create Float32Array directly from output buffer - use .set() method
+    emscripten::val resultArray = emscripten::val::global("Float32Array").new_(outputCount * 3);
+    
+    // Copy directly from output buffer to result array using .set()
+    for (int i = 0; i < outputCount * 3; i++) {
+        resultArray.set(i, outputPtr[i]);
     }
     
     // Free allocated memory
     free(inputPtr);
     free(outputPtr);
     
-    return result;
-    }
+    return resultArray;
+}
     
     // Ultra-optimized voxel downsampling with direct memory access
 int voxelDownsampleInternal(

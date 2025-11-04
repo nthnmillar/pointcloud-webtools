@@ -2,13 +2,7 @@
 console.log('[CppWasmWorker] Worker script started');
 
 interface ToolsModule {
-  voxelDownsample(inputPoints: Float32Array, voxelSize: number, globalMinX?: number, globalMinY?: number, globalMinZ?: number): {
-    size(): number;
-    get(index: number): { x: number; y: number; z: number };
-    at?(index: number): { x: number; y: number; z: number };
-    length?: number;
-    [index: number]: { x: number; y: number; z: number };
-  };
+  voxelDownsample(inputPoints: Float32Array, voxelSize: number, globalMinX?: number, globalMinY?: number, globalMinZ?: number): Float32Array;
   pointCloudSmoothing(inputPoints: Float32Array, smoothingRadius?: number, iterations?: number): Float32Array;
   showVoxelDebug(inputPoints: Float32Array, voxelSize: number): void;
   getVoxelDebugCenters(): Float32Array | number[];
@@ -122,7 +116,7 @@ async function processVoxelDownsampling(data: {
     globalBounds
   });
 
-  // Use the optimized voxel downsampling function
+  // Use the optimized voxel downsampling function (now returns Float32Array directly)
   const result = toolsModule.voxelDownsample(
     pointCloudData,
     voxelSize,
@@ -131,15 +125,11 @@ async function processVoxelDownsampling(data: {
     globalBounds.minZ
   );
   
-  // Convert result to Float32Array
-  const resultSize = result.size();
-  const downsampledPoints = new Float32Array(resultSize * 3);
-  for (let i = 0; i < resultSize; i++) {
-    const point = result.get(i);
-    downsampledPoints[i * 3] = point.x;
-    downsampledPoints[i * 3 + 1] = point.y;
-    downsampledPoints[i * 3 + 2] = point.z;
-  }
+  // Result is now Float32Array directly - no conversion needed
+  const downsampledPoints = result instanceof Float32Array 
+    ? result 
+    : new Float32Array(result);
+  const resultSize = downsampledPoints.length / 3;
 
   const processingTime = performance.now() - startTime;
   
