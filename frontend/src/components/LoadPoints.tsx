@@ -24,6 +24,36 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
   const [supportedFormats, setSupportedFormats] = useState<string[]>([]);
   const [isVoxelProcessing, setIsVoxelProcessing] = useState(false);
   const [lastClickTime, setLastClickTime] = useState(0);
+  const [pointCount, setPointCount] = useState<number>(0);
+
+  // Get point count from all loaded point clouds
+  useEffect(() => {
+    if (!serviceManager) return;
+    
+    const updatePointCount = () => {
+      if (!serviceManager.pointService) return;
+      
+      // Get all point clouds and sum their point counts
+      let totalPoints = 0;
+      const pointCloudIds = serviceManager.pointCloudIds;
+      
+      for (const id of pointCloudIds) {
+        const pointCloud = serviceManager.getPointCloud(id);
+        if (pointCloud?.metadata?.totalPoints) {
+          totalPoints += pointCloud.metadata.totalPoints;
+        }
+      }
+      
+      setPointCount(totalPoints);
+    };
+
+    // Check immediately
+    updatePointCount();
+
+    // Also check periodically to catch updates
+    const interval = setInterval(updatePointCount, 500);
+    return () => clearInterval(interval);
+  }, [serviceManager]);
 
   // Initialize supported formats from service manager
   useEffect(() => {
@@ -228,6 +258,14 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
           </div>
 
           <div className="load-points-content">
+            {/* Point Count Display - Always visible */}
+            <div className="control-group">
+              <label>Points Loaded:</label>
+              <span style={{ color: '#61dafb', fontWeight: 500, marginLeft: '8px' }}>
+                {pointCount.toLocaleString()}
+              </span>
+            </div>
+
             <div className="control-group">
               <label>Batch Size:</label>
               <input
