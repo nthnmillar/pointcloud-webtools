@@ -457,7 +457,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           rustWasmMainId,
           result.downsampledPoints,
-          { r: 1, g: 0.4, b: 0.28 }, // Orange/red color for Rust WASM Main processed points
+          undefined, // Use default white color
           {
             name: 'Rust WASM Main Downsampled Point Cloud',
             voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
@@ -1118,7 +1118,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
             wasmId,
             result.downsampledPoints,
-            { r: 0, g: 1, b: 0 }, // Green color for WASM processed points
+            undefined, // Use default white color
             {
               name: 'WASM Downsampled Point Cloud',
               voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
@@ -1244,7 +1244,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           backendId,
           result.downsampledPoints,
-          { r: 1, g: 0, b: 0 }, // Red color for Backend processed points
+          undefined, // Use default white color
           {
             name: 'Backend Downsampled Point Cloud',
             voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
@@ -1396,7 +1396,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           'BE Rust Voxel Downsampled',
           result.downsampledPoints,
-          { r: 1, g: 0.5, b: 0 }, // Orange color for Rust BE processed points
+          undefined, // Use default white color
           {
             name: 'Rust BE Downsampled Point Cloud',
             voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
@@ -1564,7 +1564,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           'BE Python Voxel Downsampled',
           result.downsampledPoints,
-          { r: 0.0, g: 0.8, b: 1.0 }, // Light blue/cyan color for Python BE
+          undefined, // Use default white color
           {
             name: 'Python BE Downsampled Point Cloud',
             voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
@@ -1691,7 +1691,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           tsId,
           result.downsampledPoints,
-          { r: 0, g: 0, b: 1 }, // Blue color for TypeScript downsampled points
+          undefined, // Use default white color
           {
             name: 'TypeScript Downsampled Point Cloud',
             voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
@@ -2115,7 +2115,7 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           wasmCppMainId,
           result.downsampledPoints,
-          { r: 0, g: 1, b: 0 }, // Green color for WASM C++ Main processed points
+          undefined, // Use default white color
           {
             name: 'WASM C++ Main Downsampled Point Cloud',
             voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
@@ -2290,7 +2290,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                 y: result.downsampledPoints[i + 1],
                 z: result.downsampledPoints[i + 2],
               },
-              color: { r: 1, g: 0.4, b: 0.28 }, // Orange/red color for WASM Rust processed points
               intensity: 1,
               classification: 0,
             });

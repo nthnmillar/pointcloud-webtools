@@ -415,11 +415,16 @@ export class PointService extends BaseService {
   }
 
   /**
-   * Get current render options (placeholder - should get from RenderService)
+   * Get current render options from RenderService
    */
   private getRenderOptions(): RenderOptions {
+    // Get render options from RenderService if available, otherwise use defaults
+    if (this.serviceManager?.renderService) {
+      return this.serviceManager.renderService.renderOptions;
+    }
+    // Fallback to default render options (same as RenderService defaults)
     return {
-      pointSize: 5.0, // Increased point size for better visibility
+      pointSize: 2.0,
       colorMode: 'original',
       showBoundingBox: false,
       showAxes: true,
