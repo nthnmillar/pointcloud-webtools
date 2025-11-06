@@ -477,10 +477,17 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           overheadPercentage: `${((endToEndTime - rustWasmMainProcessingTime) / endToEndTime * 100).toFixed(1)}%`
         });
 
+        const originalCount = result.originalCount || 0;
+        const downsampledCount = result.downsampledCount || 0;
+        const reductionRatio = originalCount > 0 && downsampledCount > 0 ? originalCount / downsampledCount : 1;
+        const voxelCount = downsampledCount; // Each downsampled point represents one voxel
+        
         onRustWasmMainResults?.({
-          originalCount: result.originalCount || 0,
-          downsampledCount: result.downsampledCount || 0,
-          processingTime: endToEndTime // Use end-to-end time instead of just Rust WASM Main time
+          originalCount,
+          downsampledCount,
+          processingTime: endToEndTime, // Use end-to-end time instead of just Rust WASM Main time
+          reductionRatio,
+          voxelCount
         });
 
         Log.Info('Tools', 'Rust WASM Main voxel downsampling completed', {
@@ -1567,16 +1574,21 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         );
 
         // Each downsampled point represents one voxel
-        const voxelCount = result.voxelCount || result.downsampledCount || 0;
+        const originalCount = result.originalCount || 0;
+        const downsampledCount = result.downsampledCount || 0;
+        const voxelCount = result.voxelCount || downsampledCount;
+        const reductionRatio = originalCount > 0 && downsampledCount > 0 
+          ? (result.reductionRatio || originalCount / downsampledCount)
+          : 1;
         
         // Emit results to parent component (use end-to-end time for benchmark)
         if (onBePythonResults) {
           const benchmarkResults = {
-            originalCount: result.originalCount || 0,
-            downsampledCount: result.downsampledCount || 0,
+            originalCount,
+            downsampledCount,
             processingTime: endToEndTime, // Use end-to-end time instead of just Python time
-            reductionRatio: result.reductionRatio || 0,
-            voxelCount: voxelCount
+            reductionRatio,
+            voxelCount
           };
           onBePythonResults(benchmarkResults);
         }
@@ -2124,10 +2136,17 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         });
 
         // Update benchmark results (use end-to-end time for benchmark)
+        const originalCount = result.originalCount || 0;
+        const downsampledCount = result.downsampledCount || 0;
+        const reductionRatio = originalCount > 0 && downsampledCount > 0 ? originalCount / downsampledCount : 1;
+        const voxelCount = downsampledCount; // Each downsampled point represents one voxel
+        
         onWasmCppMainResults?.({
-          originalCount: result.originalCount || 0,
-          downsampledCount: result.downsampledCount || 0,
-          processingTime: endToEndTime // Use end-to-end time instead of just WASM C++ Main time
+          originalCount,
+          downsampledCount,
+          processingTime: endToEndTime, // Use end-to-end time instead of just WASM C++ Main time
+          reductionRatio,
+          voxelCount
         });
 
         Log.Info('Tools', 'WASM C++ Main voxel downsampling completed', {
