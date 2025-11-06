@@ -21,6 +21,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
 
   // Loading-related state
   const [batchSize, setBatchSize] = useState(2000);
+  const [batchLimit, setBatchLimit] = useState<number>(0);
   const [supportedFormats, setSupportedFormats] = useState<string[]>([]);
   const [isVoxelProcessing, setIsVoxelProcessing] = useState(false);
   const [lastClickTime, setLastClickTime] = useState(0);
@@ -196,7 +197,8 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Load the file - batches will appear in scene as they load
-      await serviceManager.loadFile(file, batchSize);
+      // batchLimit of 0 means unlimited
+      await serviceManager.loadFile(file, batchSize, batchLimit > 0 ? batchLimit : undefined);
     } catch (err) {
       Log.Error('LoadPoints', 'Error loading file', err);
       onErrorChange(err instanceof Error ? err.message : 'Failed to load file');
@@ -278,6 +280,24 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
                 style={{ width: '80px', marginLeft: '8px' }}
               />
               <span style={{ marginLeft: '8px' }}>points per batch</span>
+            </div>
+
+            <div className="control-group">
+              <label>Batch Limit:</label>
+              <input
+                type="number"
+                min="0"
+                value={batchLimit}
+                onChange={e => setBatchLimit(Math.max(0, parseInt(e.target.value) || 0))}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                  }
+                }}
+                placeholder="0 = unlimited"
+                style={{ width: '80px', marginLeft: '8px' }}
+              />
+              <span style={{ marginLeft: '8px' }}>batches (0 = unlimited)</span>
             </div>
 
             <div className="control-group">

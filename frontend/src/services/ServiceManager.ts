@@ -162,9 +162,9 @@ export class ServiceManager extends BaseService {
   }
 
   // Loader Service Methods
-  async loadFile(file: File, batchSize: number = 500): Promise<void> {
+  async loadFile(file: File, batchSize: number = 500, batchLimit?: number): Promise<void> {
     // Loading file
-    return this._loaderService.loadFile(file, batchSize);
+    return this._loaderService.loadFile(file, batchSize, batchLimit);
   }
 
   cancelLoading(): void {

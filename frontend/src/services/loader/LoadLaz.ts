@@ -31,6 +31,8 @@ export class LoadLaz {
     return this.isProcessing;
   }
 
+  private batchLimit: number | undefined = undefined;
+
   private resetAccumulator(): void {
     this.currentFileId = null;
     this.batchCount = 0;
@@ -38,6 +40,7 @@ export class LoadLaz {
     this.calculatedCentroid = null;
     this.totalPointsProcessed = 0;
     this.currentMessageHandler = null;
+    this.batchLimit = undefined;
   }
 
   /**
@@ -55,7 +58,7 @@ export class LoadLaz {
     }
   }
 
-  async loadFromFile(file: File, batchSize: number = 500): Promise<void> {
+  async loadFromFile(file: File, batchSize: number = 500, batchLimit?: number): Promise<void> {
     // Cancel any existing loading process
     if (this.isProcessing) {
       Log.Info('LoadLaz', 'Cancelling previous loading process');
@@ -64,6 +67,7 @@ export class LoadLaz {
 
     this.isProcessing = true;
     this.resetAccumulator(); // Reset the accumulator
+    this.batchLimit = batchLimit; // Store batch limit
     this.currentFileId = `laz_${Date.now()}`; // Generate unique file ID
 
     try {
@@ -126,6 +130,15 @@ export class LoadLaz {
           case 'BATCH_COMPLETE':
             // Process this batch immediately
             this.processBatch(data);
+            // Check if we've reached the batch limit
+            if (this.batchLimit !== undefined && this.batchCount >= this.batchLimit) {
+              Log.Info('LoadLaz', `Reached batch limit of ${this.batchLimit}, stopping loading`);
+              this.worker!.removeEventListener('message', handleMessage);
+              this.currentMessageHandler = null;
+              this.isProcessing = false;
+              resolve();
+              return;
+            }
             // Request next batch
             this.processNextBatch();
             break;

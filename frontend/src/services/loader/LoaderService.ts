@@ -35,7 +35,7 @@ export class LoaderService extends BaseService {
     this.loadCOPC.cancelLoading();
   }
 
-  async loadFile(file: File, batchSize: number = 500): Promise<void> {
+  async loadFile(file: File, batchSize: number = 500, batchLimit?: number): Promise<void> {
     const fileExtension = file.name
       .toLowerCase()
       .substring(file.name.lastIndexOf('.'));
@@ -52,10 +52,10 @@ export class LoaderService extends BaseService {
 
       if (fileExtension === '.copc' || fileExtension === '.copc.laz') {
         // Load COPC file
-        await this.loadCOPC.loadFromFile(file, batchSize);
+        await this.loadCOPC.loadFromFile(file, batchSize, batchLimit);
       } else {
         // Load LAZ file
-        await this.loadLaz.loadFromFile(file, batchSize);
+        await this.loadLaz.loadFromFile(file, batchSize, batchLimit);
       }
 
       this.emit('loadingCompleted', {

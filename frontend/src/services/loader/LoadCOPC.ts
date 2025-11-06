@@ -49,7 +49,7 @@ export class LoadCOPC {
     }
   }
 
-  async loadFromFile(file: File, batchSize: number = 500): Promise<void> {
+  async loadFromFile(file: File, batchSize: number = 500, batchLimit?: number): Promise<void> {
     // Cancel any existing loading process
     if (this.isProcessing) {
       Log.Info('LoadCOPC', 'Cancelling previous loading process');
@@ -66,7 +66,7 @@ export class LoadCOPC {
 
       // Process file
       const arrayBuffer = await this.readFileAsArrayBuffer(file);
-      await this.processFile(arrayBuffer, batchSize);
+      await this.processFile(arrayBuffer, batchSize, batchLimit);
     } catch (error) {
       throw error;
     } finally {
@@ -129,7 +129,8 @@ export class LoadCOPC {
 
   private async processFile(
     fileBuffer: ArrayBuffer,
-    batchSize: number = 500
+    batchSize: number = 500,
+    batchLimit?: number
   ): Promise<void> {
     if (!this.loader) throw new Error('COPC loader not initialized');
 
@@ -154,7 +155,7 @@ export class LoadCOPC {
       this.calculateCentroid();
 
       // Process points in batches
-      await this.processPointsInBatches(batchSize);
+      await this.processPointsInBatches(batchSize, batchLimit);
 
     } catch (error) {
       Log.Error('LoadCOPC', 'Error processing COPC file', error);
@@ -175,16 +176,17 @@ export class LoadCOPC {
     Log.Info('LoadCOPC', `Point cloud centroid: (${this.calculatedCentroid.x.toFixed(2)}, ${this.calculatedCentroid.y.toFixed(2)}, ${this.calculatedCentroid.z.toFixed(2)})`);
   }
 
-  private async processPointsInBatches(batchSize: number): Promise<void> {
+  private async processPointsInBatches(batchSize: number, batchLimit?: number): Promise<void> {
     if (!this.loader || !this.calculatedCentroid) return;
 
     const allPoints = this.loader.getAllPoints();
     const totalPoints = allPoints.length;
     const totalBatches = Math.ceil(totalPoints / batchSize);
+    const maxBatches = batchLimit !== undefined && batchLimit > 0 ? Math.min(batchLimit, totalBatches) : totalBatches;
 
-    Log.Info('LoadCOPC', `Processing ${totalPoints} points in ${totalBatches} batches`);
+    Log.Info('LoadCOPC', `Processing ${totalPoints} points in ${maxBatches} batches${batchLimit ? ` (limited from ${totalBatches} total)` : ''}`);
 
-    for (let i = 0; i < totalBatches; i++) {
+    for (let i = 0; i < maxBatches; i++) {
       const startIndex = i * batchSize;
       const endIndex = Math.min(startIndex + batchSize, totalPoints);
       const batchPoints = allPoints.slice(startIndex, endIndex);
@@ -199,7 +201,11 @@ export class LoadCOPC {
       await new Promise(resolve => setTimeout(resolve, 10));
     }
 
-    Log.Info('LoadCOPC', `Completed processing ${this.totalPointsProcessed} points in ${totalBatches} batches`);
+    if (batchLimit && maxBatches < totalBatches) {
+      Log.Info('LoadCOPC', `Stopped at batch limit of ${batchLimit}. Processed ${this.totalPointsProcessed} points in ${maxBatches} batches`);
+    } else {
+      Log.Info('LoadCOPC', `Completed processing ${this.totalPointsProcessed} points in ${maxBatches} batches`);
+    }
   }
 
   private convertToPointCloudPoints(points: any[]): PointCloudPoint[] {
