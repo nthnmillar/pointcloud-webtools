@@ -28,6 +28,9 @@ export interface VoxelDownsampleResult {
 export class VoxelDownsamplingWASMCPP extends BaseService {
   private module: any = null;
   private _serviceManager: ServiceManager;
+  // Store output pointer to keep WASM memory alive for zero-copy view
+  // Similar to Rust's result_buffer approach
+  private previousOutputPtr: number | null = null;
 
   constructor(serviceManager: ServiceManager) {
     super();
@@ -99,6 +102,13 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
       const pointCount = params.pointCloudData.length / 3;
       const floatCount = params.pointCloudData.length;
       
+      // Free previous output buffer if it exists (keep only one result alive at a time)
+      // This is similar to Rust's approach where result_buffer is replaced on each call
+      if (this.previousOutputPtr !== null) {
+        this.module._free(this.previousOutputPtr);
+        this.previousOutputPtr = null;
+      }
+      
       // Allocate memory in WASM heap for input and output
       const inputPtr = this.module._malloc(floatCount * 4); // 4 bytes per float
       const outputPtr = this.module._malloc(floatCount * 4); // Pre-allocate output buffer (worst case: same size as input)
@@ -144,26 +154,30 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
           outputPtr
         });
         
-        // For now, use the existing Embind function to read output
-        // We'll optimize output later as requested
+        // ZERO-COPY OUTPUT: Create direct view of WASM memory (similar to Rust's Float32Array::view)
+        // Store output pointer to keep WASM memory alive - don't free it immediately
         const resultFloatCount = outputCount * 3;
         const outputFloatIndex = outputPtr >> 2;
         
-        // Create view of WASM memory for output
-        const heapView = this.module.HEAPF32.subarray(
+        // Create zero-copy view of WASM memory - no copying!
+        const downsampledPoints = this.module.HEAPF32.subarray(
           outputFloatIndex,
           outputFloatIndex + resultFloatCount
         );
         
-        // Copy to new array BEFORE freeing WASM memory
-        const downsampledPoints = new Float32Array(heapView);
+        // Store output pointer to keep memory alive (similar to Rust's result_buffer)
+        // This allows the zero-copy view to remain valid
+        // Previous output pointer was already freed above
+        this.previousOutputPtr = outputPtr;
         
         const processingTime = performance.now() - startTime;
         
-        Log.Info('VoxelDownsamplingWASM', 'Voxel downsampling completed', {
+        Log.Info('VoxelDownsamplingWASM', 'Voxel downsampling completed with zero-copy output', {
           originalCount: pointCount,
           downsampledCount: outputCount,
-          processingTime
+          processingTime,
+          outputPtr,
+          isZeroCopy: true
         });
         
         return {
@@ -175,9 +189,9 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
           voxelCount: outputCount
         };
       } finally {
-        // Free allocated memory
+        // Free input memory immediately (output memory is kept alive for zero-copy view)
         if (inputPtr) this.module._free(inputPtr);
-        if (outputPtr) this.module._free(outputPtr);
+        // Note: outputPtr is NOT freed here - it's stored in previousOutputPtr and freed on next call or dispose
       }
     } catch (error) {
       Log.Error('VoxelDownsamplingWASM', 'Voxel downsampling failed', error);
@@ -190,6 +204,11 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
 
 
   dispose(): void {
+    // Free stored output buffer if it exists
+    if (this.previousOutputPtr !== null && this.module && this.module._free) {
+      this.module._free(this.previousOutputPtr);
+      this.previousOutputPtr = null;
+    }
     this.module = null;
     this.removeAllObservers();
   }
