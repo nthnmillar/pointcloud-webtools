@@ -87,84 +87,98 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
     try {
       const startTime = performance.now();
       
-      Log.Info('VoxelDownsamplingWASM', 'Calling WASM function with params', {
-        pointCloudDataLength: params.pointCloudData.length,
-        voxelSize: params.voxelSize,
-        bounds: params.globalBounds
-      });
+      // Check if required functions are available
+      if (!this.module._malloc || !this.module._free || !this.module.ccall || !this.module.HEAPF32) {
+        throw new Error('Required WASM functions not available. Missing: ' + 
+          (!this.module._malloc ? '_malloc ' : '') +
+          (!this.module._free ? '_free ' : '') +
+          (!this.module.ccall ? 'ccall ' : '') +
+          (!this.module.HEAPF32 ? 'HEAPF32' : ''));
+      }
       
-      // Use Float32Array directly - no conversion needed (matches Worker implementation)
-      let result;
+      const pointCount = params.pointCloudData.length / 3;
+      const floatCount = params.pointCloudData.length;
+      
+      // Allocate memory in WASM heap for input and output
+      const inputPtr = this.module._malloc(floatCount * 4); // 4 bytes per float
+      const outputPtr = this.module._malloc(floatCount * 4); // Pre-allocate output buffer (worst case: same size as input)
+      
+      if (!inputPtr || !outputPtr) {
+        throw new Error(`Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`);
+      }
+      
       try {
-        Log.Info('VoxelDownsamplingWASM', 'Using voxel downsampling');
-        result = this.module.voxelDownsample(
-          params.pointCloudData, // Use Float32Array directly - same as Worker
-          params.voxelSize,
-          params.globalBounds.minX,
-          params.globalBounds.minY,
-          params.globalBounds.minZ
-        );
-      } catch (error) {
-        Log.Error('VoxelDownsamplingWASM', 'WASM function threw error', error);
-        throw error;
-      }
-
-      Log.Info('VoxelDownsamplingWASM', 'WASM function returned', {
-        resultType: typeof result,
-        resultLength: result ? (result.size ? result.size() : result.length) : 'undefined',
-        result: result,
-        resultIsArray: Array.isArray(result),
-        resultConstructor: result ? result.constructor.name : 'undefined'
-      });
-
-      // Convert result to Float32Array (same conversion as Worker - included in timing)
-      let downsampledPoints: Float32Array;
-      let resultSize: number;
-      
-      if (result instanceof Float32Array) {
-        // Optimized function returns Float32Array directly
-        downsampledPoints = result;
-        resultSize = result.length / 3;
-      } else {
-        // Original function returns a vector of Point3D objects
-        resultSize = result ? result.size() : 0;
-        downsampledPoints = new Float32Array(resultSize * 3);
-        for (let i = 0; i < resultSize; i++) {
-          const point = result.get(i);
-          downsampledPoints[i * 3] = point.x;
-          downsampledPoints[i * 3 + 1] = point.y;
-          downsampledPoints[i * 3 + 2] = point.z;
-        }
-      }
-
-      // Time AFTER conversion (matches Worker implementation timing)
-      const processingTime = performance.now() - startTime;
-      
-      if (resultSize === 0) {
-        Log.Warn('VoxelDownsamplingWASM', 'WASM function returned empty result', {
-          voxelSize: params.voxelSize,
-          bounds: params.globalBounds,
-          pointCount: params.pointCloudData.length / 3
+        // OPTIMIZATION: Bulk copy input data using HEAPF32.set()
+        // This is much faster than element-by-element copy
+        const inputFloatIndex = inputPtr >> 2; // Convert byte pointer to float index
+        this.module.HEAPF32.set(params.pointCloudData, inputFloatIndex);
+        
+        Log.Info('VoxelDownsamplingWASM', 'Input data copied to WASM memory', {
+          pointCount,
+          inputPtr,
+          inputFloatIndex
         });
+        
+        // Call the direct pointer-based function using ccall
+        const outputCount = this.module.ccall(
+          'voxelDownsampleDirect',  // Function name (ccall adds underscore automatically)
+          'number',  // Return type: int (number of output points)
+          ['number', 'number', 'number', 'number', 'number', 'number', 'number'], // Parameter types
+          [
+            inputPtr,                    // inputPtr (byte pointer, C will cast to float*)
+            pointCount,                  // pointCount
+            params.voxelSize,            // voxelSize
+            params.globalBounds.minX,    // globalMinX
+            params.globalBounds.minY,    // globalMinY
+            params.globalBounds.minZ,    // globalMinZ
+            outputPtr                    // outputPtr (byte pointer, C will cast to float*)
+          ]
+        );
+        
+        if (outputCount <= 0 || outputCount > pointCount) {
+          throw new Error(`Invalid output count: ${outputCount} (expected 1-${pointCount})`);
+        }
+        
+        Log.Info('VoxelDownsamplingWASM', 'Direct function returned', {
+          outputCount,
+          outputPtr
+        });
+        
+        // For now, use the existing Embind function to read output
+        // We'll optimize output later as requested
+        const resultFloatCount = outputCount * 3;
+        const outputFloatIndex = outputPtr >> 2;
+        
+        // Create view of WASM memory for output
+        const heapView = this.module.HEAPF32.subarray(
+          outputFloatIndex,
+          outputFloatIndex + resultFloatCount
+        );
+        
+        // Copy to new array BEFORE freeing WASM memory
+        const downsampledPoints = new Float32Array(heapView);
+        
+        const processingTime = performance.now() - startTime;
+        
+        Log.Info('VoxelDownsamplingWASM', 'Voxel downsampling completed', {
+          originalCount: pointCount,
+          downsampledCount: outputCount,
+          processingTime
+        });
+        
         return {
-          success: false,
+          success: true,
+          downsampledPoints,
+          originalCount: pointCount,
+          downsampledCount: outputCount,
           processingTime,
-          error: 'WASM function returned empty result'
+          voxelCount: outputCount
         };
+      } finally {
+        // Free allocated memory
+        if (inputPtr) this.module._free(inputPtr);
+        if (outputPtr) this.module._free(outputPtr);
       }
-      
-      Log.Info('VoxelDownsamplingWASM', 'Converted to Float32Array', {
-        downsampledPointsLength: downsampledPoints.length
-      });
-
-              return {
-                success: true,
-                downsampledPoints,
-                originalCount: params.pointCloudData.length / 3,
-                downsampledCount: resultSize,
-                processingTime,
-                voxelCount: resultSize
-              };
     } catch (error) {
       Log.Error('VoxelDownsamplingWASM', 'Voxel downsampling failed', error);
       return {

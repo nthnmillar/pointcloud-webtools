@@ -32,7 +32,8 @@ emcc src/wasm/cpp/tools.cpp \
   -s INITIAL_MEMORY=16MB \
   -s MAXIMUM_MEMORY=512MB \
   -s ENVIRONMENT="web" \
-  -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap']" \
+  -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'HEAPF32', 'HEAPU8']" \
+  -s EXPORTED_FUNCTIONS="['_voxelDownsampleDirect', '_malloc', '_free']" \
   -s NO_DISABLE_EXCEPTION_CATCHING=1 \
   -O3 \
   --bind

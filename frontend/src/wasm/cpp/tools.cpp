@@ -19,6 +19,33 @@ int voxelDownsampleInternal(float* inputData, int pointCount, float voxelSize,
 extern "C" {
     void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCount, 
                                   float smoothingRadius, int iterations);
+    
+    // Direct pointer-based voxel downsampling for zero-copy input access
+    // JavaScript allocates memory, copies input data with HEAPF32.set(), calls this function,
+    // then reads results from outputPtr using the existing Embind function
+    int voxelDownsampleDirect(
+        float* inputPtr,      // Pointer to input data in WASM heap (already copied via HEAPF32.set())
+        int pointCount,        // Number of points (length / 3)
+        float voxelSize,
+        float globalMinX,
+        float globalMinY,
+        float globalMinZ,
+        float* outputPtr      // Pointer to output buffer (pre-allocated, at least pointCount * 3 floats)
+    ) {
+        if (!inputPtr || !outputPtr || pointCount <= 0 || voxelSize <= 0) {
+            return 0;
+        }
+        
+        return voxelDownsampleInternal(
+            inputPtr,
+            pointCount,
+            voxelSize,
+            globalMinX,
+            globalMinY,
+            globalMinZ,
+            outputPtr
+        );
+    }
 }
 
 // Optimized voxel downsampling function - returns Float32Array directly
