@@ -29,6 +29,10 @@ export class PointCloudSmoothingBERust extends BaseService {
     this.connect();
   }
 
+  async initialize(): Promise<void> {
+    // WebSocket connection is handled in constructor
+  }
+
   private connect(): void {
     try {
       Log.Info('PointCloudSmoothingBERust', 'Connecting to WebSocket', { baseUrl: 'ws://localhost:3003' });
