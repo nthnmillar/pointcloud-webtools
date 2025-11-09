@@ -10,63 +10,67 @@
 #include <cctype>
 #include <cstring>
 
-// RapidJSON (header-only JSON library)
-#include "rapidjson/include/rapidjson/document.h"
-#include "rapidjson/include/rapidjson/writer.h"
-#include "rapidjson/include/rapidjson/stringbuffer.h"
-#include "rapidjson/include/rapidjson/istreamwrapper.h"
+// Binary protocol for fast I/O (replaces JSON)
+// Input format: [uint32_t pointCount][float voxelSize][float minX][float minY][float minZ][float maxX][float maxY][float maxZ][float* pointData]
+// Output format: [uint32_t outputCount][float* downsampledPoints]
 
-using namespace rapidjson;
-
-// Custom hash for better performance (identity hash for uint64_t keys)
-struct FastHash {
-    size_t operator()(uint64_t key) const noexcept {
-        // Identity hash - uint64_t keys are already well-distributed
-        return static_cast<size_t>(key);
-    }
+// OPTIMIZATION: Use struct instead of tuple for better cache locality (matches WASM implementation)
+struct Voxel {
+    int count;
+    float sumX, sumY, sumZ;
+    Voxel() : count(0), sumX(0), sumY(0), sumZ(0) {}
+    // Constructor for efficient initialization
+    Voxel(int c, float x, float y, float z) : count(c), sumX(x), sumY(y), sumZ(z) {}
 };
 
 int main() {
-    // Read all input from stdin (JSON format)
-    std::string inputJson;
-    std::string line;
-    while (std::getline(std::cin, line)) {
-        inputJson += line;
-        if (inputJson.length() > 50000000) break; // Safety limit (50MB)
+    // OPTIMIZATION: Read binary input instead of JSON (much faster!)
+    // Binary format: [uint32_t pointCount][float voxelSize][float minX][float minY][float minZ][float maxX][float maxY][float maxZ][float* pointData]
+    
+    // Read binary header (32 bytes: 4 for uint32 + 7*4 for floats)
+    uint32_t pointCount;
+    float voxelSize, minX, minY, minZ, maxX, maxY, maxZ;
+    
+    if (!std::cin.read(reinterpret_cast<char*>(&pointCount), sizeof(uint32_t))) {
+        return 1; // Failed to read header
+    }
+    if (!std::cin.read(reinterpret_cast<char*>(&voxelSize), sizeof(float))) {
+        return 1;
+    }
+    if (!std::cin.read(reinterpret_cast<char*>(&minX), sizeof(float))) {
+        return 1;
+    }
+    if (!std::cin.read(reinterpret_cast<char*>(&minY), sizeof(float))) {
+        return 1;
+    }
+    if (!std::cin.read(reinterpret_cast<char*>(&minZ), sizeof(float))) {
+        return 1;
+    }
+    if (!std::cin.read(reinterpret_cast<char*>(&maxX), sizeof(float))) {
+        return 1;
+    }
+    if (!std::cin.read(reinterpret_cast<char*>(&maxY), sizeof(float))) {
+        return 1;
+    }
+    if (!std::cin.read(reinterpret_cast<char*>(&maxZ), sizeof(float))) {
+        return 1;
     }
     
-    // Parse JSON using RapidJSON (ultra-fast)
-    Document doc;
-    if (doc.Parse(inputJson.c_str()).HasParseError()) {
-        // Fallback to empty result if parsing fails
-        std::cout << "{\"success\":true,\"downsampled_points\":[],\"original_count\":0,\"downsampled_count\":0,\"voxel_count\":0,\"processing_time\":0.0}" << std::endl;
-        return 0;
-    }
-    
-    // Extract values using RapidJSON (very fast)
-    float voxelSize = doc["voxel_size"].GetFloat();
-    const Value& pointsArray = doc["point_cloud_data"];
-    
-    // Extract bounds first
-    const Value& bounds = doc["global_bounds"];
-    float minX = bounds["min_x"].GetFloat();
-    float minY = bounds["min_y"].GetFloat();
-    float minZ = bounds["min_z"].GetFloat();
-    
-    int pointCount = pointsArray.Size() / 3;
+    // Validate input
     if (pointCount == 0 || voxelSize <= 0) {
-        std::cout << "{\"success\":true,\"downsampled_points\":[],\"original_count\":0,\"downsampled_count\":0,\"voxel_count\":0,\"processing_time\":0.0}" << std::endl;
+        // Write empty result (4 bytes: outputCount = 0)
+        uint32_t outputCount = 0;
+        std::cout.write(reinterpret_cast<const char*>(&outputCount), sizeof(uint32_t));
+        std::cout.flush();
         return 0;
     }
     
-    // Fast single-pass copy to contiguous memory (better cache locality than indirect access)
-    std::vector<float> pointCloudData;
-    pointCloudData.reserve(pointsArray.Size());
-    pointCloudData.resize(pointsArray.Size());
+    // Read point data directly into vector (zero-copy where possible)
+    const size_t floatCount = pointCount * 3;
+    std::vector<float> pointCloudData(floatCount);
     
-    // Single optimized copy loop - contiguous memory is faster than indirect RapidJSON access
-    for (SizeType i = 0; i < pointsArray.Size(); i++) {
-        pointCloudData[i] = pointsArray[i].GetFloat();
+    if (!std::cin.read(reinterpret_cast<char*>(pointCloudData.data()), floatCount * sizeof(float))) {
+        return 1; // Failed to read point data
     }
     
     float* inputData = pointCloudData.data();
@@ -77,16 +81,19 @@ int main() {
     // OPTIMIZED C++ voxel downsampling - use contiguous memory for cache efficiency
     float invVoxelSize = 1.0f / voxelSize;
     
-    // Use custom hash for better performance (identity hash since keys are already well-distributed)
-    std::unordered_map<uint64_t, std::tuple<float, float, float, int>, FastHash> voxelMap;
-    voxelMap.reserve(pointCount / 3); // Better estimate to avoid rehashing
+    // OPTIMIZATION 1: Reserve capacity for unordered_map to avoid rehashing (matches WASM)
+    // Estimate: ~1% of points become voxels (rough estimate based on typical downsampling)
+    int estimatedVoxels = pointCount / 100;
+    if (estimatedVoxels < 100) estimatedVoxels = 100; // Minimum capacity
+    std::unordered_map<uint64_t, Voxel> voxelMap;
+    voxelMap.reserve(estimatedVoxels);
     
     const int CHUNK_SIZE = 1024;
     // Process from contiguous memory - maximum cache efficiency
-    for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
-        int chunkEnd = std::min(chunkStart + CHUNK_SIZE, pointCount);
+    for (uint32_t chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
+        uint32_t chunkEnd = std::min(chunkStart + static_cast<uint32_t>(CHUNK_SIZE), pointCount);
         
-        for (int i = chunkStart; i < chunkEnd; i++) {
+        for (uint32_t i = chunkStart; i < chunkEnd; i++) {
             int i3 = i * 3;
             // Direct memory access - fastest possible
             float x = inputData[i3];
@@ -102,69 +109,48 @@ int main() {
                                (static_cast<uint64_t>(voxelY) << 16) |
                                static_cast<uint64_t>(voxelZ);
             
-            // Use try_emplace for better performance (avoids extra hash lookup)
-            auto [it, inserted] = voxelMap.try_emplace(voxelKey, x, y, z, 1);
+            // OPTIMIZATION 2: Use try_emplace with struct initializer (matches WASM)
+            // This is more efficient than default-constructing then assigning
+            auto [it, inserted] = voxelMap.try_emplace(voxelKey, 1, x, y, z);
             if (!inserted) {
-                // Update existing entry - more efficient than find + modify
-                auto& [sumX, sumY, sumZ, count] = it->second;
-                sumX += x;
-                sumY += y;
-                sumZ += z;
-                count++;
+                // Existing entry - update (more common case, so optimize for this)
+                Voxel& voxel = it->second;
+                voxel.count++;
+                voxel.sumX += x;
+                voxel.sumY += y;
+                voxel.sumZ += z;
             }
         }
     }
     
-    // Build output
+    // OPTIMIZATION 3: Pre-allocate output vector and write directly (matches WASM)
+    // This avoids push_back reallocation overhead
     int outputCount = voxelMap.size();
     std::vector<float> downsampledPoints;
-    downsampledPoints.reserve(outputCount * 3);
+    downsampledPoints.resize(outputCount * 3); // Pre-allocate exact size
     
-    for (const auto& [voxelKey, voxelData] : voxelMap) {
-        const auto& [sumX, sumY, sumZ, count] = voxelData;
-        downsampledPoints.push_back(sumX / count);
-        downsampledPoints.push_back(sumY / count);
-        downsampledPoints.push_back(sumZ / count);
+    // Write results directly to pre-allocated vector (like WASM writes to output buffer)
+    int outputIndex = 0;
+    for (const auto& [voxelKey, voxel] : voxelMap) {
+        float count_f = static_cast<float>(voxel.count);
+        downsampledPoints[outputIndex * 3] = voxel.sumX / count_f;
+        downsampledPoints[outputIndex * 3 + 1] = voxel.sumY / count_f;
+        downsampledPoints[outputIndex * 3 + 2] = voxel.sumZ / count_f;
+        outputIndex++;
     }
     
-    // Calculate processing time
-    auto endTime = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
-    double processingTime = duration.count() / 1000.0;
+    // OPTIMIZATION: Write binary output instead of JSON (much faster!)
+    // Binary format: [uint32_t outputCount][float* downsampledPoints]
     
-    // Output JSON - use pre-allocated string buffer (faster than RapidJSON Writer for large arrays)
-    size_t estimatedSize = downsampledPoints.size() * 15 + 200;
-    std::string jsonOutput;
-    jsonOutput.reserve(estimatedSize);
+    // Write output count (4 bytes)
+    uint32_t outputCount_u32 = static_cast<uint32_t>(outputCount);
+    std::cout.write(reinterpret_cast<const char*>(&outputCount_u32), sizeof(uint32_t));
     
-    jsonOutput = "{\"success\":true,\"downsampled_points\":[";
+    // Write downsampled points directly (binary, no serialization overhead!)
+    std::cout.write(reinterpret_cast<const char*>(downsampledPoints.data()), downsampledPoints.size() * sizeof(float));
     
-    char buffer[32];
-    for (size_t i = 0; i < downsampledPoints.size(); i++) {
-        if (i > 0) jsonOutput += ',';
-        int len = snprintf(buffer, sizeof(buffer), "%.6f", downsampledPoints[i]);
-        jsonOutput.append(buffer, len);
-    }
-    
-    jsonOutput += "],\"original_count\":";
-    int len = snprintf(buffer, sizeof(buffer), "%d", pointCount);
-    jsonOutput.append(buffer, len);
-    
-    jsonOutput += ",\"downsampled_count\":";
-    len = snprintf(buffer, sizeof(buffer), "%d", outputCount);
-    jsonOutput.append(buffer, len);
-    
-    jsonOutput += ",\"voxel_count\":";
-    len = snprintf(buffer, sizeof(buffer), "%d", outputCount);
-    jsonOutput.append(buffer, len);
-    
-    jsonOutput += ",\"processing_time\":";
-    len = snprintf(buffer, sizeof(buffer), "%.6f", processingTime);
-    jsonOutput.append(buffer, len);
-    
-    jsonOutput += "}";
-    
-    std::cout << jsonOutput << std::endl;
+    // Flush to ensure data is sent
+    std::cout.flush();
     
     return 0;
 }
