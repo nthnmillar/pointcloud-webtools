@@ -133,23 +133,29 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
         throw new Error(`Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`);
       }
       
+      // OPTIMIZATION: Check if input is already in WASM memory (zero-copy optimization)
+      const isInputInWasmMemory = params.pointCloudData.buffer === this.module.HEAPF32.buffer;
+      let inputPtrToUse = inputPtr;
+      
       try {
-        // OPTIMIZATION: Bulk copy input data using HEAPF32.set()
-        // This is much faster than element-by-element copy
-        const inputFloatIndex = inputPtr >> 2; // Convert byte pointer to float index
-        this.module.HEAPF32.set(params.pointCloudData, inputFloatIndex);
         
-        Log.Info('VoxelDownsamplingWASM', 'Input data copied to WASM memory', {
-          pointCount,
-          inputPtr,
-          inputFloatIndex
-        });
+        if (isInputInWasmMemory) {
+          // Input is already in WASM memory - use it directly (zero-copy!)
+          inputPtrToUse = params.pointCloudData.byteOffset;
+          // Free the allocated input buffer since we don't need it
+          this.module._free(inputPtr);
+        } else {
+          // OPTIMIZATION: Bulk copy input data using HEAPF32.set()
+          // This is much faster than element-by-element copy
+          const inputFloatIndex = inputPtr >> 2; // Convert byte pointer to float index
+          this.module.HEAPF32.set(params.pointCloudData, inputFloatIndex);
+        }
         
         // OPTIMIZATION: Use cached wrapped function (cwrap) instead of ccall for better performance
         // cwrap reduces function call overhead by caching the function pointer
         const outputCount = this.voxelDownsampleDirectFunc
           ? this.voxelDownsampleDirectFunc(
-              inputPtr,                    // inputPtr (byte pointer, C will cast to float*)
+              inputPtrToUse,               // inputPtr (byte pointer, C will cast to float*)
               pointCount,                  // pointCount
               params.voxelSize,            // voxelSize
               params.globalBounds.minX,    // globalMinX
@@ -162,7 +168,7 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
               'number',
               ['number', 'number', 'number', 'number', 'number', 'number', 'number'],
               [
-                inputPtr,
+                inputPtrToUse,
                 pointCount,
                 params.voxelSize,
                 params.globalBounds.minX,
@@ -175,11 +181,6 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
         if (outputCount <= 0 || outputCount > pointCount) {
           throw new Error(`Invalid output count: ${outputCount} (expected 1-${pointCount})`);
         }
-        
-        Log.Info('VoxelDownsamplingWASM', 'Direct function returned', {
-          outputCount,
-          outputPtr
-        });
         
         // ZERO-COPY OUTPUT: Create direct view of WASM memory (similar to Rust's Float32Array::view)
         // Store output pointer to keep WASM memory alive - don't free it immediately
@@ -199,14 +200,6 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
         
         const processingTime = performance.now() - startTime;
         
-        Log.Info('VoxelDownsamplingWASM', 'Voxel downsampling completed with zero-copy output', {
-          originalCount: pointCount,
-          downsampledCount: outputCount,
-          processingTime,
-          outputPtr,
-          isZeroCopy: true
-        });
-        
         return {
           success: true,
           downsampledPoints,
@@ -216,8 +209,10 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
           voxelCount: outputCount
         };
       } finally {
-        // Free input memory immediately (output memory is kept alive for zero-copy view)
-        if (inputPtr) this.module._free(inputPtr);
+        // Free input memory only if we allocated it (not if it was already in WASM memory)
+        if (!isInputInWasmMemory && inputPtr) {
+          this.module._free(inputPtr);
+        }
         // Note: outputPtr is NOT freed here - it's stored in previousOutputPtr and freed on next call or dispose
       }
     } catch (error) {

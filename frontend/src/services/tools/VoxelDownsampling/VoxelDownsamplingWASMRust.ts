@@ -9,6 +9,8 @@ export class VoxelDownsamplingWASMRust extends BaseService {
   private wasmModule: PointCloudToolsRust | null = null;
   private wasmInstance: any = null;
   private memory: WebAssembly.Memory | null = null;
+  private heapF32: Float32Array | null = null; // Cached Float32Array view for zero allocation overhead
+  private voxelDownsampleDirectStaticFunc: ((...args: number[]) => number) | null = null; // Cached static function
   private previousOutputPtr: number | null = null;
   private previousOutputSize: number = 0;
 
@@ -30,6 +32,8 @@ export class VoxelDownsamplingWASMRust extends BaseService {
       // Get WASM memory for direct access (wasm.memory is the WebAssembly.Memory)
       if (wasm.memory) {
         this.memory = wasm.memory;
+        // OPTIMIZATION: Cache Float32Array view to avoid allocation on every call
+        this.heapF32 = new Float32Array(wasm.memory.buffer);
       } else {
         throw new Error('WASM memory not available');
       }
@@ -40,7 +44,12 @@ export class VoxelDownsamplingWASMRust extends BaseService {
         throw new Error('WASM malloc/free functions not available');
       }
       
-      // Create the Rust tools instance
+      // OPTIMIZATION: Cache static function if available to avoid method lookup overhead
+      if (typeof (PointCloudToolsRust as any).voxel_downsample_direct_static === 'function') {
+        this.voxelDownsampleDirectStaticFunc = (PointCloudToolsRust as any).voxel_downsample_direct_static;
+      }
+      
+      // Create the Rust tools instance (still needed for other methods)
       this.wasmModule = new PointCloudToolsRust();
       
       this.isInitialized = true;
@@ -111,14 +120,21 @@ export class VoxelDownsamplingWASMRust extends BaseService {
           this.wasmInstance.__wbindgen_export_1(inputPtr, floatCount * 4, 4);
         } else {
           // Input is in JS memory - copy to WASM memory (same as C++)
-          const heapF32 = new Float32Array(this.memory.buffer);
+          // OPTIMIZATION: Use cached heapF32 view instead of creating new Float32Array
+          if (!this.heapF32) {
+            this.heapF32 = new Float32Array(this.memory.buffer);
+          }
+          // Refresh view if memory grew (buffer may have changed)
+          if (this.heapF32.buffer !== this.memory.buffer) {
+            this.heapF32 = new Float32Array(this.memory.buffer);
+          }
           const inputFloatIndex = inputPtr >> 2; // Bit shift is faster than division (same as C++)
-          heapF32.set(pointCloudData, inputFloatIndex);
+          this.heapF32.set(pointCloudData, inputFloatIndex);
         }
         
-        // Call direct function (zero-copy during processing, like C++)
-        const outputCount = typeof (PointCloudToolsRust as any).voxel_downsample_direct_static === 'function'
-          ? (PointCloudToolsRust as any).voxel_downsample_direct_static(
+        // OPTIMIZATION: Use cached static function directly to avoid method lookup overhead
+        const outputCount = this.voxelDownsampleDirectStaticFunc
+          ? this.voxelDownsampleDirectStaticFunc(
               inputPtrToUse, pointCount, voxelSize,
               globalBounds.minX, globalBounds.minY, globalBounds.minZ, outputPtr
             )
@@ -131,12 +147,14 @@ export class VoxelDownsamplingWASMRust extends BaseService {
           throw new Error(`Invalid output count: ${outputCount}`);
         }
         
-        // Read output directly from WASM memory (zero-copy view, like C++)
-        // Use subarray() to create a view, NOT new Float32Array() which copies
-        const freshHeapF32 = new Float32Array(this.memory.buffer);
+        // OPTIMIZATION: Use cached heapF32 view instead of creating new Float32Array
+        // Refresh view if memory grew (buffer may have changed)
+        if (!this.heapF32 || this.heapF32.buffer !== this.memory.buffer) {
+          this.heapF32 = new Float32Array(this.memory.buffer);
+        }
         const resultFloatCount = outputCount * 3;
         const outputFloatIndex = outputPtr >> 2; // Bit shift is faster than division (same as C++)
-        const downsampledPoints = freshHeapF32.subarray(outputFloatIndex, outputFloatIndex + resultFloatCount);
+        const downsampledPoints = this.heapF32.subarray(outputFloatIndex, outputFloatIndex + resultFloatCount);
         
         // Store output pointer and size to keep memory alive
         this.previousOutputPtr = outputPtr;
@@ -180,6 +198,8 @@ export class VoxelDownsamplingWASMRust extends BaseService {
     this.wasmModule = null;
     this.wasmInstance = null;
     this.memory = null;
+    this.heapF32 = null;
+    this.voxelDownsampleDirectStaticFunc = null;
     this.isInitialized = false;
     Log.Info('VoxelDownsamplingWASMRust', 'Rust WASM voxel downsampling service disposed');
   }
