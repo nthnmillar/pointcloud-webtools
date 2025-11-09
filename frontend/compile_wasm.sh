@@ -68,8 +68,11 @@ cd ../../..
 
 # Copy files to public directory and rename _bg files to remove suffix (only tools_rust.wasm should exist)
 mkdir -p public/wasm/rust
-# Clean up any old _bg files that might exist
-rm -f public/wasm/rust/tools_rust_bg.wasm public/wasm/rust/tools_rust_bg.wasm.d.ts
+# Clean up any old files that might exist (package.json, pointcloud_tools_rust_* files, _bg files)
+rm -f public/wasm/rust/package.json \
+      public/wasm/rust/pointcloud_tools_rust* \
+      public/wasm/rust/tools_rust_bg.wasm \
+      public/wasm/rust/tools_rust_bg.wasm.d.ts
 # Copy and rename WASM file (tools_rust_bg.wasm -> tools_rust.wasm)
 cp src/build/wasm/rust/tools_rust_bg.wasm public/wasm/rust/tools_rust.wasm
 # Copy JS file and update references to use tools_rust.wasm instead of tools_rust_bg.wasm

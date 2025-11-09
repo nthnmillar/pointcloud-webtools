@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
+use rustc_hash::FxHashMap;
 use js_sys::Float32Array;
 
 // Import the `console.log` function from the browser
@@ -183,24 +184,15 @@ impl PointCloudToolsRust {
         // Calculate point count first
         let point_count = points.len() / 3;
         
-        // Validate slice length
-        let expected_len = point_count * 3;
-        if points.len() < expected_len {
-            console_log!("Rust WASM: Points slice too short - expected {}, got {}", expected_len, points.len());
+        // Validate slice length (minimal check)
+        if points.len() < point_count * 3 {
             return 0;
         }
         
-        // OPTIMIZATION 2: Use HashMap with integer keys and direct coordinate storage
+        // OPTIMIZATION 2: Use FxHashMap (much faster hash for integer keys) with direct coordinate storage
         // Pre-allocate with estimated capacity to avoid reallocations
-        // Cap the estimate to avoid excessive memory allocation for very large datasets
-        let estimated_voxels = (point_count / 100).min(100_000); // Max 100K voxels estimate
-        let mut voxel_map: HashMap<u64, (f32, f32, f32, i32)> = HashMap::with_capacity(estimated_voxels);
-        
-        // Log for debugging large datasets
-        if point_count > 500_000 {
-            console_log!("Rust WASM: Processing large dataset: {} points, estimated {} voxels", 
-                        point_count, estimated_voxels);
-        }
+        let estimated_voxels = (point_count / 100).min(100_000);
+        let mut voxel_map: FxHashMap<u64, (f32, f32, f32, i32)> = FxHashMap::with_capacity_and_hasher(estimated_voxels, Default::default());
         
         // OPTIMIZATION 3: Process points in chunks for better cache locality
         const CHUNK_SIZE: usize = 1024;
@@ -210,11 +202,7 @@ impl PointCloudToolsRust {
             
             for i in chunk_start..chunk_end {
                 let i3 = i * 3;
-                // Bounds check - this should never fail if slice is valid
-                if i3 + 2 >= points.len() {
-                    console_log!("Rust WASM: Index out of bounds - i={}, i3={}, len={}", i, i3, points.len());
-                    break;
-                }
+                // Remove bounds check - slice is already validated, compiler can optimize better
                 let x = points[i3];
                 let y = points[i3 + 1];
                 let z = points[i3 + 2];
@@ -224,39 +212,36 @@ impl PointCloudToolsRust {
                 let voxel_y = ((y - min_y) * inv_voxel_size).floor() as i32;
                 let voxel_z = ((z - min_z) * inv_voxel_size).floor() as i32;
                 
-                // OPTIMIZATION 5: Use integer hash key (same as debug implementation)
+                // OPTIMIZATION 5: Use integer hash key
                 let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
                 
-                // OPTIMIZATION 6: Store sums directly (no coordinate storage needed for downsampling)
-                voxel_map.entry(voxel_key).and_modify(|(sum_x, sum_y, sum_z, count)| {
-                    *sum_x += x;
-                    *sum_y += y;
-                    *sum_z += z;
-                    *count += 1;
-                }).or_insert((x, y, z, 1));
+                // OPTIMIZATION 6: Use match on get_mut for better performance (like C++ try_emplace)
+                match voxel_map.get_mut(&voxel_key) {
+                    Some((sum_x, sum_y, sum_z, count)) => {
+                        // Existing entry - update (more common case)
+                        *sum_x += x;
+                        *sum_y += y;
+                        *sum_z += z;
+                        *count += 1;
+                    }
+                    None => {
+                        // New entry - insert
+                        voxel_map.insert(voxel_key, (x, y, z, 1));
+                    }
+                }
             }
         }
         
         // OPTIMIZATION 7: Write results directly to output buffer
         let mut output_index = 0;
-        let voxel_count = voxel_map.len();
         
         for (_voxel_key, (sum_x, sum_y, sum_z, count)) in voxel_map {
-            let avg_x = sum_x / count as f32;
-            let avg_y = sum_y / count as f32;
-            let avg_z = sum_z / count as f32;
-            
-            // Bounds check before writing (defensive programming)
-            if output_index >= voxel_count {
-                console_log!("Rust WASM: Output index overflow detected");
-                break;
-            }
-            
+            let count_f = count as f32;
             unsafe {
                 let base_idx = output_index * 3;
-                *output_ptr.add(base_idx) = avg_x;
-                *output_ptr.add(base_idx + 1) = avg_y;
-                *output_ptr.add(base_idx + 2) = avg_z;
+                *output_ptr.add(base_idx) = sum_x / count_f;
+                *output_ptr.add(base_idx + 1) = sum_y / count_f;
+                *output_ptr.add(base_idx + 2) = sum_z / count_f;
             }
             output_index += 1;
         }
@@ -282,10 +267,10 @@ impl PointCloudToolsRust {
         // Calculate point count first
         let point_count = points.len() / 3;
         
-        // OPTIMIZATION 2: Use HashMap with integer keys and direct coordinate storage
+        // OPTIMIZATION 2: Use FxHashMap (much faster hash for integer keys) with direct coordinate storage
         // Pre-allocate with estimated capacity to avoid reallocations
         let estimated_voxels = point_count / 100; // Rough estimate: ~1% of points become voxels
-        let mut voxel_map: HashMap<u64, (f32, f32, f32, i32)> = HashMap::with_capacity(estimated_voxels);
+        let mut voxel_map: FxHashMap<u64, (f32, f32, f32, i32)> = FxHashMap::with_capacity_and_hasher(estimated_voxels, Default::default());
         
         // OPTIMIZATION 3: Process points in chunks for better cache locality
         const CHUNK_SIZE: usize = 1024;
@@ -304,16 +289,23 @@ impl PointCloudToolsRust {
                 let voxel_y = ((y - min_y) * inv_voxel_size).floor() as i32;
                 let voxel_z = ((z - min_z) * inv_voxel_size).floor() as i32;
                 
-                // OPTIMIZATION 5: Use integer hash key (same as debug implementation)
+                // OPTIMIZATION 5: Use integer hash key
                 let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
                 
-                // OPTIMIZATION 6: Store sums directly (no coordinate storage needed for downsampling)
-                voxel_map.entry(voxel_key).and_modify(|(sum_x, sum_y, sum_z, count)| {
-                    *sum_x += x;
-                    *sum_y += y;
-                    *sum_z += z;
-                    *count += 1;
-                }).or_insert((x, y, z, 1));
+                // OPTIMIZATION 6: Use match on get_mut for better performance (like C++ try_emplace)
+                match voxel_map.get_mut(&voxel_key) {
+                    Some((sum_x, sum_y, sum_z, count)) => {
+                        // Existing entry - update (more common case)
+                        *sum_x += x;
+                        *sum_y += y;
+                        *sum_z += z;
+                        *count += 1;
+                    }
+                    None => {
+                        // New entry - insert
+                        voxel_map.insert(voxel_key, (x, y, z, 1));
+                    }
+                }
             }
         }
         
