@@ -77,10 +77,12 @@ class ProcessPool {
 }
 
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 
 // Initialize process pools - increase size for better parallelization
 const voxelDownsamplePool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample'), 8);
@@ -193,149 +195,119 @@ wss.on('connection', (ws, req) => {
           });
           
           const startTime = Date.now();
-          
-          if (type === 'voxel_downsample') {
-            // Handle C++ voxel downsampling with BINARY protocol (much faster than JSON!)
-            const cppProcess = await voxelDownsamplePool.getProcess();
-          
-          // OPTIMIZATION: Send binary data instead of JSON (eliminates JSON serialization/parsing overhead)
-          // Binary format: [uint32_t pointCount][float voxelSize][float minX][float minY][float minZ][float maxX][float maxY][float maxZ][float* pointData]
           const pointCount = points.length / 3;
           
-          // Create binary header buffer (32 bytes: 4 for uint32 + 7*4 for floats)
-          const headerBuffer = Buffer.allocUnsafe(32);
-          headerBuffer.writeUInt32LE(pointCount, 0);
-          headerBuffer.writeFloatLE(voxelSize, 4);
-          headerBuffer.writeFloatLE(globalBounds.minX, 8);
-          headerBuffer.writeFloatLE(globalBounds.minY, 12);
-          headerBuffer.writeFloatLE(globalBounds.minZ, 16);
-          headerBuffer.writeFloatLE(globalBounds.maxX, 20);
-          headerBuffer.writeFloatLE(globalBounds.maxY, 24);
-          headerBuffer.writeFloatLE(globalBounds.maxZ, 28);
-          
-          // Convert Float32Array to Buffer for point data
-          const pointDataBuffer = Buffer.from(points.buffer, points.byteOffset, points.byteLength);
-          
-          // Combine header + data
-          const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
-          
-          let outputBuffer = Buffer.alloc(0);
-          let errorBuffer = '';
-          
-          cppProcess.stdout.on('data', (data) => {
-            outputBuffer = Buffer.concat([outputBuffer, data]);
-          });
-          
-          cppProcess.stdout.on('end', () => {
-            try {
-              console.log('🔧 C++ Binary output received:', {
-                bufferLength: outputBuffer.length,
-                firstBytes: outputBuffer.slice(0, 16).toString('hex')
-              });
-              
-              // OPTIMIZATION: Read binary output instead of JSON
-              // Binary format: [uint32_t outputCount][float* downsampledPoints]
-              if (outputBuffer.length < 4) {
-                throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+          if (type === 'voxel_downsample') {
+            // Use C++ backend with binary protocol (no JSON serialization!)
+            const cppProcess = await voxelDownsamplePool.getProcess();
+            
+            // Create binary header buffer (32 bytes: 4 for uint32 + 7*4 for floats)
+            const headerBuffer = Buffer.allocUnsafe(32);
+            headerBuffer.writeUInt32LE(pointCount, 0);
+            headerBuffer.writeFloatLE(voxelSize, 4);
+            headerBuffer.writeFloatLE(globalBounds.minX, 8);
+            headerBuffer.writeFloatLE(globalBounds.minY, 12);
+            headerBuffer.writeFloatLE(globalBounds.minZ, 16);
+            headerBuffer.writeFloatLE(globalBounds.maxX, 20);
+            headerBuffer.writeFloatLE(globalBounds.maxY, 24);
+            headerBuffer.writeFloatLE(globalBounds.maxZ, 28);
+            
+            // Convert Float32Array to Buffer for point data (binary, no JSON!)
+            const pointDataBuffer = Buffer.from(points.buffer, points.byteOffset, points.byteLength);
+            
+            // Combine header + data
+            const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
+            
+            let outputBuffer = Buffer.alloc(0);
+            let errorBuffer = '';
+            
+            cppProcess.stdout.on('data', (data) => {
+              outputBuffer = Buffer.concat([outputBuffer, data]);
+            });
+            
+            cppProcess.stdout.on('end', () => {
+              try {
+                // Read binary output (no JSON parsing!)
+                // Binary format: [uint32_t outputCount][float* downsampledPoints]
+                if (outputBuffer.length < 4) {
+                  throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+                }
+                
+                const outputCount = outputBuffer.readUInt32LE(0);
+                const expectedSize = 4 + outputCount * 3 * 4;
+                
+                if (outputBuffer.length < expectedSize) {
+                  throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
+                }
+                
+                // Extract downsampled points (skip 4-byte header)
+                const downsampledPointsBuffer = outputBuffer.slice(4, expectedSize);
+                const downsampledPoints = new Float32Array(downsampledPointsBuffer.buffer, downsampledPointsBuffer.byteOffset, outputCount * 3);
+                
+                const processingTime = Date.now() - startTime;
+                
+                voxelDownsamplePool.releaseProcess(cppProcess);
+                
+                ws.send(JSON.stringify({
+                  type: 'voxel_downsample_result',
+                  requestId,
+                  success: true,
+                  downsampledPoints: Array.from(downsampledPoints), // Only convert to array for JSON response
+                  originalCount: pointCount,
+                  downsampledCount: outputCount,
+                  voxelCount: outputCount,
+                  processingTime
+                }));
+              } catch (parseError) {
+                console.error('C++ Binary protocol error:', parseError);
+                const processingTime = Date.now() - startTime;
+                voxelDownsamplePool.releaseProcess(cppProcess);
+                
+                ws.send(JSON.stringify({
+                  type: 'voxel_downsample_result',
+                  requestId,
+                  success: false,
+                  error: `Binary protocol error: ${parseError.message}. Stderr: ${errorBuffer}`,
+                  processingTime
+                }));
               }
-              
-              const outputCount = outputBuffer.readUInt32LE(0);
-              console.log('🔧 C++ Output count:', outputCount);
-              
-              const expectedSize = 4 + outputCount * 3 * 4; // 4 bytes header + outputCount * 3 floats * 4 bytes
-              
-              if (outputBuffer.length < expectedSize) {
-                throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
-              }
-              
-              // Extract downsampled points (skip 4-byte header)
-              const downsampledPointsBuffer = outputBuffer.slice(4, expectedSize);
-              const downsampledPoints = new Float32Array(downsampledPointsBuffer.buffer, downsampledPointsBuffer.byteOffset, outputCount * 3);
-              
-              const processingTime = Date.now() - startTime;
-              
-              voxelDownsamplePool.releaseProcess(cppProcess);
-              
-              console.log('🔧 C++ Binary protocol success:', {
-                outputCount,
-                downsampledPointsLength: downsampledPoints.length,
-                processingTime
-              });
-              
-              // Send result back to frontend (still JSON for the WebSocket message, but data is binary)
-              ws.send(JSON.stringify({
-                type: 'voxel_downsample_result',
-                requestId,
-                success: true,
-                downsampledPoints: Array.from(downsampledPoints), // Convert to array for JSON
-                originalCount: pointCount,
-                downsampledCount: outputCount,
-                voxelCount: outputCount,
-                processingTime
-              }));
-            } catch (parseError) {
-              console.error('🔧 C++ Binary protocol error:', parseError);
-              console.error('🔧 C++ Output buffer:', {
-                length: outputBuffer.length,
-                hex: outputBuffer.slice(0, 100).toString('hex'),
-                stderr: errorBuffer
-              });
-              const processingTime = Date.now() - startTime;
-              
-              voxelDownsamplePool.releaseProcess(cppProcess);
-              
-              ws.send(JSON.stringify({
-                type: 'voxel_downsample_result',
-                requestId,
-                success: false,
-                error: `Binary protocol error: ${parseError.message}. Stderr: ${errorBuffer}`,
-                processingTime
-              }));
-            }
-          });
-          
-          cppProcess.stderr.on('data', (data) => {
-            errorBuffer += data.toString();
-            console.error('🔧 C++ process stderr:', data.toString());
-          });
-          
-          cppProcess.on('error', (error) => {
-            console.error('C++ process error:', error);
-            voxelDownsamplePool.releaseProcess(cppProcess);
-            ws.send(JSON.stringify({
-              type: 'voxel_downsample_result',
-              requestId,
-              success: false,
-              error: 'C++ process failed to start'
-            }));
-          });
-          
-          cppProcess.on('close', (code) => {
-            if (code !== 0) {
-              console.error(`C++ process exited with code ${code}`);
+            });
+            
+            cppProcess.stderr.on('data', (data) => {
+              errorBuffer += data.toString();
+            });
+            
+            cppProcess.on('error', (error) => {
+              console.error('C++ process error:', error);
               voxelDownsamplePool.releaseProcess(cppProcess);
               ws.send(JSON.stringify({
                 type: 'voxel_downsample_result',
                 requestId,
                 success: false,
-                error: `C++ process exited with code ${code}`
+                error: 'C++ process failed to start'
               }));
-            }
-          });
-          
-          // Send binary input to C++ process (much faster than JSON!)
-          console.log('🔧 C++ Sending binary input:', {
-            headerSize: 32,
-            pointDataSize: pointDataBuffer.length,
-            totalSize: inputBuffer.length,
-            pointCount
-          });
-          cppProcess.stdin.write(inputBuffer);
-          cppProcess.stdin.end();
+            });
+            
+            cppProcess.on('close', (code) => {
+              if (code !== 0) {
+                console.error(`C++ process exited with code ${code}`);
+                voxelDownsamplePool.releaseProcess(cppProcess);
+                ws.send(JSON.stringify({
+                  type: 'voxel_downsample_result',
+                  requestId,
+                  success: false,
+                  error: `C++ process exited with code ${code}. Stderr: ${errorBuffer}`
+                }));
+              }
+            });
+            
+            // Send binary input to C++ process (no JSON serialization!)
+            cppProcess.stdin.write(inputBuffer);
+            cppProcess.stdin.end();
           
           } else if (type === 'voxel_downsample_rust') {
-            // Handle Rust voxel downsampling
-            const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample_rust');
+            // Use Rust backend with binary protocol (no JSON serialization!)
+            const rustExecutable = path.join(__dirname, 'services', 'tools', 'target', 'release', 'voxel_downsample_rust');
             
             let rustProcess;
             try {
@@ -351,29 +323,33 @@ wss.on('connection', (ws, req) => {
               return;
             }
             
-            // Prepare input for Rust program
-            const input = {
-              point_cloud_data: Array.from(points),
-              voxel_size: voxelSize,
-              global_bounds: {
-                min_x: globalBounds.minX,
-                min_y: globalBounds.minY,
-                min_z: globalBounds.minZ,
-                max_x: globalBounds.maxX,
-                max_y: globalBounds.maxY,
-                max_z: globalBounds.maxZ
-              }
-            };
+            // Create binary header buffer (32 bytes: 4 for u32 + 7*4 for floats)
+            const headerBuffer = Buffer.allocUnsafe(32);
+            headerBuffer.writeUInt32LE(pointCount, 0);
+            headerBuffer.writeFloatLE(voxelSize, 4);
+            headerBuffer.writeFloatLE(globalBounds.minX, 8);
+            headerBuffer.writeFloatLE(globalBounds.minY, 12);
+            headerBuffer.writeFloatLE(globalBounds.minZ, 16);
+            headerBuffer.writeFloatLE(globalBounds.maxX, 20);
+            headerBuffer.writeFloatLE(globalBounds.maxY, 24);
+            headerBuffer.writeFloatLE(globalBounds.maxZ, 28);
             
-            let outputData = '';
-            let errorData = '';
+            // Convert Float32Array to Buffer for point data (binary, no JSON!)
+            const pointDataBuffer = Buffer.from(points.buffer, points.byteOffset, points.byteLength);
+            
+            // Combine header + data
+            const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
+            
+            let outputBuffer = Buffer.alloc(0);
+            let errorBuffer = '';
             
             rustProcess.stdout.on('data', (data) => {
-              outputData += data.toString();
+              outputBuffer = Buffer.concat([outputBuffer, data]);
             });
             
             rustProcess.stderr.on('data', (data) => {
-              errorData += data.toString();
+              errorBuffer += data.toString();
+              console.error('🔧 Rust process stderr:', data.toString());
             });
             
             rustProcess.on('error', (error) => {
@@ -388,18 +364,40 @@ wss.on('connection', (ws, req) => {
             
             rustProcess.on('close', (code) => {
               if (code !== 0) {
-                console.error(`Rust process exited with code ${code}`);
+                console.error(`🔧 Rust process exited with code ${code}`);
+                console.error(`🔧 Rust stderr: ${errorBuffer}`);
+                console.error(`🔧 Rust stdout length: ${outputBuffer.length}`);
                 ws.send(JSON.stringify({
                   type: 'voxel_downsample_rust_result',
                   requestId,
                   success: false,
-                  error: `Rust process exited with code ${code}: ${errorData}`
+                  error: `Rust process exited with code ${code}: ${errorBuffer}`
                 }));
                 return;
               }
               
               try {
-                const result = JSON.parse(outputData);
+                // Read binary output (no JSON parsing!)
+                // Binary format: [u32 outputCount][f32* downsampledPoints]
+                if (outputBuffer.length < 4) {
+                  console.error(`🔧 Rust: Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+                  console.error(`🔧 Rust stderr: ${errorBuffer}`);
+                  throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+                }
+                
+                const outputCount = outputBuffer.readUInt32LE(0);
+                const expectedSize = 4 + outputCount * 3 * 4;
+                
+                if (outputBuffer.length < expectedSize) {
+                  console.error(`🔧 Rust: Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
+                  console.error(`🔧 Rust stderr: ${errorBuffer}`);
+                  throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
+                }
+                
+                // Extract downsampled points (skip 4-byte header)
+                const downsampledPointsBuffer = outputBuffer.slice(4, expectedSize);
+                const downsampledPoints = new Float32Array(downsampledPointsBuffer.buffer, downsampledPointsBuffer.byteOffset, outputCount * 3);
+                
                 const processingTime = Date.now() - startTime;
                 
                 ws.send(JSON.stringify({
@@ -407,26 +405,28 @@ wss.on('connection', (ws, req) => {
                   requestId,
                   success: true,
                   data: {
-                    downsampledPoints: result.downsampled_points,
-                    originalCount: result.original_count,
-                    downsampledCount: result.downsampled_count,
-                    voxelCount: result.voxel_count || result.downsampled_count,  // Use voxel_count if available
-                    processingTime: result.processing_time
+                    downsampledPoints: Array.from(downsampledPoints),
+                    originalCount: pointCount,
+                    downsampledCount: outputCount,
+                    voxelCount: outputCount,
+                    processingTime
                   }
                 }));
               } catch (parseError) {
-                console.error('Failed to parse Rust output:', parseError);
+                console.error('🔧 Rust Binary protocol error:', parseError);
+                console.error(`🔧 Rust stderr: ${errorBuffer}`);
+                console.error(`🔧 Rust stdout length: ${outputBuffer.length}`);
                 ws.send(JSON.stringify({
                   type: 'voxel_downsample_rust_result',
                   requestId,
                   success: false,
-                  error: 'Failed to parse Rust output'
+                  error: `Binary protocol error: ${parseError.message}. Stderr: ${errorBuffer}`
                 }));
               }
             });
             
-            // Send input to Rust process
-            rustProcess.stdin.write(JSON.stringify(input));
+            // Send binary input to Rust process (no JSON serialization!)
+            rustProcess.stdin.write(inputBuffer);
             rustProcess.stdin.end();
             
           } else if (type === 'point_smooth_rust') {
@@ -1084,17 +1084,11 @@ app.post('/api/voxel-downsample', async (req, res) => {
     }
 
     const startTime = Date.now();
-    
-    // Use real C++ backend processing for voxel downsampling
-    console.log('🔧 Backend: Using real C++ backend processing for voxel downsampling');
-    
-    // Path to the C++ executable
-    const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample');
-    
-    // OPTIMIZATION: Use binary protocol instead of JSON (much faster!)
-    // Convert JSON points array to Float32Array for binary protocol
     const pointCount = points.length / 3;
     const pointsFloat32 = new Float32Array(points);
+    
+    // Use C++ backend with binary protocol (no JSON serialization!)
+    const cppProcess = await voxelDownsamplePool.getProcess();
     
     // Create binary header buffer (32 bytes: 4 for uint32 + 7*4 for floats)
     const headerBuffer = Buffer.allocUnsafe(32);
@@ -1107,14 +1101,11 @@ app.post('/api/voxel-downsample', async (req, res) => {
     headerBuffer.writeFloatLE(globalBounds.maxY, 24);
     headerBuffer.writeFloatLE(globalBounds.maxZ, 28);
     
-    // Convert Float32Array to Buffer for point data
+    // Convert Float32Array to Buffer for point data (binary, no JSON!)
     const pointDataBuffer = Buffer.from(pointsFloat32.buffer, pointsFloat32.byteOffset, pointsFloat32.byteLength);
     
     // Combine header + data
     const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
-    
-    // Get process from pool
-    const cppProcess = await voxelDownsamplePool.getProcess();
     
     let outputBuffer = Buffer.alloc(0);
     let errorBuffer = '';
@@ -1125,12 +1116,7 @@ app.post('/api/voxel-downsample', async (req, res) => {
     
     cppProcess.stdout.on('end', () => {
       try {
-        console.log('🔧 Backend HTTP: C++ binary output received:', {
-          bufferLength: outputBuffer.length,
-          firstBytes: outputBuffer.slice(0, 16).toString('hex')
-        });
-        
-        // OPTIMIZATION: Read binary output instead of JSON
+        // Read binary output (no JSON parsing!)
         // Binary format: [uint32_t outputCount][float* downsampledPoints]
         if (outputBuffer.length < 4) {
           throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
@@ -1149,18 +1135,11 @@ app.post('/api/voxel-downsample', async (req, res) => {
         
         const processingTime = Date.now() - startTime;
         
-        console.log('🔧 Backend HTTP: C++ binary protocol success:', {
-          outputCount,
-          downsampledPointsLength: downsampledPoints.length,
-          processingTime
-        });
-        
-        // Release process back to pool
         voxelDownsamplePool.releaseProcess(cppProcess);
         
         res.json({
           success: true,
-          downsampledPoints: Array.from(downsampledPoints), // Convert to array for JSON response
+          downsampledPoints: Array.from(downsampledPoints), // Only convert to array for JSON response
           originalCount: pointCount,
           downsampledCount: outputCount,
           voxelCount: outputCount,
@@ -1169,13 +1148,7 @@ app.post('/api/voxel-downsample', async (req, res) => {
           method: 'Backend C++ (binary protocol)'
         });
       } catch (parseError) {
-        console.error('🔧 Backend HTTP: C++ Binary protocol error:', parseError);
-        console.error('🔧 Backend HTTP: Output buffer:', {
-          length: outputBuffer.length,
-          hex: outputBuffer.slice(0, 100).toString('hex'),
-          stderr: errorBuffer
-        });
-        
+        console.error('C++ Binary protocol error:', parseError);
         const processingTime = Date.now() - startTime;
         voxelDownsamplePool.releaseProcess(cppProcess);
         
@@ -1191,12 +1164,10 @@ app.post('/api/voxel-downsample', async (req, res) => {
     
     cppProcess.stderr.on('data', (data) => {
       errorBuffer += data.toString();
-      console.error('🔧 Backend HTTP: C++ process stderr:', data.toString());
     });
     
-    // Handle process errors
     cppProcess.on('error', (error) => {
-      console.error('🔧 Backend HTTP: C++ process error:', error);
+      console.error('C++ process error:', error);
       voxelDownsamplePool.releaseProcess(cppProcess);
       if (!res.headersSent) {
         res.status(500).json({ 
@@ -1208,7 +1179,7 @@ app.post('/api/voxel-downsample', async (req, res) => {
     
     cppProcess.on('close', (code) => {
       if (code !== 0) {
-        console.error(`🔧 Backend HTTP: C++ process exited with code ${code}`);
+        console.error(`C++ process exited with code ${code}`);
         voxelDownsamplePool.releaseProcess(cppProcess);
         if (!res.headersSent) {
           res.status(500).json({ 
@@ -1219,13 +1190,7 @@ app.post('/api/voxel-downsample', async (req, res) => {
       }
     });
     
-    // Send binary input to C++ process (much faster than JSON!)
-    console.log('🔧 Backend HTTP: Sending binary input:', {
-      headerSize: 32,
-      pointDataSize: pointDataBuffer.length,
-      totalSize: inputBuffer.length,
-      pointCount
-    });
+    // Send binary input to C++ process (no JSON serialization!)
     cppProcess.stdin.write(inputBuffer);
     cppProcess.stdin.end();
     
@@ -1530,7 +1495,7 @@ app.post('/api/voxel-downsample-rust', async (req, res) => {
     console.log('🔧 Backend: Using Rust backend processing for voxel downsampling');
     
     // Path to the Rust executable
-    const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample_rust');
+    const rustExecutable = path.join(__dirname, 'services', 'tools', 'target', 'release', 'voxel_downsample_rust');
     
     // Prepare input for Rust program
     const input = {
@@ -1913,6 +1878,18 @@ process.on('SIGINT', () => {
     console.log('🔧 Force exit after timeout');
     process.exit(1);
   }, 5000);
+});
+
+// Handle uncaught exceptions to prevent server crashes
+process.on('uncaughtException', (error) => {
+  console.error('🔧 Uncaught Exception:', error);
+  console.error('🔧 Stack:', error.stack);
+  // Don't exit - log and continue (server should stay up)
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔧 Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit - log and continue (server should stay up)
 });
 
 // Handle graceful shutdown on SIGTERM

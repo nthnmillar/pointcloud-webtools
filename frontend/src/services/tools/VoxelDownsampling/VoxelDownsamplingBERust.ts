@@ -117,15 +117,19 @@ export class VoxelDownsamplingBERust extends BaseService {
       voxelSize: params.voxelSize
     });
     
-    return new Promise((resolve, reject) => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        Log.Error('VoxelDownsamplingBERust', 'WebSocket not connected', {
-          wsExists: !!this.ws,
-          readyState: this.ws?.readyState
-        });
-        reject(new Error('WebSocket not connected'));
-        return;
+    // Wait for WebSocket to be connected (with timeout)
+    const maxWaitTime = 5000; // 5 seconds
+    const checkInterval = 100; // Check every 100ms
+    const startWait = Date.now();
+    
+    while (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      if (Date.now() - startWait > maxWaitTime) {
+        throw new Error('WebSocket connection timeout');
       }
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+    }
+    
+    return new Promise((resolve, reject) => {
 
       const requestId = `voxel_rust_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       

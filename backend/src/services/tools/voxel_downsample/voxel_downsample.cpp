@@ -10,6 +10,20 @@
 #include <cctype>
 #include <cstring>
 
+// Fast hash function for 64-bit integers (similar to FxHash used in Rust)
+struct FastHash {
+    size_t operator()(uint64_t x) const {
+        // FxHash-like fast hash for integers
+        // This is much faster than std::hash for integer keys
+        x ^= x >> 33;
+        x *= 0xff51afd7ed558ccdULL;
+        x ^= x >> 33;
+        x *= 0xc4ceb9fe1a85ec53ULL;
+        x ^= x >> 33;
+        return static_cast<size_t>(x);
+    }
+};
+
 // Binary protocol for fast I/O (replaces JSON)
 // Input format: [uint32_t pointCount][float voxelSize][float minX][float minY][float minZ][float maxX][float maxY][float maxZ][float* pointData]
 // Output format: [uint32_t outputCount][float* downsampledPoints]
@@ -82,10 +96,11 @@ int main() {
     float invVoxelSize = 1.0f / voxelSize;
     
     // OPTIMIZATION 1: Reserve capacity for unordered_map to avoid rehashing (matches WASM)
+    // Use FastHash for integer keys (much faster than default SipHash, matches Rust FxHashMap)
     // Estimate: ~1% of points become voxels (rough estimate based on typical downsampling)
     int estimatedVoxels = pointCount / 100;
     if (estimatedVoxels < 100) estimatedVoxels = 100; // Minimum capacity
-    std::unordered_map<uint64_t, Voxel> voxelMap;
+    std::unordered_map<uint64_t, Voxel, FastHash> voxelMap;
     voxelMap.reserve(estimatedVoxels);
     
     const int CHUNK_SIZE = 1024;
