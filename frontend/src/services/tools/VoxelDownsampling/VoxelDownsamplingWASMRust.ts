@@ -7,12 +7,10 @@ import init, { PointCloudToolsRust } from '../../../../public/wasm/rust/tools_ru
 
 export class VoxelDownsamplingWASMRust extends BaseService {
   private wasmModule: PointCloudToolsRust | null = null;
-  // Store output pointer to keep WASM memory alive for zero-copy view
-  private previousOutputPtr: number | null = null;
-  // Cache memory buffer for direct access
-  private memory: WebAssembly.Memory | null = null;
-  // Store the wasm instance to access malloc/free and memory
   private wasmInstance: any = null;
+  private memory: WebAssembly.Memory | null = null;
+  private previousOutputPtr: number | null = null;
+  private previousOutputSize: number = 0;
 
   constructor(_serviceManager: ServiceManager) {
     super();
@@ -25,32 +23,20 @@ export class VoxelDownsamplingWASMRust extends BaseService {
     }
 
     try {
-      console.log('🔧 Rust WASM: Starting initialization...');
-      Log.Info('VoxelDownsamplingWASMRust', 'Starting Rust WASM initialization...');
+      // Initialize the Rust WASM module - init() returns the wasm exports object
+      const wasm = await init();
+      this.wasmInstance = wasm;
       
-      // Initialize the Rust WASM module
-      // init() returns the wasm instance (exports) - this is what we need!
-      console.log('🔧 Rust WASM: Calling init()...');
-      const wasmInstance = await init();
-      console.log('🔧 Rust WASM: init() completed');
-      
-      if (!wasmInstance) {
-        throw new Error('init() did not return wasm instance');
-      }
-      
-      // Store the wasm instance - it contains __wbindgen_malloc, __wbindgen_free, and memory
-      this.wasmInstance = wasmInstance;
-      
-      // Get memory from wasm instance (same as getFloat32ArrayMemory0 uses)
-      if (this.wasmInstance.memory) {
-        this.memory = this.wasmInstance.memory;
-        Log.Info('VoxelDownsamplingWASMRust', 'WASM memory accessed via init() return value');
+      // Get WASM memory for direct access (wasm.memory is the WebAssembly.Memory)
+      if (wasm.memory) {
+        this.memory = wasm.memory;
       } else {
         throw new Error('WASM memory not available');
       }
       
       // Verify malloc/free functions are available
-      if (!this.wasmInstance.__wbindgen_malloc || !this.wasmInstance.__wbindgen_free) {
+      // wasm-bindgen exports them as __wbindgen_export_0 (malloc) and __wbindgen_export_1 (free)
+      if (!wasm.__wbindgen_export_0 || !wasm.__wbindgen_export_1) {
         throw new Error('WASM malloc/free functions not available');
       }
       
@@ -58,10 +44,8 @@ export class VoxelDownsamplingWASMRust extends BaseService {
       this.wasmModule = new PointCloudToolsRust();
       
       this.isInitialized = true;
-      console.log('🔧 Rust WASM: Initialization completed successfully');
-      Log.Info('VoxelDownsamplingWASMRust', 'Rust WASM module loaded successfully for real benchmarking');
+      Log.Info('VoxelDownsamplingWASMRust', 'Rust WASM module initialized successfully');
     } catch (error) {
-      console.error('🔧 Rust WASM: Initialization failed:', error);
       Log.Error('VoxelDownsamplingWASMRust', 'Failed to initialize Rust WASM module', error);
       throw error;
     }
@@ -81,166 +65,102 @@ export class VoxelDownsamplingWASMRust extends BaseService {
   ): Promise<{
     success: boolean;
     downsampledPoints?: Float32Array;
+    originalCount?: number;
+    downsampledCount?: number;
     voxelCount?: number;
     processingTime?: number;
     error?: string;
   }> {
-    console.log('🔧 Rust WASM: performVoxelDownsampling called', {
-      isInitialized: this.isInitialized,
-      wasmModule: !!this.wasmModule,
-      pointCount: pointCloudData.length / 3,
-      voxelSize,
-      bounds: globalBounds
-    });
-    
-    if (!this.isInitialized || !this.wasmModule) {
-      console.error('🔧 Rust WASM: Module not initialized!', {
-        isInitialized: this.isInitialized,
-        wasmModule: !!this.wasmModule
-      });
+    if (!this.isInitialized || !this.wasmModule || !this.wasmInstance || !this.memory) {
       throw new Error('Rust WASM module not initialized');
     }
 
     const startTime = performance.now();
 
     try {
-      Log.Info('VoxelDownsamplingWASMRust', 'Starting Rust WASM voxel downsampling', {
-        pointCount: pointCloudData.length / 3,
-        voxelSize,
-        bounds: globalBounds
-      });
-
-      // OPTIMIZATION: Use direct memory access similar to C++
-      // NO FALLBACKS - fail fast to see errors
-      if (!this.wasmModule) {
-        throw new Error('WASM module not initialized');
-      }
-      
       const pointCount = pointCloudData.length / 3;
       const floatCount = pointCloudData.length;
       
-      // Use wasm-bindgen's malloc to allocate memory in WASM heap (same pattern as passArrayF32ToWasm0)
-      // This ensures the memory is accessible from Rust
-      if (!this.wasmInstance || !this.wasmInstance.__wbindgen_malloc || !this.wasmInstance.__wbindgen_free) {
-        throw new Error('WASM malloc/free functions not available');
-      }
-      
-      if (!this.memory) {
-        throw new Error('WASM memory not available');
-      }
-      
       // Free previous output buffer if it exists
-      if (this.previousOutputPtr !== null) {
-        this.wasmInstance.__wbindgen_free(this.previousOutputPtr);
+      // wasm-bindgen exports free as __wbindgen_export_1(ptr, size, align)
+      if (this.previousOutputPtr !== null && this.wasmInstance.__wbindgen_export_1) {
+        this.wasmInstance.__wbindgen_export_1(this.previousOutputPtr, this.previousOutputSize, 4);
         this.previousOutputPtr = null;
+        this.previousOutputSize = 0;
       }
       
-      // Allocate memory using wasm-bindgen's malloc (same as passArrayF32ToWasm0 does)
-      // This allocates memory in WASM heap that Rust can access
-      const inputPtr = this.wasmInstance.__wbindgen_malloc(floatCount * 4, 4) >>> 0; // 4-byte aligned
-      const outputPtr = this.wasmInstance.__wbindgen_malloc(floatCount * 4, 4) >>> 0; // Worst-case size
+      // Allocate memory in WASM heap (like C++ does)
+      // wasm-bindgen exports malloc as __wbindgen_export_0(size, align)
+      const inputPtr = this.wasmInstance.__wbindgen_export_0(floatCount * 4, 4) >>> 0;
+      const outputPtr = this.wasmInstance.__wbindgen_export_0(floatCount * 4, 4) >>> 0;
       
       if (!inputPtr || !outputPtr) {
         throw new Error(`Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`);
       }
       
+      // Check if input is already in WASM memory (zero-copy optimization)
+      const isInputInWasmMemory = pointCloudData.buffer === this.memory.buffer;
+      let inputPtrToUse = inputPtr;
+      
       try {
-        // CRITICAL: Always get a fresh reference to memory.buffer right before use
-        // memory.buffer can become detached if memory.grow() is called or if the reference is stale
-        if (!this.memory) {
-          throw new Error('WASM memory not available');
+        
+        if (isInputInWasmMemory) {
+          // Input is already in WASM memory - use it directly (zero-copy!)
+          inputPtrToUse = pointCloudData.byteOffset;
+          // Free the allocated input buffer since we don't need it
+          this.wasmInstance.__wbindgen_export_1(inputPtr, floatCount * 4, 4);
+        } else {
+          // Input is in JS memory - copy to WASM memory (same as C++)
+          const heapF32 = new Float32Array(this.memory.buffer);
+          const inputFloatIndex = inputPtr >> 2; // Bit shift is faster than division (same as C++)
+          heapF32.set(pointCloudData, inputFloatIndex);
         }
         
-        // Get fresh buffer reference - don't cache it!
-        const memoryBuffer = this.memory.buffer;
-        if (!memoryBuffer || memoryBuffer.byteLength === 0) {
-          throw new Error('WASM memory buffer is invalid or detached');
-        }
-        
-        // Get Float32Array view of WASM memory (same as getFloat32ArrayMemory0)
-        const heapF32 = new Float32Array(memoryBuffer);
-        
-        // Copy input data to WASM memory (zero-copy input - bulk copy)
-        const inputFloatIndex = inputPtr / 4;
-        heapF32.set(pointCloudData, inputFloatIndex);
-        
-        Log.Info('VoxelDownsamplingWASMRust', 'Input data copied to WASM memory via malloc', {
-          pointCount,
-          inputPtr,
-          inputFloatIndex
-        });
-        
-        // Call direct function with pointers allocated via malloc
-        const hasStaticFunc = typeof (PointCloudToolsRust as any).voxel_downsample_direct_static === 'function';
-        const outputCount = hasStaticFunc
+        // Call direct function (zero-copy during processing, like C++)
+        const outputCount = typeof (PointCloudToolsRust as any).voxel_downsample_direct_static === 'function'
           ? (PointCloudToolsRust as any).voxel_downsample_direct_static(
-              inputPtr,
-              pointCount,
-              voxelSize,
-              globalBounds.minX,
-              globalBounds.minY,
-              globalBounds.minZ,
-              outputPtr
+              inputPtrToUse, pointCount, voxelSize,
+              globalBounds.minX, globalBounds.minY, globalBounds.minZ, outputPtr
             )
           : (this.wasmModule as any).voxel_downsample_direct(
-              inputPtr,
-              pointCount,
-              voxelSize,
-              globalBounds.minX,
-              globalBounds.minY,
-              globalBounds.minZ,
-              outputPtr
+              inputPtrToUse, pointCount, voxelSize,
+              globalBounds.minX, globalBounds.minY, globalBounds.minZ, outputPtr
             );
         
         if (outputCount <= 0 || outputCount > pointCount) {
-          throw new Error(`Invalid output count: ${outputCount} (expected 1-${pointCount})`);
+          throw new Error(`Invalid output count: ${outputCount}`);
         }
         
-        // CRITICAL: Get fresh buffer reference again before reading output
-        // The Rust function might have caused memory to grow, invalidating the previous buffer reference
-        const freshMemoryBuffer = this.memory.buffer;
-        if (!freshMemoryBuffer || freshMemoryBuffer.byteLength === 0) {
-          throw new Error('WASM memory buffer became invalid after processing');
-        }
-        
-        // ZERO-COPY OUTPUT: Read directly from WASM memory (same as getArrayF32FromWasm0)
-        const freshHeapF32 = new Float32Array(freshMemoryBuffer);
+        // Read output directly from WASM memory (zero-copy view, like C++)
+        // Use subarray() to create a view, NOT new Float32Array() which copies
+        const freshHeapF32 = new Float32Array(this.memory.buffer);
         const resultFloatCount = outputCount * 3;
-        const outputFloatIndex = outputPtr / 4;
+        const outputFloatIndex = outputPtr >> 2; // Bit shift is faster than division (same as C++)
         const downsampledPoints = freshHeapF32.subarray(outputFloatIndex, outputFloatIndex + resultFloatCount);
         
-        // Copy to persist (subarray is a view)
-        const persistedPoints = new Float32Array(downsampledPoints);
-        
-        // Store output pointer to keep memory alive for zero-copy view
+        // Store output pointer and size to keep memory alive
         this.previousOutputPtr = outputPtr;
+        this.previousOutputSize = floatCount * 4;
         
         const processingTime = performance.now() - startTime;
         
-        Log.Info('VoxelDownsamplingWASMRust', 'Rust WASM voxel downsampling completed with zero-copy', {
-          originalCount: pointCount,
-          downsampledCount: outputCount,
-          processingTime: processingTime.toFixed(2) + 'ms',
-          method: 'direct memory access via malloc'
-        });
-        
         return {
           success: true,
-          downsampledPoints: persistedPoints,
+          downsampledPoints,
           originalCount: pointCount,
           downsampledCount: outputCount,
           voxelCount: outputCount,
           processingTime
         };
       } finally {
-        // Free input memory immediately (output memory kept alive for zero-copy view)
-        if (inputPtr) this.wasmInstance.__wbindgen_free(inputPtr);
-        // Note: outputPtr is NOT freed here - it's stored in previousOutputPtr and freed on next call
+        // Free input memory only if we allocated it (not if it was already in WASM memory)
+        // wasm-bindgen exports free as __wbindgen_export_1(ptr, size, align)
+        if (!isInputInWasmMemory) {
+          this.wasmInstance.__wbindgen_export_1(inputPtr, floatCount * 4, 4);
+        }
       }
     } catch (error) {
       const processingTime = performance.now() - startTime;
-      Log.Error('VoxelDownsamplingWASMRust', 'Rust WASM voxel downsampling failed', error);
-      
       return {
         success: false,
         processingTime,
@@ -250,7 +170,16 @@ export class VoxelDownsamplingWASMRust extends BaseService {
   }
 
   dispose(): void {
+    // Free stored output buffer if it exists
+    // wasm-bindgen exports free as __wbindgen_export_1(ptr, size, align)
+    if (this.previousOutputPtr !== null && this.wasmInstance?.__wbindgen_export_1) {
+      this.wasmInstance.__wbindgen_export_1(this.previousOutputPtr, this.previousOutputSize, 4);
+      this.previousOutputPtr = null;
+      this.previousOutputSize = 0;
+    }
     this.wasmModule = null;
+    this.wasmInstance = null;
+    this.memory = null;
     this.isInitialized = false;
     Log.Info('VoxelDownsamplingWASMRust', 'Rust WASM voxel downsampling service disposed');
   }

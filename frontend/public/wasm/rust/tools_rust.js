@@ -30,6 +30,21 @@ function getStringFromWasm0(ptr, len) {
     return decodeText(ptr, len);
 }
 
+let heap = new Array(128).fill(undefined);
+
+heap.push(undefined, null, true, false);
+
+let heap_next = heap.length;
+
+function addHeapObject(obj) {
+    if (heap_next === heap.length) heap.push(heap.length + 1);
+    const idx = heap_next;
+    heap_next = heap[idx];
+
+    heap[idx] = obj;
+    return idx;
+}
+
 let cachedFloat32ArrayMemory0 = null;
 
 function getFloat32ArrayMemory0() {
@@ -44,6 +59,20 @@ function getArrayF32FromWasm0(ptr, len) {
     return getFloat32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
 }
 
+function getObject(idx) { return heap[idx]; }
+
+function dropObject(idx) {
+    if (idx < 132) return;
+    heap[idx] = heap_next;
+    heap_next = idx;
+}
+
+function takeObject(idx) {
+    const ret = getObject(idx);
+    dropObject(idx);
+    return ret;
+}
+
 let WASM_VECTOR_LEN = 0;
 
 function passArrayF32ToWasm0(arg, malloc) {
@@ -51,6 +80,15 @@ function passArrayF32ToWasm0(arg, malloc) {
     getFloat32ArrayMemory0().set(arg, ptr / 4);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
+}
+
+let cachedDataViewMemory0 = null;
+
+function getDataViewMemory0() {
+    if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
+        cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
+    }
+    return cachedDataViewMemory0;
 }
 
 const PointCloudToolsRustFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -82,7 +120,7 @@ export class PointCloudToolsRust {
      */
     get_memory() {
         const ret = wasm.pointcloudtoolsrust_get_memory(this.__wbg_ptr);
-        return ret;
+        return takeObject(ret);
     }
     /**
      * Direct pointer-based voxel downsampling for zero-copy input access (static version)
@@ -148,10 +186,10 @@ export class PointCloudToolsRust {
      * @returns {Float32Array}
      */
     voxel_downsample(points, voxel_size, min_x, min_y, min_z) {
-        const ptr0 = passArrayF32ToWasm0(points, wasm.__wbindgen_malloc);
+        const ptr0 = passArrayF32ToWasm0(points, wasm.__wbindgen_export_0);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.pointcloudtoolsrust_voxel_downsample(this.__wbg_ptr, ptr0, len0, voxel_size, min_x, min_y, min_z);
-        return ret;
+        return takeObject(ret);
     }
     /**
      * Point cloud smoothing implementation in Rust
@@ -162,12 +200,19 @@ export class PointCloudToolsRust {
      * @returns {Float32Array}
      */
     point_cloud_smooth(points, smoothing_radius, iterations) {
-        const ptr0 = passArrayF32ToWasm0(points, wasm.__wbindgen_malloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.pointcloudtoolsrust_point_cloud_smooth(this.__wbg_ptr, ptr0, len0, smoothing_radius, iterations);
-        var v2 = getArrayF32FromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v2;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArrayF32ToWasm0(points, wasm.__wbindgen_export_0);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.pointcloudtoolsrust_point_cloud_smooth(retptr, this.__wbg_ptr, ptr0, len0, smoothing_radius, iterations);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var v2 = getArrayF32FromWasm0(r0, r1).slice();
+            wasm.__wbindgen_export_1(r0, r1 * 4, 4);
+            return v2;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
     }
     /**
      * Generate voxel centers for debug visualization - MAXIMUM OPTIMIZATION
@@ -180,12 +225,19 @@ export class PointCloudToolsRust {
      * @returns {Float32Array}
      */
     generate_voxel_centers(points, voxel_size, min_x, min_y, min_z) {
-        const ptr0 = passArrayF32ToWasm0(points, wasm.__wbindgen_malloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.pointcloudtoolsrust_generate_voxel_centers(this.__wbg_ptr, ptr0, len0, voxel_size, min_x, min_y, min_z);
-        var v2 = getArrayF32FromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v2;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArrayF32ToWasm0(points, wasm.__wbindgen_export_0);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.pointcloudtoolsrust_generate_voxel_centers(retptr, this.__wbg_ptr, ptr0, len0, voxel_size, min_x, min_y, min_z);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var v2 = getArrayF32FromWasm0(r0, r1).slice();
+            wasm.__wbindgen_export_1(r0, r1 * 4, 4);
+            return v2;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
     }
 }
 if (Symbol.dispose) PointCloudToolsRust.prototype[Symbol.dispose] = PointCloudToolsRust.prototype.free;
@@ -233,7 +285,7 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbg_wbindgenmemory_d84da70f7c42d172 = function() {
         const ret = wasm.memory;
-        return ret;
+        return addHeapObject(ret);
     };
     imports.wbg.__wbg_wbindgenthrow_451ec1a8469d7eb6 = function(arg0, arg1) {
         throw new Error(getStringFromWasm0(arg0, arg1));
@@ -241,17 +293,7 @@ function __wbg_get_imports() {
     imports.wbg.__wbindgen_cast_cd07b1914aa3d62c = function(arg0, arg1) {
         // Cast intrinsic for `Ref(Slice(F32)) -> NamedExternref("Float32Array")`.
         const ret = getArrayF32FromWasm0(arg0, arg1);
-        return ret;
-    };
-    imports.wbg.__wbindgen_init_externref_table = function() {
-        const table = wasm.__wbindgen_export_0;
-        const offset = table.grow(4);
-        table.set(0, undefined);
-        table.set(offset + 0, undefined);
-        table.set(offset + 1, null);
-        table.set(offset + 2, true);
-        table.set(offset + 3, false);
-        ;
+        return addHeapObject(ret);
     };
 
     return imports;
@@ -264,11 +306,12 @@ function __wbg_init_memory(imports, memory) {
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     __wbg_init.__wbindgen_wasm_module = module;
+    cachedDataViewMemory0 = null;
     cachedFloat32ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
 
 
-    wasm.__wbindgen_start();
+
     return wasm;
 }
 
