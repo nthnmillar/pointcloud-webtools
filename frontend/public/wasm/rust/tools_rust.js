@@ -39,6 +39,11 @@ function getFloat32ArrayMemory0() {
     return cachedFloat32ArrayMemory0;
 }
 
+function getArrayF32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getFloat32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+
 let WASM_VECTOR_LEN = 0;
 
 function passArrayF32ToWasm0(arg, malloc) {
@@ -46,11 +51,6 @@ function passArrayF32ToWasm0(arg, malloc) {
     getFloat32ArrayMemory0().set(arg, ptr / 4);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
-}
-
-function getArrayF32FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getFloat32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
 }
 
 const PointCloudToolsRustFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -77,8 +77,69 @@ export class PointCloudToolsRust {
         return this;
     }
     /**
-     * Voxel downsampling implementation in Rust - OPTIMIZED like point cloud smoothing
-     * Uses local hash map for maximum performance - same efficiency as point cloud smoothing
+     * Get WASM memory for direct access
+     * @returns {any}
+     */
+    get_memory() {
+        const ret = wasm.pointcloudtoolsrust_get_memory(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Direct pointer-based voxel downsampling for zero-copy input access (static version)
+     * JavaScript allocates memory, copies input data, calls this function,
+     * then reads results from output buffer
+     *
+     * Pointers are passed as usize (byte offsets into WASM linear memory)
+     *
+     * # Safety
+     * This function is unsafe because it reads from raw pointers.
+     * The caller must ensure:
+     * - input_ptr points to valid WASM memory with at least point_count * 3 floats
+     * - output_ptr points to valid WASM memory with at least point_count * 3 floats
+     * - Both pointers are properly aligned
+     * @param {number} input_ptr
+     * @param {number} point_count
+     * @param {number} voxel_size
+     * @param {number} min_x
+     * @param {number} min_y
+     * @param {number} min_z
+     * @param {number} output_ptr
+     * @returns {number}
+     */
+    static voxel_downsample_direct_static(input_ptr, point_count, voxel_size, min_x, min_y, min_z, output_ptr) {
+        const ret = wasm.pointcloudtoolsrust_voxel_downsample_direct_static(input_ptr, point_count, voxel_size, min_x, min_y, min_z, output_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Direct pointer-based voxel downsampling for zero-copy input access
+     * JavaScript allocates memory, copies input data, calls this function,
+     * then reads results from output buffer
+     *
+     * Pointers are passed as usize (byte offsets into WASM linear memory)
+     *
+     * # Safety
+     * This function is unsafe because it reads from raw pointers.
+     * The caller must ensure:
+     * - input_ptr points to valid WASM memory with at least point_count * 3 floats
+     * - output_ptr points to valid WASM memory with at least point_count * 3 floats
+     * - Both pointers are properly aligned
+     * @param {number} input_ptr
+     * @param {number} point_count
+     * @param {number} voxel_size
+     * @param {number} min_x
+     * @param {number} min_y
+     * @param {number} min_z
+     * @param {number} output_ptr
+     * @returns {number}
+     */
+    voxel_downsample_direct(input_ptr, point_count, voxel_size, min_x, min_y, min_z, output_ptr) {
+        const ret = wasm.pointcloudtoolsrust_voxel_downsample_direct(this.__wbg_ptr, input_ptr, point_count, voxel_size, min_x, min_y, min_z, output_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Voxel downsampling implementation in Rust - MAXIMUM OPTIMIZATION
+     * Uses direct memory access and integer hashing for maximum performance
+     * Returns Float32Array directly for zero-copy access
      * @param {Float32Array} points
      * @param {number} voxel_size
      * @param {number} min_x
@@ -90,9 +151,7 @@ export class PointCloudToolsRust {
         const ptr0 = passArrayF32ToWasm0(points, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.pointcloudtoolsrust_voxel_downsample(this.__wbg_ptr, ptr0, len0, voxel_size, min_x, min_y, min_z);
-        var v2 = getArrayF32FromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v2;
+        return ret;
     }
     /**
      * Point cloud smoothing implementation in Rust
@@ -111,8 +170,8 @@ export class PointCloudToolsRust {
         return v2;
     }
     /**
-     * Generate voxel centers for debug visualization
-     * This matches the algorithm used in other implementations
+     * Generate voxel centers for debug visualization - MAXIMUM OPTIMIZATION
+     * Uses direct memory access, integer hashing, and zero-copy operations
      * @param {Float32Array} points
      * @param {number} voxel_size
      * @param {number} min_x
@@ -130,26 +189,6 @@ export class PointCloudToolsRust {
     }
 }
 if (Symbol.dispose) PointCloudToolsRust.prototype[Symbol.dispose] = PointCloudToolsRust.prototype.free;
-
-const VoxelFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_voxel_free(ptr >>> 0, 1));
-
-export class Voxel {
-
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        VoxelFinalization.unregister(this);
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_voxel_free(ptr, 0);
-    }
-}
-if (Symbol.dispose) Voxel.prototype[Symbol.dispose] = Voxel.prototype.free;
 
 const EXPECTED_RESPONSE_TYPES = new Set(['basic', 'cors', 'default']);
 
@@ -192,8 +231,17 @@ function __wbg_get_imports() {
     imports.wbg.__wbg_log_4f2dc1115ce4b00a = function(arg0, arg1) {
         console.log(getStringFromWasm0(arg0, arg1));
     };
+    imports.wbg.__wbg_wbindgenmemory_d84da70f7c42d172 = function() {
+        const ret = wasm.memory;
+        return ret;
+    };
     imports.wbg.__wbg_wbindgenthrow_451ec1a8469d7eb6 = function(arg0, arg1) {
         throw new Error(getStringFromWasm0(arg0, arg1));
+    };
+    imports.wbg.__wbindgen_cast_cd07b1914aa3d62c = function(arg0, arg1) {
+        // Cast intrinsic for `Ref(Slice(F32)) -> NamedExternref("Float32Array")`.
+        const ret = getArrayF32FromWasm0(arg0, arg1);
+        return ret;
     };
     imports.wbg.__wbindgen_init_externref_table = function() {
         const table = wasm.__wbindgen_export_0;
@@ -262,7 +310,7 @@ async function __wbg_init(module_or_path) {
     }
 
     if (typeof module_or_path === 'undefined') {
-        module_or_path = new URL('tools_rust_bg.wasm', import.meta.url);
+        module_or_path = new URL('tools_rust.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 

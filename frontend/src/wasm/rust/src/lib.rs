@@ -23,6 +23,9 @@ pub struct PointCloudToolsRust {
     result_buffer: Option<Vec<f32>>,
 }
 
+// Note: Memory allocation is handled in JavaScript using the WASM memory buffer directly
+// This avoids needing to export malloc/free functions
+
 #[wasm_bindgen]
 impl PointCloudToolsRust {
     #[wasm_bindgen(constructor)]
@@ -31,6 +34,234 @@ impl PointCloudToolsRust {
         PointCloudToolsRust {
             result_buffer: None,
         }
+    }
+    
+    /// Get WASM memory for direct access
+    #[wasm_bindgen]
+    pub fn get_memory(&self) -> wasm_bindgen::JsValue {
+        wasm_bindgen::memory()
+    }
+
+    /// Direct pointer-based voxel downsampling for zero-copy input access (static version)
+    /// JavaScript allocates memory, copies input data, calls this function,
+    /// then reads results from output buffer
+    /// 
+    /// Pointers are passed as usize (byte offsets into WASM linear memory)
+    /// 
+    /// # Safety
+    /// This function is unsafe because it reads from raw pointers.
+    /// The caller must ensure:
+    /// - input_ptr points to valid WASM memory with at least point_count * 3 floats
+    /// - output_ptr points to valid WASM memory with at least point_count * 3 floats
+    /// - Both pointers are properly aligned
+    #[wasm_bindgen]
+    pub fn voxel_downsample_direct_static(
+        input_ptr: usize,
+        point_count: usize,
+        voxel_size: f32,
+        min_x: f32,
+        min_y: f32,
+        min_z: f32,
+        output_ptr: usize,
+    ) -> usize {
+        // Create a temporary instance to call the internal implementation
+        let mut instance = PointCloudToolsRust::new();
+        instance.voxel_downsample_direct(
+            input_ptr,
+            point_count,
+            voxel_size,
+            min_x,
+            min_y,
+            min_z,
+            output_ptr,
+        )
+    }
+    
+    /// Direct pointer-based voxel downsampling for zero-copy input access
+    /// JavaScript allocates memory, copies input data, calls this function,
+    /// then reads results from output buffer
+    /// 
+    /// Pointers are passed as usize (byte offsets into WASM linear memory)
+    /// 
+    /// # Safety
+    /// This function is unsafe because it reads from raw pointers.
+    /// The caller must ensure:
+    /// - input_ptr points to valid WASM memory with at least point_count * 3 floats
+    /// - output_ptr points to valid WASM memory with at least point_count * 3 floats
+    /// - Both pointers are properly aligned
+    #[wasm_bindgen]
+    pub fn voxel_downsample_direct(
+        &mut self,
+        input_ptr: usize,
+        point_count: usize,
+        voxel_size: f32,
+        min_x: f32,
+        min_y: f32,
+        min_z: f32,
+        output_ptr: usize,
+    ) -> usize {
+        // Log function call for debugging
+        console_log!("Rust WASM: Function called - input_ptr={}, point_count={}, output_ptr={}", input_ptr, point_count, output_ptr);
+        
+        // Validate inputs
+        // Note: In WASM, offset 0 is valid (start of linear memory), so we don't check for 0
+        // Instead, we check that we have valid point count and voxel size
+        if point_count == 0 || voxel_size <= 0.0 {
+            console_log!("Rust WASM: Invalid input parameters - point_count={}, voxel_size={}", point_count, voxel_size);
+            return 0;
+        }
+        
+        // Validate pointer alignment (f32 requires 4-byte alignment)
+        if input_ptr % 4 != 0 || output_ptr % 4 != 0 {
+            console_log!("Rust WASM: Pointer alignment error");
+            return 0;
+        }
+        
+        // Calculate input length
+        let input_len = point_count * 3;
+        
+        console_log!("Rust WASM: Creating slice - input_len={}", input_len);
+        
+        unsafe {
+            // Convert usize offsets to raw pointers
+            // In WASM, pointers are just offsets into linear memory
+            // Offset 0 is valid (start of linear memory), so we don't check for null
+            let input_ptr_f32 = input_ptr as *const f32;
+            let output_ptr_f32 = output_ptr as *mut f32;
+            
+            // Note: We can't directly get WASM memory size in Rust to validate the slice
+            // We rely on JavaScript to ensure the memory is large enough and add bounds checking
+            // in the internal function
+            
+            // CRITICAL: Test memory access before creating slice
+            // Try to read first element directly to verify memory is accessible
+            // If this fails, the memory isn't actually accessible from Rust
+            if input_len > 0 {
+                // Test read - this will panic if memory isn't accessible
+                // We're already in unsafe block, so no need for nested unsafe
+                let test_value = *input_ptr_f32;
+                console_log!("Rust WASM: Memory test read successful - first value={}", test_value);
+            }
+            
+            // Create slice from raw pointer
+            // Note: from_raw_parts doesn't validate that memory is actually accessible,
+            // it just creates a slice. The actual bounds checking happens when we access it.
+            let points = std::slice::from_raw_parts(input_ptr_f32, input_len);
+            
+            console_log!("Rust WASM: Slice created - len={}, calling internal", points.len());
+            
+            // Call internal implementation
+            let output_count = self.voxel_downsample_internal(
+                points,
+                voxel_size,
+                min_x,
+                min_y,
+                min_z,
+                output_ptr_f32,
+            );
+            
+            console_log!("Rust WASM: Completed - output_count={}", output_count);
+            
+            output_count
+        }
+    }
+    
+    /// Internal voxel downsampling implementation
+    /// Writes results directly to output buffer
+    fn voxel_downsample_internal(
+        &self,
+        points: &[f32],
+        voxel_size: f32,
+        min_x: f32,
+        min_y: f32,
+        min_z: f32,
+        output_ptr: *mut f32,
+    ) -> usize {
+        // OPTIMIZATION 1: Pre-calculate inverse voxel size to avoid division
+        let inv_voxel_size = 1.0 / voxel_size;
+        
+        // Calculate point count first
+        let point_count = points.len() / 3;
+        
+        // Validate slice length
+        let expected_len = point_count * 3;
+        if points.len() < expected_len {
+            console_log!("Rust WASM: Points slice too short - expected {}, got {}", expected_len, points.len());
+            return 0;
+        }
+        
+        // OPTIMIZATION 2: Use HashMap with integer keys and direct coordinate storage
+        // Pre-allocate with estimated capacity to avoid reallocations
+        // Cap the estimate to avoid excessive memory allocation for very large datasets
+        let estimated_voxels = (point_count / 100).min(100_000); // Max 100K voxels estimate
+        let mut voxel_map: HashMap<u64, (f32, f32, f32, i32)> = HashMap::with_capacity(estimated_voxels);
+        
+        // Log for debugging large datasets
+        if point_count > 500_000 {
+            console_log!("Rust WASM: Processing large dataset: {} points, estimated {} voxels", 
+                        point_count, estimated_voxels);
+        }
+        
+        // OPTIMIZATION 3: Process points in chunks for better cache locality
+        const CHUNK_SIZE: usize = 1024;
+        
+        for chunk_start in (0..point_count).step_by(CHUNK_SIZE) {
+            let chunk_end = (chunk_start + CHUNK_SIZE).min(point_count);
+            
+            for i in chunk_start..chunk_end {
+                let i3 = i * 3;
+                // Bounds check - this should never fail if slice is valid
+                if i3 + 2 >= points.len() {
+                    console_log!("Rust WASM: Index out of bounds - i={}, i3={}, len={}", i, i3, points.len());
+                    break;
+                }
+                let x = points[i3];
+                let y = points[i3 + 1];
+                let z = points[i3 + 2];
+                
+                // OPTIMIZATION 4: Use multiplication instead of division
+                let voxel_x = ((x - min_x) * inv_voxel_size).floor() as i32;
+                let voxel_y = ((y - min_y) * inv_voxel_size).floor() as i32;
+                let voxel_z = ((z - min_z) * inv_voxel_size).floor() as i32;
+                
+                // OPTIMIZATION 5: Use integer hash key (same as debug implementation)
+                let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
+                
+                // OPTIMIZATION 6: Store sums directly (no coordinate storage needed for downsampling)
+                voxel_map.entry(voxel_key).and_modify(|(sum_x, sum_y, sum_z, count)| {
+                    *sum_x += x;
+                    *sum_y += y;
+                    *sum_z += z;
+                    *count += 1;
+                }).or_insert((x, y, z, 1));
+            }
+        }
+        
+        // OPTIMIZATION 7: Write results directly to output buffer
+        let mut output_index = 0;
+        let voxel_count = voxel_map.len();
+        
+        for (_voxel_key, (sum_x, sum_y, sum_z, count)) in voxel_map {
+            let avg_x = sum_x / count as f32;
+            let avg_y = sum_y / count as f32;
+            let avg_z = sum_z / count as f32;
+            
+            // Bounds check before writing (defensive programming)
+            if output_index >= voxel_count {
+                console_log!("Rust WASM: Output index overflow detected");
+                break;
+            }
+            
+            unsafe {
+                let base_idx = output_index * 3;
+                *output_ptr.add(base_idx) = avg_x;
+                *output_ptr.add(base_idx + 1) = avg_y;
+                *output_ptr.add(base_idx + 2) = avg_z;
+            }
+            output_index += 1;
+        }
+        
+        output_index
     }
 
     /// Voxel downsampling implementation in Rust - MAXIMUM OPTIMIZATION

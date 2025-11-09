@@ -5,8 +5,43 @@ export class PointCloudToolsRust {
   [Symbol.dispose](): void;
   constructor();
   /**
-   * Voxel downsampling implementation in Rust - OPTIMIZED like point cloud smoothing
-   * Uses local hash map for maximum performance - same efficiency as point cloud smoothing
+   * Get WASM memory for direct access
+   */
+  get_memory(): any;
+  /**
+   * Direct pointer-based voxel downsampling for zero-copy input access (static version)
+   * JavaScript allocates memory, copies input data, calls this function,
+   * then reads results from output buffer
+   * 
+   * Pointers are passed as usize (byte offsets into WASM linear memory)
+   * 
+   * # Safety
+   * This function is unsafe because it reads from raw pointers.
+   * The caller must ensure:
+   * - input_ptr points to valid WASM memory with at least point_count * 3 floats
+   * - output_ptr points to valid WASM memory with at least point_count * 3 floats
+   * - Both pointers are properly aligned
+   */
+  static voxel_downsample_direct_static(input_ptr: number, point_count: number, voxel_size: number, min_x: number, min_y: number, min_z: number, output_ptr: number): number;
+  /**
+   * Direct pointer-based voxel downsampling for zero-copy input access
+   * JavaScript allocates memory, copies input data, calls this function,
+   * then reads results from output buffer
+   * 
+   * Pointers are passed as usize (byte offsets into WASM linear memory)
+   * 
+   * # Safety
+   * This function is unsafe because it reads from raw pointers.
+   * The caller must ensure:
+   * - input_ptr points to valid WASM memory with at least point_count * 3 floats
+   * - output_ptr points to valid WASM memory with at least point_count * 3 floats
+   * - Both pointers are properly aligned
+   */
+  voxel_downsample_direct(input_ptr: number, point_count: number, voxel_size: number, min_x: number, min_y: number, min_z: number, output_ptr: number): number;
+  /**
+   * Voxel downsampling implementation in Rust - MAXIMUM OPTIMIZATION
+   * Uses direct memory access and integer hashing for maximum performance
+   * Returns Float32Array directly for zero-copy access
    */
   voxel_downsample(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
   /**
@@ -15,25 +50,22 @@ export class PointCloudToolsRust {
    */
   point_cloud_smooth(points: Float32Array, smoothing_radius: number, iterations: number): Float32Array;
   /**
-   * Generate voxel centers for debug visualization
-   * This matches the algorithm used in other implementations
+   * Generate voxel centers for debug visualization - MAXIMUM OPTIMIZATION
+   * Uses direct memory access, integer hashing, and zero-copy operations
    */
   generate_voxel_centers(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
-}
-export class Voxel {
-  private constructor();
-  free(): void;
-  [Symbol.dispose](): void;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly __wbg_voxel_free: (a: number, b: number) => void;
   readonly __wbg_pointcloudtoolsrust_free: (a: number, b: number) => void;
   readonly pointcloudtoolsrust_new: () => number;
-  readonly pointcloudtoolsrust_voxel_downsample: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
+  readonly pointcloudtoolsrust_get_memory: (a: number) => any;
+  readonly pointcloudtoolsrust_voxel_downsample_direct_static: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+  readonly pointcloudtoolsrust_voxel_downsample_direct: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
+  readonly pointcloudtoolsrust_voxel_downsample: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => any;
   readonly pointcloudtoolsrust_point_cloud_smooth: (a: number, b: number, c: number, d: number, e: number) => [number, number];
   readonly pointcloudtoolsrust_generate_voxel_centers: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
   readonly __wbindgen_export_0: WebAssembly.Table;

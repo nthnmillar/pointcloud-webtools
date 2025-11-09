@@ -48,7 +48,7 @@ async function initialize() {
     WorkerLog.info('Init function:', typeof init);
     
     // Initialize the WASM module
-    await init('/wasm/rust/tools_rust_bg.wasm');
+    await init('/wasm/rust/tools_rust.wasm');
     
     WorkerLog.info('WASM module initialized, creating PointCloudToolsRust instance...');
     

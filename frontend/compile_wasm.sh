@@ -36,6 +36,8 @@ emcc src/wasm/cpp/tools.cpp \
   -s EXPORTED_FUNCTIONS="['_voxelDownsampleDirect', '_malloc', '_free']" \
   -s NO_DISABLE_EXCEPTION_CATCHING=1 \
   -O3 \
+  -flto \
+  -msimd128 \
   --bind
 
 # Compile COPC loader WASM module
@@ -62,14 +64,25 @@ fi
 # Navigate to src/wasm/rust directory and build to build directory first
 cd src/wasm/rust
 wasm-pack build --target web --out-dir ../../build/wasm/rust --out-name tools_rust
-cd ../..
+cd ../../..
 
-# Copy only the necessary files to public directory
+# Copy only the necessary files to public directory and rename _bg files
 mkdir -p public/wasm/rust
-cp build/wasm/rust/tools_rust.js public/wasm/rust/
-cp build/wasm/rust/tools_rust_bg.wasm public/wasm/rust/
-cp build/wasm/rust/tools_rust.d.ts public/wasm/rust/
-cp build/wasm/rust/tools_rust_bg.wasm.d.ts public/wasm/rust/
+# Copy JS file and update references from tools_rust_bg.wasm to tools_rust.wasm
+sed 's/tools_rust_bg\.wasm/tools_rust.wasm/g' src/build/wasm/rust/tools_rust.js > public/wasm/rust/tools_rust.js
+# Rename WASM file (copy from _bg to non-_bg name)
+if [ -f "src/build/wasm/rust/tools_rust_bg.wasm" ]; then
+    cp src/build/wasm/rust/tools_rust_bg.wasm public/wasm/rust/tools_rust.wasm
+else
+    echo "Error: tools_rust_bg.wasm not found in build directory"
+    exit 1
+fi
+# Copy TypeScript definitions
+cp src/build/wasm/rust/tools_rust.d.ts public/wasm/rust/
+# Rename the _bg.wasm.d.ts file and update its content to reference tools_rust.wasm
+if [ -f "src/build/wasm/rust/tools_rust_bg.wasm.d.ts" ]; then
+    sed 's/tools_rust_bg\.wasm/tools_rust.wasm/g' src/build/wasm/rust/tools_rust_bg.wasm.d.ts > public/wasm/rust/tools_rust.wasm.d.ts
+fi
 
 echo "WASM compilation complete!"
 echo "Generated files:"
@@ -78,5 +91,5 @@ echo "  - public/wasm/cpp/tools_cpp.wasm"
 echo "  - public/wasm/copc_loader.js"
 echo "  - public/wasm/copc_loader.wasm"
 echo "  - public/wasm/rust/tools_rust.js"
-echo "  - public/wasm/rust/tools_rust_bg.wasm"
+echo "  - public/wasm/rust/tools_rust.wasm"
 

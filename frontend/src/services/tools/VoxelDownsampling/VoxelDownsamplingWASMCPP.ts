@@ -31,6 +31,8 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
   // Store output pointer to keep WASM memory alive for zero-copy view
   // Similar to Rust's result_buffer approach
   private previousOutputPtr: number | null = null;
+  // Cache wrapped function to avoid ccall overhead on every call
+  private voxelDownsampleDirectFunc: ((...args: number[]) => number) | null = null;
 
   constructor(serviceManager: ServiceManager) {
     super();
@@ -71,6 +73,18 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
       });
       
       Log.Info('VoxelDownsamplingWASM', 'WASM module loaded successfully');
+      
+      // OPTIMIZATION: Pre-wrap the function to avoid ccall overhead on every call
+      // cwrap caches the function pointer and reduces call overhead
+      if (this.module.cwrap) {
+        this.voxelDownsampleDirectFunc = this.module.cwrap(
+          'voxelDownsampleDirect',
+          'number',  // Return type: int
+          ['number', 'number', 'number', 'number', 'number', 'number', 'number'] // Parameter types
+        );
+        Log.Info('VoxelDownsamplingWASM', 'Function wrapped with cwrap for better performance');
+      }
+      
       this.isInitialized = true;
     } catch (error) {
       Log.Error('VoxelDownsamplingWASM', 'Failed to initialize WASM module:', error);
@@ -110,8 +124,10 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
       }
       
       // Allocate memory in WASM heap for input and output
+      // Note: Output buffer must be worst-case (same as input) to avoid buffer overflow
+      // The C++ function writes directly to the buffer, so we can't safely estimate
       const inputPtr = this.module._malloc(floatCount * 4); // 4 bytes per float
-      const outputPtr = this.module._malloc(floatCount * 4); // Pre-allocate output buffer (worst case: same size as input)
+      const outputPtr = this.module._malloc(floatCount * 4); // Worst-case: same size as input (safe)
       
       if (!inputPtr || !outputPtr) {
         throw new Error(`Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`);
@@ -129,21 +145,32 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
           inputFloatIndex
         });
         
-        // Call the direct pointer-based function using ccall
-        const outputCount = this.module.ccall(
-          'voxelDownsampleDirect',  // Function name (ccall adds underscore automatically)
-          'number',  // Return type: int (number of output points)
-          ['number', 'number', 'number', 'number', 'number', 'number', 'number'], // Parameter types
-          [
-            inputPtr,                    // inputPtr (byte pointer, C will cast to float*)
-            pointCount,                  // pointCount
-            params.voxelSize,            // voxelSize
-            params.globalBounds.minX,    // globalMinX
-            params.globalBounds.minY,    // globalMinY
-            params.globalBounds.minZ,    // globalMinZ
-            outputPtr                    // outputPtr (byte pointer, C will cast to float*)
-          ]
-        );
+        // OPTIMIZATION: Use cached wrapped function (cwrap) instead of ccall for better performance
+        // cwrap reduces function call overhead by caching the function pointer
+        const outputCount = this.voxelDownsampleDirectFunc
+          ? this.voxelDownsampleDirectFunc(
+              inputPtr,                    // inputPtr (byte pointer, C will cast to float*)
+              pointCount,                  // pointCount
+              params.voxelSize,            // voxelSize
+              params.globalBounds.minX,    // globalMinX
+              params.globalBounds.minY,    // globalMinY
+              params.globalBounds.minZ,    // globalMinZ
+              outputPtr                    // outputPtr (byte pointer, C will cast to float*)
+            )
+          : this.module.ccall(
+              'voxelDownsampleDirect',
+              'number',
+              ['number', 'number', 'number', 'number', 'number', 'number', 'number'],
+              [
+                inputPtr,
+                pointCount,
+                params.voxelSize,
+                params.globalBounds.minX,
+                params.globalBounds.minY,
+                params.globalBounds.minZ,
+                outputPtr
+              ]
+            );
         
         if (outputCount <= 0 || outputCount > pointCount) {
           throw new Error(`Invalid output count: ${outputCount} (expected 1-${pointCount})`);

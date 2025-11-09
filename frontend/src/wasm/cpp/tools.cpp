@@ -129,42 +129,49 @@ int voxelDownsampleInternal(
             int count;
             float sumX, sumY, sumZ;
             Voxel() : count(0), sumX(0), sumY(0), sumZ(0) {}
+            // Constructor for efficient initialization
+            Voxel(int c, float x, float y, float z) : count(c), sumX(x), sumY(y), sumZ(z) {}
         };
         
-        // Use unordered_map with integer keys for O(1) average lookup
+        // OPTIMIZATION 1: Reserve capacity for unordered_map to avoid rehashing
+        // Estimate: ~1% of points become voxels (rough estimate based on typical downsampling)
+        int estimatedVoxels = pointCount / 100;
+        if (estimatedVoxels < 100) estimatedVoxels = 100; // Minimum capacity
         std::unordered_map<uint64_t, Voxel> voxelMap;
+        voxelMap.reserve(estimatedVoxels);
         
-        // Process each point directly from memory
-        for (int i = 0; i < pointCount; i++) {
-            int i3 = i * 3;
-            float x = inputData[i3];
-            float y = inputData[i3 + 1];
-            float z = inputData[i3 + 2];
+        // OPTIMIZATION 2: Process points in chunks for better cache locality
+        const int CHUNK_SIZE = 1024;
+        for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
+            int chunkEnd = (chunkStart + CHUNK_SIZE < pointCount) ? chunkStart + CHUNK_SIZE : pointCount;
             
-            // Calculate voxel coordinates - use floor() to match TypeScript/Rust Math.floor()
-            int voxelX = static_cast<int>(std::floor((x - globalMinX) * invVoxelSize));
-            int voxelY = static_cast<int>(std::floor((y - globalMinY) * invVoxelSize));
-            int voxelZ = static_cast<int>(std::floor((z - globalMinZ) * invVoxelSize));
-            
-            // Create integer hash key - much faster than string
-            uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) | 
-                               (static_cast<uint64_t>(voxelY) << 16) | 
-                               static_cast<uint64_t>(voxelZ);
-            
-            auto it = voxelMap.find(voxelKey);
-            if (it != voxelMap.end()) {
-                Voxel& voxel = it->second;
-                voxel.count++;
-                voxel.sumX += x;
-                voxel.sumY += y;
-                voxel.sumZ += z;
-            } else {
-                Voxel voxel;
-                voxel.count = 1;
-                voxel.sumX = x;
-                voxel.sumY = y;
-                voxel.sumZ = z;
-                voxelMap[voxelKey] = voxel;
+            for (int i = chunkStart; i < chunkEnd; i++) {
+                int i3 = i * 3;
+                float x = inputData[i3];
+                float y = inputData[i3 + 1];
+                float z = inputData[i3 + 2];
+                
+                // Calculate voxel coordinates - use floor() to match TypeScript/Rust Math.floor()
+                int voxelX = static_cast<int>(std::floor((x - globalMinX) * invVoxelSize));
+                int voxelY = static_cast<int>(std::floor((y - globalMinY) * invVoxelSize));
+                int voxelZ = static_cast<int>(std::floor((z - globalMinZ) * invVoxelSize));
+                
+                // Create integer hash key - much faster than string
+                uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) | 
+                                   (static_cast<uint64_t>(voxelY) << 16) | 
+                                   static_cast<uint64_t>(voxelZ);
+                
+                // OPTIMIZATION 3: Use try_emplace with initializer to avoid default construction
+                // This is more efficient than default-constructing then assigning
+                auto [it, inserted] = voxelMap.try_emplace(voxelKey, 1, x, y, z);
+                if (!inserted) {
+                    // Existing entry - update (more common case, so optimize for this)
+                    Voxel& voxel = it->second;
+                    voxel.count++;
+                    voxel.sumX += x;
+                    voxel.sumY += y;
+                    voxel.sumZ += z;
+                }
             }
         }
         
