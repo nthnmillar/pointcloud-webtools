@@ -66,23 +66,18 @@ cd src/wasm/rust
 wasm-pack build --target web --out-dir ../../build/wasm/rust --out-name tools_rust
 cd ../../..
 
-# Copy only the necessary files to public directory and rename _bg files
+# Copy files to public directory and rename _bg files to remove suffix (only tools_rust.wasm should exist)
 mkdir -p public/wasm/rust
-# Copy JS file and update references from tools_rust_bg.wasm to tools_rust.wasm
+# Clean up any old _bg files that might exist
+rm -f public/wasm/rust/tools_rust_bg.wasm public/wasm/rust/tools_rust_bg.wasm.d.ts
+# Copy and rename WASM file (tools_rust_bg.wasm -> tools_rust.wasm)
+cp src/build/wasm/rust/tools_rust_bg.wasm public/wasm/rust/tools_rust.wasm
+# Copy JS file and update references to use tools_rust.wasm instead of tools_rust_bg.wasm
 sed 's/tools_rust_bg\.wasm/tools_rust.wasm/g' src/build/wasm/rust/tools_rust.js > public/wasm/rust/tools_rust.js
-# Rename WASM file (copy from _bg to non-_bg name)
-if [ -f "src/build/wasm/rust/tools_rust_bg.wasm" ]; then
-    cp src/build/wasm/rust/tools_rust_bg.wasm public/wasm/rust/tools_rust.wasm
-else
-    echo "Error: tools_rust_bg.wasm not found in build directory"
-    exit 1
-fi
 # Copy TypeScript definitions
 cp src/build/wasm/rust/tools_rust.d.ts public/wasm/rust/
-# Rename the _bg.wasm.d.ts file and update its content to reference tools_rust.wasm
-if [ -f "src/build/wasm/rust/tools_rust_bg.wasm.d.ts" ]; then
-    sed 's/tools_rust_bg\.wasm/tools_rust.wasm/g' src/build/wasm/rust/tools_rust_bg.wasm.d.ts > public/wasm/rust/tools_rust.wasm.d.ts
-fi
+# Copy and rename WASM .d.ts file, updating references
+sed 's/tools_rust_bg\.wasm/tools_rust.wasm/g' src/build/wasm/rust/tools_rust_bg.wasm.d.ts > public/wasm/rust/tools_rust.wasm.d.ts
 
 echo "WASM compilation complete!"
 echo "Generated files:"
