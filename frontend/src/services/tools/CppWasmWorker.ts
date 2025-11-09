@@ -171,12 +171,32 @@ export class CppWasmWorker {
       }, 30000);
 
       this.messageCallbacks.set(message.messageId, { resolve, reject, timeout });
-      this.worker?.postMessage(message, message.data?.pointCloudData ? [message.data.pointCloudData.buffer] : []);
+      // Clone data if it might be WASM memory (WASM buffers cannot be transferred)
+      // Check if buffer is transferable - WASM/asm.js ArrayBuffers are not transferable
+      const transferBuffers: ArrayBuffer[] = [];
+      if (message.data?.pointCloudData) {
+        const buffer = message.data.pointCloudData.buffer;
+        // Check if it's WASM memory (has maxByteLength property) or SharedArrayBuffer
+        // WASM memory buffers cannot be transferred, so clone the data
+        const isSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined' && buffer instanceof SharedArrayBuffer;
+        const isWasmMemory = (buffer as any).maxByteLength !== undefined;
+        
+        if (isSharedArrayBuffer || isWasmMemory) {
+          message.data.pointCloudData = new Float32Array(message.data.pointCloudData);
+        }
+        // Only push if it's an ArrayBuffer (not SharedArrayBuffer or WASM memory)
+        const finalBuffer = message.data.pointCloudData.buffer;
+        if (finalBuffer instanceof ArrayBuffer && !(typeof SharedArrayBuffer !== 'undefined' && finalBuffer instanceof SharedArrayBuffer)) {
+          transferBuffers.push(finalBuffer);
+        }
+      }
+      this.worker?.postMessage(message, transferBuffers.length > 0 ? transferBuffers : []);
     });
   }
 
-  private handleWorkerMessage(event: MessageEvent<CppWasmWorkerResponse>): void {
-    const { messageId, type, error } = event.data;
+  private handleWorkerMessage(event: MessageEvent<CppWasmWorkerResponse | { type: 'WORKER_READY'; method: string; messageId: number; data: any }>): void {
+    const { messageId, type } = event.data;
+    const error = 'error' in event.data ? event.data.error : undefined;
     Log.Info('CppWasmWorker', 'Received worker message', { messageId, type, error, availableCallbacks: Array.from(this.messageCallbacks.keys()) });
     
     // Handle worker ready signal
@@ -194,13 +214,13 @@ export class CppWasmWorker {
 
       if (type === 'SUCCESS') {
         Log.Info('CppWasmWorker', 'Resolving callback with success');
-        callback.resolve(event.data);
+        callback.resolve(event.data as CppWasmWorkerResponse);
       } else {
         Log.Error('CppWasmWorker', 'Rejecting callback with error', error);
         callback.reject(new Error(error || 'Worker error'));
       }
     } else {
-      Log.Warn('CppWasmWorker', 'Received message for unknown messageId:', messageId, 'Available callbacks:', Array.from(this.messageCallbacks.keys()));
+      Log.Warn('CppWasmWorker', 'Received message for unknown messageId: ' + messageId + ' Available callbacks: ' + Array.from(this.messageCallbacks.keys()).join(', '));
     }
   }
 
