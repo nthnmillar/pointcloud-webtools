@@ -6,6 +6,12 @@ interface ToolsModule {
   pointCloudSmoothing(inputPoints: Float32Array, smoothingRadius?: number, iterations?: number): Float32Array;
   showVoxelDebug(inputPoints: Float32Array, voxelSize: number): void;
   getVoxelDebugCenters(): Float32Array | number[];
+  // Direct memory access functions
+  _malloc(size: number): number;
+  _free(ptr: number): void;
+  HEAPF32: Float32Array;
+  cwrap?(name: string, returnType: string, argTypes: string[]): (...args: number[]) => number;
+  ccall?(name: string, returnType: string, argTypes: string[], args: number[]): number;
 }
 
 // Simple logging function for worker context
@@ -22,6 +28,8 @@ const WorkerLog = {
 };
 
 let toolsModule: ToolsModule | null = null;
+let voxelDownsampleDirectFunc: ((...args: number[]) => number) | null = null; // Cached wrapped function
+let previousOutputPtr: number | null = null; // Track output pointer for memory management
 
 // Initialize WASM module (exact same pattern as VoxelDownsampleWorker)
 async function initialize() {
@@ -87,6 +95,17 @@ async function initializeWasmModule() {
     },
   });
   
+  // OPTIMIZATION: Pre-wrap the function to avoid ccall overhead on every call
+  // cwrap caches the function pointer and reduces call overhead
+  if (toolsModule.cwrap) {
+    voxelDownsampleDirectFunc = toolsModule.cwrap(
+      'voxelDownsampleDirect',
+      'number',  // Return type: int
+      ['number', 'number', 'number', 'number', 'number', 'number', 'number'] // Parameter types
+    );
+    WorkerLog.info('Function wrapped with cwrap for better performance');
+  }
+  
   WorkerLog.info('ToolsModule instance created');
 }
 
@@ -107,44 +126,120 @@ async function processVoxelDownsampling(data: {
     throw new Error('WASM module not initialized');
   }
 
+  // Check if required functions are available
+  if (!toolsModule._malloc || !toolsModule._free || !toolsModule.HEAPF32) {
+    throw new Error('Required WASM functions not available. Missing: ' + 
+      (!toolsModule._malloc ? '_malloc ' : '') +
+      (!toolsModule._free ? '_free ' : '') +
+      (!toolsModule.HEAPF32 ? 'HEAPF32' : ''));
+  }
+
   const startTime = performance.now();
   const { pointCloudData, voxelSize, globalBounds } = data;
   
-  WorkerLog.info('Processing voxel downsampling', {
-    pointCount: pointCloudData.length / 3,
-    voxelSize,
-    globalBounds
-  });
-
-  // Use the optimized voxel downsampling function (now returns Float32Array directly)
-  const result = toolsModule.voxelDownsample(
-    pointCloudData,
-    voxelSize,
-    globalBounds.minX,
-    globalBounds.minY,
-    globalBounds.minZ
-  );
+  const pointCount = pointCloudData.length / 3;
+  const floatCount = pointCloudData.length;
   
-  // Result is now Float32Array directly - no conversion needed
-  const downsampledPoints = result instanceof Float32Array 
-    ? result 
-    : new Float32Array(result);
-  const resultSize = downsampledPoints.length / 3;
-
-  const processingTime = performance.now() - startTime;
+  // Free previous output buffer if it exists (keep only one result alive at a time)
+  if (previousOutputPtr !== null) {
+    toolsModule._free(previousOutputPtr);
+    previousOutputPtr = null;
+  }
   
-  WorkerLog.info('Voxel downsampling completed', {
-    originalCount: pointCloudData.length / 3,
-    downsampledCount: resultSize,
-    processingTime
-  });
-
-  return {
-    downsampledPoints,
-    originalCount: pointCloudData.length / 3,
-    downsampledCount: resultSize,
-    processingTime
-  };
+  // Allocate memory in WASM heap for input and output
+  // Note: Output buffer must be worst-case (same as input) to avoid buffer overflow
+  const inputPtr = toolsModule._malloc(floatCount * 4); // 4 bytes per float
+  const outputPtr = toolsModule._malloc(floatCount * 4); // Worst-case: same size as input (safe)
+  
+  if (!inputPtr || !outputPtr) {
+    throw new Error(`Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`);
+  }
+  
+  // OPTIMIZATION: Check if input is already in WASM memory (zero-copy optimization)
+  const isInputInWasmMemory = pointCloudData.buffer === toolsModule.HEAPF32.buffer;
+  let inputPtrToUse = inputPtr;
+  
+  try {
+    if (isInputInWasmMemory) {
+      // Input is already in WASM memory - use it directly (zero-copy!)
+      inputPtrToUse = pointCloudData.byteOffset;
+      // Free the allocated input buffer since we don't need it
+      toolsModule._free(inputPtr);
+    } else {
+      // OPTIMIZATION: Bulk copy input data using HEAPF32.set()
+      // This is much faster than element-by-element copy
+      const inputFloatIndex = inputPtr >> 2; // Convert byte pointer to float index
+      toolsModule.HEAPF32.set(pointCloudData, inputFloatIndex);
+    }
+    
+    // OPTIMIZATION: Use cached wrapped function (cwrap) instead of ccall for better performance
+    // cwrap reduces function call overhead by caching the function pointer
+    const outputCount = voxelDownsampleDirectFunc
+      ? voxelDownsampleDirectFunc(
+          inputPtrToUse,               // inputPtr (byte pointer, C will cast to float*)
+          pointCount,                  // pointCount
+          voxelSize,                   // voxelSize
+          globalBounds.minX,           // globalMinX
+          globalBounds.minY,           // globalMinY
+          globalBounds.minZ,           // globalMinZ
+          outputPtr                    // outputPtr (byte pointer, C will cast to float*)
+        )
+      : toolsModule.ccall
+        ? toolsModule.ccall(
+            'voxelDownsampleDirect',
+            'number',
+            ['number', 'number', 'number', 'number', 'number', 'number', 'number'],
+            [
+              inputPtrToUse,
+              pointCount,
+              voxelSize,
+              globalBounds.minX,
+              globalBounds.minY,
+              globalBounds.minZ,
+              outputPtr
+            ]
+          )
+        : (() => { throw new Error('No direct function available'); })();
+    
+    if (outputCount <= 0 || outputCount > pointCount) {
+      throw new Error(`Invalid output count: ${outputCount} (expected 1-${pointCount})`);
+    }
+    
+    // ZERO-COPY OUTPUT: Create direct view of WASM memory
+    // Store output pointer to keep WASM memory alive - don't free it immediately
+    const resultFloatCount = outputCount * 3;
+    const outputFloatIndex = outputPtr >> 2;
+    
+    // Create zero-copy view of WASM memory for processing
+    const downsampledPointsView = toolsModule.HEAPF32.subarray(
+      outputFloatIndex,
+      outputFloatIndex + resultFloatCount
+    );
+    
+    // OPTIMIZATION: Copy to new buffer only for transfer (WASM memory cannot be transferred)
+    // This is necessary because postMessage cannot transfer WASM/asm.js ArrayBuffers
+    // We still get zero-copy benefits during processing, only copy at the end
+    const downsampledPoints = new Float32Array(downsampledPointsView);
+    
+    // Store output pointer to keep memory alive (for the view, even though we copied)
+    // Previous output pointer was already freed above
+    previousOutputPtr = outputPtr;
+    
+    const processingTime = performance.now() - startTime;
+    
+    return {
+      downsampledPoints,
+      originalCount: pointCount,
+      downsampledCount: outputCount,
+      processingTime
+    };
+  } finally {
+    // Free input memory only if we allocated it (not if it was already in WASM memory)
+    if (!isInputInWasmMemory && inputPtr) {
+      toolsModule._free(inputPtr);
+    }
+    // Note: outputPtr is NOT freed here - it's stored in previousOutputPtr and freed on next call
+  }
 }
 
 // Process point cloud smoothing
@@ -255,7 +350,7 @@ async function processVoxelDebug(data: {
 // Message handler
 self.onmessage = async function(e) {
   const { type, messageId, data } = e.data;
-  WorkerLog.info('Received message', { type, messageId });
+  // Removed logging from hot path for performance
   
   try {
     if (type === 'INITIALIZE') {
