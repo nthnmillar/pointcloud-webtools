@@ -313,7 +313,7 @@ wss.on('connection', (ws, req) => {
             try {
               rustProcess = spawn(rustExecutable);
             } catch (spawnError) {
-              console.error('🔧 WebSocket: Failed to spawn Rust process:', spawnError);
+              console.error('Failed to spawn Rust process:', spawnError);
               ws.send(JSON.stringify({
                 type: 'voxel_downsample_rust_result',
                 requestId,
@@ -349,7 +349,6 @@ wss.on('connection', (ws, req) => {
             
             rustProcess.stderr.on('data', (data) => {
               errorBuffer += data.toString();
-              console.error('🔧 Rust process stderr:', data.toString());
             });
             
             rustProcess.on('error', (error) => {
@@ -364,9 +363,7 @@ wss.on('connection', (ws, req) => {
             
             rustProcess.on('close', (code) => {
               if (code !== 0) {
-                console.error(`🔧 Rust process exited with code ${code}`);
-                console.error(`🔧 Rust stderr: ${errorBuffer}`);
-                console.error(`🔧 Rust stdout length: ${outputBuffer.length}`);
+                console.error(`Rust process exited with code ${code}`);
                 ws.send(JSON.stringify({
                   type: 'voxel_downsample_rust_result',
                   requestId,
@@ -380,8 +377,6 @@ wss.on('connection', (ws, req) => {
                 // Read binary output (no JSON parsing!)
                 // Binary format: [u32 outputCount][f32* downsampledPoints]
                 if (outputBuffer.length < 4) {
-                  console.error(`🔧 Rust: Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
-                  console.error(`🔧 Rust stderr: ${errorBuffer}`);
                   throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
                 }
                 
@@ -389,8 +384,6 @@ wss.on('connection', (ws, req) => {
                 const expectedSize = 4 + outputCount * 3 * 4;
                 
                 if (outputBuffer.length < expectedSize) {
-                  console.error(`🔧 Rust: Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
-                  console.error(`🔧 Rust stderr: ${errorBuffer}`);
                   throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
                 }
                 
@@ -413,9 +406,7 @@ wss.on('connection', (ws, req) => {
                   }
                 }));
               } catch (parseError) {
-                console.error('🔧 Rust Binary protocol error:', parseError);
-                console.error(`🔧 Rust stderr: ${errorBuffer}`);
-                console.error(`🔧 Rust stdout length: ${outputBuffer.length}`);
+                console.error('Rust Binary protocol error:', parseError);
                 ws.send(JSON.stringify({
                   type: 'voxel_downsample_rust_result',
                   requestId,
@@ -1058,8 +1049,8 @@ app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'],
   credentials: true
 }));
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
 // Configure multer for file uploads
 const upload = multer({ 
