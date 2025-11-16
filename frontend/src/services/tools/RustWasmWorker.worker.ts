@@ -178,21 +178,21 @@ async function handleVoxelDownsampling(data: any, messageId: number): Promise<vo
     previousOutputPtr = outputPtr;
     previousOutputSize = floatCount * 4;
     
-    const processingTime = performance.now() - startTime;
+  const processingTime = performance.now() - startTime;
 
-    const response = {
-      type: 'SUCCESS',
-      method: 'WASM_RUST',
-      messageId,
-      data: {
-        downsampledPoints,
+  const response = {
+    type: 'SUCCESS',
+    method: 'WASM_RUST',
+    messageId,
+    data: {
+      downsampledPoints,
         originalCount: pointCount,
         downsampledCount: outputCount,
-        processingTime
-      }
-    };
+      processingTime
+    }
+  };
 
-    self.postMessage(response, { transfer: [downsampledPoints.buffer] });
+  self.postMessage(response, { transfer: [downsampledPoints.buffer] });
   } finally {
     // Free input memory only if we allocated it (not if it was already in WASM memory)
     // wasm-bindgen exports free as __wbindgen_export_1(ptr, size, align)

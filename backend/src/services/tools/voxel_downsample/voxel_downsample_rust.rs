@@ -120,15 +120,15 @@ fn voxel_downsample_internal(
             let x = points[i3];
             let y = points[i3 + 1];
             let z = points[i3 + 2];
-            
+                
             // OPTIMIZATION 4: Use multiplication instead of division
             let voxel_x = ((x - min_x) * inv_voxel_size).floor() as i32;
             let voxel_y = ((y - min_y) * inv_voxel_size).floor() as i32;
             let voxel_z = ((z - min_z) * inv_voxel_size).floor() as i32;
-            
+                
             // OPTIMIZATION 5: Use integer hash key
-            let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
-            
+                let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
+                
             // OPTIMIZATION 6: Use entry() API (like C++ try_emplace) - single hash lookup
             // Use struct for better cache locality (matches WASM implementation)
             voxel_map.entry(voxel_key).and_modify(|voxel| {

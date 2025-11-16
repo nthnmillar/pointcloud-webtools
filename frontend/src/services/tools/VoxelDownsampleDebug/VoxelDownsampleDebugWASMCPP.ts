@@ -25,6 +25,9 @@ export interface VoxelDebugResult {
 
 export class VoxelDownsampleDebugWASMCPP extends BaseService {
   private module: any = null;
+  private voxelDebugDirectFunc: ((inputPtr: number, pointCount: number, voxelSize: number, 
+                                   minX: number, minY: number, minZ: number, outputPtr: number, maxOutputPoints: number) => number) | null = null;
+  private previousOutputPtr: number | null = null;
 
   constructor(_serviceManager: ServiceManager) {
     super();
@@ -49,6 +52,16 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
         throw new Error('WASM module factory not found in tools_cpp.js');
       }
       this.module = await factory();
+      
+      // Cache the direct function for better performance (like voxel downsampling)
+      if (this.module.cwrap) {
+        this.voxelDebugDirectFunc = this.module.cwrap(
+          'voxelDebugDirect',
+          'number',
+          ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number']
+        );
+      }
+      
       this.isInitialized = true;
       Log.Info('VoxelDownsampleDebugWASMCPP', 'C++ WASM module loaded via dynamic import');
     } catch (error) {
@@ -83,46 +96,112 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
     try {
       const startTime = performance.now();
       
-      // Pass bounds to C++ to match TypeScript/Rust (ensures identical results)
-      this.module.showVoxelDebug(
-        params.pointCloudData,  // Direct Float32Array - no conversion!
-        params.voxelSize,
-        params.globalBounds.minX,
-        params.globalBounds.minY,
-        params.globalBounds.minZ
-      );
-      
-      const processingTime = performance.now() - startTime;
-      
-      // Get voxel debug centers from C++ WASM (already calculated as grid positions)
-      const voxelCenters = this.module.getVoxelDebugCenters();
-      
-      console.log('🔧 WASM Debug: C++ debug centers result', {
-        resultLength: voxelCenters ? voxelCenters.length : 0,
-        voxelSize: params.voxelSize,
-        bounds: params.globalBounds
-      });
-      
-      // Convert C++ result to Float32Array (already grid positions)
-      let centersArray: Float32Array;
-      if (!voxelCenters || voxelCenters.length === 0) {
-        centersArray = new Float32Array(0);
-      } else {
-        // WASM debug centers are already grid positions (calculated in C++)
-        centersArray = new Float32Array(voxelCenters);
+      // Check if required functions are available
+      if (!this.module._malloc || !this.module._free || !this.module.HEAPF32) {
+        throw new Error('Required WASM functions not available');
       }
       
-      Log.Info('VoxelDownsampleDebugWASMCPP', 'Voxel centers generated using C++ WASM', {
-        voxelCount: centersArray.length / 3,
-        processingTime: processingTime.toFixed(2) + 'ms'
-      });
+      const pointCount = params.pointCloudData.length / 3;
+      const floatCount = params.pointCloudData.length;
+      
+      // Free previous output buffer if it exists
+      if (this.previousOutputPtr !== null) {
+        this.module._free(this.previousOutputPtr);
+        this.previousOutputPtr = null;
+      }
+      
+      // Allocate memory in WASM heap for input and output
+      // Output buffer: worst-case same as input (safe estimate)
+      const inputPtr = this.module._malloc(floatCount * 4); // 4 bytes per float
+      const outputPtr = this.module._malloc(floatCount * 4); // Worst-case: same size as input
+      
+      if (!inputPtr || !outputPtr) {
+        throw new Error(`Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`);
+      }
+      
+      // OPTIMIZATION: Check if input is already in WASM memory (zero-copy optimization)
+      const isInputInWasmMemory = params.pointCloudData.buffer === this.module.HEAPF32.buffer;
+      let inputPtrToUse = inputPtr;
+      
+      try {
+        if (isInputInWasmMemory) {
+          // Input is already in WASM memory - use it directly (zero-copy!)
+          inputPtrToUse = params.pointCloudData.byteOffset;
+          // Free the allocated input buffer since we don't need it
+          this.module._free(inputPtr);
+        } else {
+          // OPTIMIZATION: Bulk copy input data using HEAPF32.set()
+          // This is much faster than element-by-element copy
+          const inputFloatIndex = inputPtr >> 2; // Convert byte pointer to float index
+          this.module.HEAPF32.set(params.pointCloudData, inputFloatIndex);
+        }
+        
+        // OPTIMIZATION: Use cached wrapped function (cwrap) instead of ccall for better performance
+        const outputCount = this.voxelDebugDirectFunc
+          ? this.voxelDebugDirectFunc(
+              inputPtrToUse,               // inputPtr (byte pointer, C will cast to float*)
+              pointCount,                  // pointCount
+              params.voxelSize,            // voxelSize
+              params.globalBounds.minX,    // minX
+              params.globalBounds.minY,    // minY
+              params.globalBounds.minZ,    // minZ
+              outputPtr,                   // outputPtr (byte pointer, C will cast to float*)
+              pointCount                   // maxOutputPoints (safety limit)
+            )
+          : this.module.ccall(
+              'voxelDebugDirect',
+              'number',
+              ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number'],
+              [
+                inputPtrToUse,
+                pointCount,
+                params.voxelSize,
+                params.globalBounds.minX,
+                params.globalBounds.minY,
+                params.globalBounds.minZ,
+                outputPtr,
+                pointCount
+              ]
+            );
+        
+        if (outputCount <= 0 || outputCount > pointCount) {
+          throw new Error(`Invalid output count: ${outputCount} (expected 1-${pointCount})`);
+        }
+        
+        // ZERO-COPY OUTPUT: Create direct view of WASM memory
+        const resultFloatCount = outputCount * 3;
+        const outputFloatIndex = outputPtr >> 2;
+        const centersArray = this.module.HEAPF32.subarray(outputFloatIndex, outputFloatIndex + resultFloatCount);
+        
+        // Copy to new buffer for transfer (WASM memory cannot be transferred)
+        const centersArrayCopy = new Float32Array(centersArray);
+        
+        // Store output pointer to keep WASM memory alive
+        this.previousOutputPtr = outputPtr;
+        
+        const processingTime = performance.now() - startTime;
+        
+        Log.Info('VoxelDownsampleDebugWASMCPP', 'Voxel centers generated using C++ WASM (direct)', {
+          voxelCount: outputCount,
+          processingTime: processingTime.toFixed(2) + 'ms'
+        });
 
-      return {
-        success: true,
-        voxelCenters: centersArray,
-        voxelCount: centersArray.length / 3,
-        processingTime
-      };
+        return {
+          success: true,
+          voxelCenters: centersArrayCopy,
+          voxelCount: outputCount,
+          processingTime
+        };
+      } catch (error) {
+        // Free allocated memory on error
+        if (inputPtr && !isInputInWasmMemory) {
+          this.module._free(inputPtr);
+        }
+        if (outputPtr) {
+          this.module._free(outputPtr);
+        }
+        throw error;
+      }
     } catch (error) {
       Log.Error('VoxelDownsampleDebugWASMCPP', 'C++ WASM voxel centers generation failed', error);
       return {
@@ -134,6 +213,11 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
 
 
   dispose(): void {
+    // Free output buffer if it exists
+    if (this.previousOutputPtr !== null && this.module && this.module._free) {
+      this.module._free(this.previousOutputPtr);
+      this.previousOutputPtr = null;
+    }
     this.removeAllObservers();
   }
 }

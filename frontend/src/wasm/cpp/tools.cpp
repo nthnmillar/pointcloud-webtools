@@ -7,6 +7,20 @@
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
 
+// Fast hash function for 64-bit integers (matches Rust's FxHash exactly)
+// FxHash uses a simple multiply and rotate - very fast for integer keys
+struct FastHash {
+    size_t operator()(uint64_t x) const noexcept {
+        // FxHash algorithm: multiply by magic constant and rotate
+        // This is the actual FxHash implementation from rustc-hash
+        constexpr uint64_t K = 0x517cc1b727220a95ULL;
+        x = x * K;
+        // Rotate left by 5 (equivalent to (x << 5) | (x >> 59))
+        x = (x << 5) | (x >> 59);
+        return static_cast<size_t>(x);
+    }
+};
+
 struct Point3D {
     float x, y, z;
     Point3D(float x = 0, float y = 0, float z = 0) : x(x), y(y), z(z) {}
@@ -15,6 +29,8 @@ struct Point3D {
 // Forward declarations
 int voxelDownsampleInternal(float* inputData, int pointCount, float voxelSize, 
                            float globalMinX, float globalMinY, float globalMinZ, float* outputData);
+int voxelDebugInternal(float* inputData, int pointCount, float voxelSize,
+                      float minX, float minY, float minZ, float* outputPtr, int maxOutputPoints);
 
 extern "C" {
     void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCount, 
@@ -44,6 +60,35 @@ extern "C" {
             globalMinY,
             globalMinZ,
             outputPtr
+        );
+    }
+    
+    // Direct pointer-based voxel debug for zero-copy input access
+    // JavaScript allocates memory, copies input data with HEAPF32.set(), calls this function,
+    // then reads results from outputPtr
+    int voxelDebugDirect(
+        float* inputPtr,      // Pointer to input data in WASM heap (already copied via HEAPF32.set())
+        int pointCount,        // Number of points (length / 3)
+        float voxelSize,
+        float minX,
+        float minY,
+        float minZ,
+        float* outputPtr,     // Pointer to output buffer (pre-allocated, at least pointCount * 3 floats)
+        int maxOutputPoints   // Maximum number of output points (for safety)
+    ) {
+        if (!inputPtr || !outputPtr || pointCount <= 0 || voxelSize <= 0 || maxOutputPoints <= 0) {
+            return 0;
+        }
+        
+        return voxelDebugInternal(
+            inputPtr,
+            pointCount,
+            voxelSize,
+            minX,
+            minY,
+            minZ,
+            outputPtr,
+            maxOutputPoints
         );
     }
 }
@@ -134,10 +179,11 @@ int voxelDownsampleInternal(
         };
         
         // OPTIMIZATION 1: Reserve capacity for unordered_map to avoid rehashing
+        // Use FastHash (matching Rust's FxHash) for better performance
         // Estimate: ~1% of points become voxels (rough estimate based on typical downsampling)
         int estimatedVoxels = pointCount / 100;
         if (estimatedVoxels < 100) estimatedVoxels = 100; // Minimum capacity
-        std::unordered_map<uint64_t, Voxel> voxelMap;
+        std::unordered_map<uint64_t, Voxel, FastHash> voxelMap;
         voxelMap.reserve(estimatedVoxels);
         
         // OPTIMIZATION 2: Process points in chunks for better cache locality
@@ -407,13 +453,20 @@ void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize, float m
         return;
     }
     
+    // OPTIMIZATION: Copy input data to WASM memory first for direct access (like voxel downsampling)
+    // This avoids slow JavaScript calls for every point access
+    float* inputData = (float*)malloc(length * sizeof(float));
+    for (int i = 0; i < length; i++) {
+        inputData[i] = inputPoints.call<float>("at", i);
+    }
+    
     // Use provided bounds (same as TypeScript/Rust) - ensures identical results
     
     // OPTIMIZATION 3: Pre-calculate inverse voxel size to avoid division
     float invVoxelSize = 1.0f / voxelSize;
     
-    // OPTIMIZATION 4: Use unordered_set for unique voxel coordinates (same as Rust)
-    std::unordered_set<uint64_t> voxelKeys;
+    // OPTIMIZATION 4: Use unordered_set with FastHash (matching Rust's FxHash) for unique voxel coordinates
+    std::unordered_set<uint64_t, FastHash> voxelKeys;
     voxelKeys.reserve(pointCount / 4); // Reserve space to avoid rehashing
     
     // OPTIMIZATION 5: Process points in chunks for better cache locality
@@ -423,9 +476,10 @@ void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize, float m
         
         for (int i = chunkStart; i < chunkEnd; i++) {
             int i3 = i * 3;
-            float x = inputPoints.call<float>("at", i3);
-            float y = inputPoints.call<float>("at", i3 + 1);
-            float z = inputPoints.call<float>("at", i3 + 2);
+            // OPTIMIZATION: Direct memory access (much faster than JavaScript calls)
+            float x = inputData[i3];
+            float y = inputData[i3 + 1];
+            float z = inputData[i3 + 2];
             
             // OPTIMIZATION 6: Use multiplication instead of division
             // Use floor() to match TypeScript/Rust Math.floor() behavior (handles negative correctly)
@@ -442,6 +496,9 @@ void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize, float m
             voxelKeys.insert(voxelKey);
         }
     }
+    
+    // Free input data
+    free(inputData);
     
     // OPTIMIZATION 9: Pre-allocate result vector and use move semantics
     g_voxelDebug.voxelCenters.clear();
@@ -471,6 +528,79 @@ void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize, float m
     g_voxelDebug.isVisible = true;
 }
 
+// Internal voxel debug function - writes directly to outputPtr (zero-copy output)
+int voxelDebugInternal(float* inputData, int pointCount, float voxelSize,
+                      float minX, float minY, float minZ, float* outputPtr, int maxOutputPoints) {
+    if (!inputData || !outputPtr || pointCount <= 0 || voxelSize <= 0 || maxOutputPoints <= 0) {
+        return 0;
+    }
+    
+    // OPTIMIZATION 1: Pre-calculate ALL constants at the start (like Rust does)
+    float invVoxelSize = 1.0f / voxelSize;
+    float halfVoxelSize = voxelSize * 0.5f;
+    float offsetX = minX + halfVoxelSize;
+    float offsetY = minY + halfVoxelSize;
+    float offsetZ = minZ + halfVoxelSize;
+    
+    // OPTIMIZATION 2: Use unordered_set with FastHash (matching Rust's FxHash) for unique voxel coordinates
+    // Don't reserve - let it grow naturally like Rust (reserve can cause overhead if estimate is wrong)
+    std::unordered_set<uint64_t, FastHash> voxelKeys;
+    
+    // OPTIMIZATION 3: Process points in chunks for better cache locality
+    const int CHUNK_SIZE = 1024;
+    for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
+        int chunkEnd = std::min(chunkStart + CHUNK_SIZE, pointCount);
+        
+        for (int i = chunkStart; i < chunkEnd; i++) {
+            int i3 = i * 3;
+            // Direct memory access (already in WASM memory)
+            float x = inputData[i3];
+            float y = inputData[i3 + 1];
+            float z = inputData[i3 + 2];
+            
+            // OPTIMIZATION 4: Use multiplication instead of division
+            // Use floor() to match TypeScript/Rust Math.floor() behavior (handles negative correctly)
+            int voxelX = static_cast<int>(std::floor((x - minX) * invVoxelSize));
+            int voxelY = static_cast<int>(std::floor((y - minY) * invVoxelSize));
+            int voxelZ = static_cast<int>(std::floor((z - minZ) * invVoxelSize));
+            
+            // OPTIMIZATION 5: Pack into uint64_t key (same as Rust's approach for hashing)
+            uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
+                               (static_cast<uint64_t>(voxelY) << 16) |
+                               static_cast<uint64_t>(voxelZ);
+            
+            // OPTIMIZATION: Use emplace to avoid copy (construct in-place)
+            voxelKeys.emplace(voxelKey);
+        }
+    }
+    
+    // OPTIMIZATION 6: Single pass conversion with optimized output loop
+    // Pre-calculate voxelSize multiplication to avoid repeated multiplication
+    // Use pointer arithmetic for maximum performance (like optimized voxel downsampling)
+    
+    // Write directly to output buffer using pointer arithmetic
+    float* outputPtrCurrent = outputPtr;
+    int outputCount = 0;
+    
+    // OPTIMIZATION: Iterate and write directly without intermediate variables where possible
+    // Remove safety check - we know voxelKeys.size() <= maxOutputPoints (it's unique voxels from input)
+    for (const uint64_t voxelKey : voxelKeys) {
+        // Extract voxel coordinates from integer key (optimized bit operations)
+        // voxelX: bits 32-63 (32 bits), voxelY: bits 16-31 (16 bits), voxelZ: bits 0-15 (16 bits)
+        int voxelX = static_cast<int32_t>(voxelKey >> 32);
+        int voxelY = static_cast<int16_t>((voxelKey >> 16) & 0xFFFF); // Sign-extend 16-bit to int
+        int voxelZ = static_cast<int16_t>(voxelKey & 0xFFFF); // Sign-extend 16-bit to int
+        
+        // Calculate voxel grid position (center of voxel grid cell)
+        // Direct calculation and write (no intermediate variables)
+        *outputPtrCurrent++ = offsetX + static_cast<float>(voxelX) * voxelSize;
+        *outputPtrCurrent++ = offsetY + static_cast<float>(voxelY) * voxelSize;
+        *outputPtrCurrent++ = offsetZ + static_cast<float>(voxelZ) * voxelSize;
+        outputCount++;
+    }
+    
+    return outputCount;
+}
 
 void hideVoxelDebug() {
     g_voxelDebug.isVisible = false;

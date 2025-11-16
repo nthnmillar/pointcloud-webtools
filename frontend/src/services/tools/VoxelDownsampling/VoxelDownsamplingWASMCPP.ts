@@ -126,7 +126,7 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
       // Allocate memory in WASM heap for input and output
       // Note: Output buffer must be worst-case (same as input) to avoid buffer overflow
       // The C++ function writes directly to the buffer, so we can't safely estimate
-      const inputPtr = this.module._malloc(floatCount * 4); // 4 bytes per float
+        const inputPtr = this.module._malloc(floatCount * 4); // 4 bytes per float
       const outputPtr = this.module._malloc(floatCount * 4); // Worst-case: same size as input (safe)
       
       if (!inputPtr || !outputPtr) {

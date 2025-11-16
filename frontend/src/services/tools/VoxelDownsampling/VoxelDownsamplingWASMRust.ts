@@ -123,7 +123,7 @@ export class VoxelDownsamplingWASMRust extends BaseService {
           // OPTIMIZATION: Use cached heapF32 view instead of creating new Float32Array
           if (!this.heapF32) {
             this.heapF32 = new Float32Array(this.memory.buffer);
-          }
+        }
           // Refresh view if memory grew (buffer may have changed)
           if (this.heapF32.buffer !== this.memory.buffer) {
             this.heapF32 = new Float32Array(this.memory.buffer);
@@ -141,7 +141,7 @@ export class VoxelDownsamplingWASMRust extends BaseService {
           : (this.wasmModule as any).voxel_downsample_direct(
               inputPtrToUse, pointCount, voxelSize,
               globalBounds.minX, globalBounds.minY, globalBounds.minZ, outputPtr
-            );
+        );
         
         if (outputCount <= 0 || outputCount > pointCount) {
           throw new Error(`Invalid output count: ${outputCount}`);

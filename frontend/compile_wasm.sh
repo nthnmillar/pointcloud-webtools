@@ -33,7 +33,7 @@ emcc src/wasm/cpp/tools.cpp \
   -s MAXIMUM_MEMORY=512MB \
   -s ENVIRONMENT="web" \
   -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'HEAPF32', 'HEAPU8']" \
-  -s EXPORTED_FUNCTIONS="['_voxelDownsampleDirect', '_malloc', '_free']" \
+  -s EXPORTED_FUNCTIONS="['_voxelDownsampleDirect', '_voxelDebugDirect', '_malloc', '_free']" \
   -s NO_DISABLE_EXCEPTION_CATCHING=1 \
   -O3 \
   -flto \
@@ -80,7 +80,7 @@ sed 's/tools_rust_bg\.wasm/tools_rust.wasm/g' src/build/wasm/rust/tools_rust.js 
 # Copy TypeScript definitions
 cp src/build/wasm/rust/tools_rust.d.ts public/wasm/rust/
 # Copy and rename WASM .d.ts file, updating references
-sed 's/tools_rust_bg\.wasm/tools_rust.wasm/g' src/build/wasm/rust/tools_rust_bg.wasm.d.ts > public/wasm/rust/tools_rust.wasm.d.ts
+    sed 's/tools_rust_bg\.wasm/tools_rust.wasm/g' src/build/wasm/rust/tools_rust_bg.wasm.d.ts > public/wasm/rust/tools_rust.wasm.d.ts
 
 echo "WASM compilation complete!"
 echo "Generated files:"

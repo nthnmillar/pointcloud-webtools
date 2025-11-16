@@ -57,7 +57,7 @@ See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algo
 - **WASM**: Both use LLVM, and the WASM runtime may optimize hash map operations similarly
 - **Backend**: Native execution exposes the true performance difference between hash map implementations
 - Rust's `FxHashMap` is specifically designed for performance with integer keys, giving it an edge in native execution
-
+  
 - **Python Backend** is slowest (~4.6s) but most maintainable
 
 ### Accuracy Verification

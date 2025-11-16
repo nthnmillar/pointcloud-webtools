@@ -200,7 +200,7 @@ wss.on('connection', (ws, req) => {
           if (type === 'voxel_downsample') {
             // Use C++ backend with binary protocol (no JSON serialization!)
             const cppProcess = await voxelDownsamplePool.getProcess();
-            
+          
             // Create binary header buffer (32 bytes: 4 for uint32 + 7*4 for floats)
             const headerBuffer = Buffer.allocUnsafe(32);
             headerBuffer.writeUInt32LE(pointCount, 0);
@@ -217,16 +217,16 @@ wss.on('connection', (ws, req) => {
             
             // Combine header + data
             const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
-            
+          
             let outputBuffer = Buffer.alloc(0);
             let errorBuffer = '';
-            
-            cppProcess.stdout.on('data', (data) => {
+          
+          cppProcess.stdout.on('data', (data) => {
               outputBuffer = Buffer.concat([outputBuffer, data]);
-            });
-            
-            cppProcess.stdout.on('end', () => {
-              try {
+          });
+          
+          cppProcess.stdout.on('end', () => {
+            try {
                 // Read binary output (no JSON parsing!)
                 // Binary format: [uint32_t outputCount][float* downsampledPoints]
                 if (outputBuffer.length < 4) {
@@ -244,66 +244,66 @@ wss.on('connection', (ws, req) => {
                 const downsampledPointsBuffer = outputBuffer.slice(4, expectedSize);
                 const downsampledPoints = new Float32Array(downsampledPointsBuffer.buffer, downsampledPointsBuffer.byteOffset, outputCount * 3);
                 
-                const processingTime = Date.now() - startTime;
-                
-                voxelDownsamplePool.releaseProcess(cppProcess);
-                
-                ws.send(JSON.stringify({
-                  type: 'voxel_downsample_result',
-                  requestId,
-                  success: true,
+              const processingTime = Date.now() - startTime;
+              
+              voxelDownsamplePool.releaseProcess(cppProcess);
+              
+              ws.send(JSON.stringify({
+                type: 'voxel_downsample_result',
+                requestId,
+                success: true,
                   downsampledPoints: Array.from(downsampledPoints), // Only convert to array for JSON response
                   originalCount: pointCount,
                   downsampledCount: outputCount,
                   voxelCount: outputCount,
                   processingTime
-                }));
-              } catch (parseError) {
+              }));
+            } catch (parseError) {
                 console.error('C++ Binary protocol error:', parseError);
-                const processingTime = Date.now() - startTime;
-                voxelDownsamplePool.releaseProcess(cppProcess);
-                
-                ws.send(JSON.stringify({
-                  type: 'voxel_downsample_result',
-                  requestId,
+              const processingTime = Date.now() - startTime;
+              voxelDownsamplePool.releaseProcess(cppProcess);
+              
+              ws.send(JSON.stringify({
+                type: 'voxel_downsample_result',
+                requestId,
                   success: false,
                   error: `Binary protocol error: ${parseError.message}. Stderr: ${errorBuffer}`,
-                  processingTime
-                }));
-              }
-            });
-            
-            cppProcess.stderr.on('data', (data) => {
+                processingTime
+              }));
+            }
+          });
+          
+          cppProcess.stderr.on('data', (data) => {
               errorBuffer += data.toString();
-            });
-            
-            cppProcess.on('error', (error) => {
-              console.error('C++ process error:', error);
+          });
+          
+          cppProcess.on('error', (error) => {
+            console.error('C++ process error:', error);
+            voxelDownsamplePool.releaseProcess(cppProcess);
+            ws.send(JSON.stringify({
+              type: 'voxel_downsample_result',
+              requestId,
+              success: false,
+              error: 'C++ process failed to start'
+            }));
+          });
+          
+          cppProcess.on('close', (code) => {
+            if (code !== 0) {
+              console.error(`C++ process exited with code ${code}`);
               voxelDownsamplePool.releaseProcess(cppProcess);
               ws.send(JSON.stringify({
                 type: 'voxel_downsample_result',
                 requestId,
                 success: false,
-                error: 'C++ process failed to start'
-              }));
-            });
-            
-            cppProcess.on('close', (code) => {
-              if (code !== 0) {
-                console.error(`C++ process exited with code ${code}`);
-                voxelDownsamplePool.releaseProcess(cppProcess);
-                ws.send(JSON.stringify({
-                  type: 'voxel_downsample_result',
-                  requestId,
-                  success: false,
                   error: `C++ process exited with code ${code}. Stderr: ${errorBuffer}`
-                }));
-              }
-            });
-            
+              }));
+            }
+          });
+          
             // Send binary input to C++ process (no JSON serialization!)
             cppProcess.stdin.write(inputBuffer);
-            cppProcess.stdin.end();
+          cppProcess.stdin.end();
           
           } else if (type === 'voxel_downsample_rust') {
             // Use Rust backend with binary protocol (no JSON serialization!)
@@ -1199,10 +1199,10 @@ app.post('/api/voxel-downsample', async (req, res) => {
   } catch (error) {
     console.error('Voxel downsampling error:', error);
     if (!res.headersSent) {
-      res.status(500).json({ 
-        success: false, 
-        error: error.message 
-      });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
     }
   }
 });
