@@ -702,37 +702,40 @@ wss.on('connection', (ws, req) => {
               return;
             }
             
-            // Prepare input for Rust program
-            const input = {
-              point_cloud_data: Array.from(points),
-              voxel_size: voxelSize,
-              global_bounds: {
-                min_x: globalBounds.minX,
-                min_y: globalBounds.minY,
-                min_z: globalBounds.minZ,
-                max_x: globalBounds.maxX,
-                max_y: globalBounds.maxY,
-                max_z: globalBounds.maxZ
-              }
-            };
+            // Use binary protocol (same as HTTP endpoint)
+            const pointCount = points.length / 3;
+            const pointsFloat32 = new Float32Array(points);
             
-            console.log('🔧 WebSocket: Rust voxel debug input:', {
-              pointCount: points.length / 3,
-              voxelSize: voxelSize,
-              globalBounds: globalBounds
-            });
+            // Create binary header buffer (32 bytes: 4 for u32 + 7*4 for floats)
+            const headerBuffer = Buffer.allocUnsafe(32);
+            headerBuffer.writeUInt32LE(pointCount, 0);
+            headerBuffer.writeFloatLE(voxelSize, 4);
+            headerBuffer.writeFloatLE(globalBounds.minX, 8);
+            headerBuffer.writeFloatLE(globalBounds.minY, 12);
+            headerBuffer.writeFloatLE(globalBounds.minZ, 16);
+            headerBuffer.writeFloatLE(globalBounds.maxX, 20);
+            headerBuffer.writeFloatLE(globalBounds.maxY, 24);
+            headerBuffer.writeFloatLE(globalBounds.maxZ, 28);
             
-            let outputData = '';
+            // Convert Float32Array to Buffer for point data (binary, no JSON!)
+            const pointDataBuffer = Buffer.from(pointsFloat32.buffer, pointsFloat32.byteOffset, pointsFloat32.byteLength);
+            
+            // Combine header + data
+            const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
+            
+            let outputBuffer = Buffer.alloc(0);
             let errorData = '';
 
             rustProcess.stdout.on('data', (data) => {
-              console.log('🔧 WebSocket: Rust voxel debug stdout data:', data.toString());
-              outputData += data.toString();
+              outputBuffer = Buffer.concat([outputBuffer, data]);
             });
 
             rustProcess.stderr.on('data', (data) => {
-              console.log('🔧 WebSocket: Rust voxel debug stderr data:', data.toString());
-              errorData += data.toString();
+              const errorText = data.toString();
+              errorData += errorText;
+              if (errorText.trim()) {
+                console.error('🔧 WebSocket: Rust voxel debug stderr:', errorText);
+              }
             });
 
             rustProcess.on('error', (error) => {
@@ -746,9 +749,7 @@ wss.on('connection', (ws, req) => {
             });
             
             rustProcess.on('close', (code) => {
-              console.log('🔧 WebSocket: Rust voxel debug process closed with code:', code);
-              console.log('🔧 WebSocket: Rust voxel debug outputData:', outputData);
-              console.log('🔧 WebSocket: Rust voxel debug errorData:', errorData);
+              console.log(`🔧 WebSocket: Rust voxel debug process closed with code ${code}, outputBuffer.length: ${outputBuffer.length}`);
               
               if (code !== 0) {
                 console.error(`🔧 WebSocket: Rust voxel debug process exited with code ${code}`);
@@ -762,38 +763,51 @@ wss.on('connection', (ws, req) => {
               }
 
               try {
-                console.log('🔧 WebSocket: Parsing Rust voxel debug output:', outputData);
-                const result = JSON.parse(outputData);
+                // Read binary output (no JSON parsing!)
+                // Binary format: [u32 voxelCount][f32* voxelGridPositions]
+                if (outputBuffer.length < 4) {
+                  throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+                }
+                
+                const voxelCount = outputBuffer.readUInt32LE(0);
+                const expectedSize = 4 + voxelCount * 3 * 4; // 4 bytes header + voxelCount * 3 floats * 4 bytes
+                
+                if (outputBuffer.length < expectedSize) {
+                  throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
+                }
+                
+                // Extract voxel grid positions (skip 4-byte header)
+                const voxelGridPositionsBuffer = outputBuffer.slice(4, expectedSize);
+                const voxelGridPositions = new Float32Array(voxelGridPositionsBuffer.buffer, voxelGridPositionsBuffer.byteOffset, voxelCount * 3);
+                
                 const processingTime = Date.now() - startTime;
-
-                console.log('🔧 WebSocket: Rust voxel debug result:', result);
 
                 ws.send(JSON.stringify({
                   type: 'voxel_debug_rust_result',
                   requestId,
                   success: true,
                   data: {
-                    voxelGridPositions: result.voxel_grid_positions,
-                    voxelCount: result.voxel_count,
-                    processingTime: result.processing_time
+                    voxelGridPositions: Array.from(voxelGridPositions),
+                    voxelCount: voxelCount,
+                    processingTime: processingTime
                   }
                 }));
               } catch (parseError) {
-                console.error('🔧 WebSocket: Failed to parse Rust voxel debug output:', parseError);
-                console.error('🔧 WebSocket: Raw output:', outputData);
+                console.error('🔧 WebSocket: Rust voxel debug binary protocol error:', parseError);
+                console.error('🔧 WebSocket: Rust voxel debug stderr:', errorData);
+                console.error('🔧 WebSocket: Rust voxel debug stdout length:', outputBuffer.length);
                 ws.send(JSON.stringify({
                   type: 'voxel_debug_rust_result',
                   requestId,
                   success: false,
-                  error: 'Failed to parse Rust output'
+                  error: `Binary protocol error: ${parseError.message}`
                 }));
               }
             });
             
-            // Send input to Rust process
-            const inputJson = JSON.stringify(input);
-            console.log('🔧 WebSocket: Sending input to Rust voxel debug process:', inputJson.substring(0, 200) + '...');
-            rustProcess.stdin.write(inputJson);
+            // Send binary input to Rust process (no JSON serialization!)
+            console.log('🔧 WebSocket: Writing', inputBuffer.length, 'bytes to Rust voxel debug stdin');
+            rustProcess.stdin.write(inputBuffer);
             rustProcess.stdin.end();
           } else if (type === 'voxel_debug_python') {
             // Handle Python voxel debug
@@ -1748,45 +1762,49 @@ app.post('/api/voxel-debug-rust', async (req, res) => {
     }
 
     const startTime = Date.now();
+    const pointCount = pointCloudData.length / 3;
+    const pointsFloat32 = new Float32Array(pointCloudData);
     
-    // Use Rust backend processing
-    console.log('🔧 Backend: Using Rust backend processing for voxel debug');
-    
-    // Path to the Rust executable
+    // Use Rust backend with binary protocol (no JSON serialization!)
     const rustExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug_rust');
-    
-    // Prepare input for Rust program
-    const input = {
-      point_cloud_data: pointCloudData,
-      voxel_size: voxelSize,
-      global_bounds: {
-        min_x: globalBounds.minX,
-        min_y: globalBounds.minY,
-        min_z: globalBounds.minZ,
-        max_x: globalBounds.maxX,
-        max_y: globalBounds.maxY,
-        max_z: globalBounds.maxZ
-      }
-    };
-    
-    const inputJson = JSON.stringify(input);
-    
-    // Spawn Rust process
+    console.log('🔧 Spawning Rust voxel debug process:', rustExecutable);
     const rustProcess = spawn(rustExecutable);
+    console.log('🔧 Rust voxel debug process spawned, PID:', rustProcess.pid);
     
-    let outputData = '';
-    let errorData = '';
+    // Create binary header buffer (32 bytes: 4 for u32 + 7*4 for floats)
+    const headerBuffer = Buffer.allocUnsafe(32);
+    headerBuffer.writeUInt32LE(pointCount, 0);
+    headerBuffer.writeFloatLE(voxelSize, 4);
+    headerBuffer.writeFloatLE(globalBounds.minX, 8);
+    headerBuffer.writeFloatLE(globalBounds.minY, 12);
+    headerBuffer.writeFloatLE(globalBounds.minZ, 16);
+    headerBuffer.writeFloatLE(globalBounds.maxX, 20);
+    headerBuffer.writeFloatLE(globalBounds.maxY, 24);
+    headerBuffer.writeFloatLE(globalBounds.maxZ, 28);
+    
+    // Convert Float32Array to Buffer for point data (binary, no JSON!)
+    const pointDataBuffer = Buffer.from(pointsFloat32.buffer, pointsFloat32.byteOffset, pointsFloat32.byteLength);
+    
+    // Combine header + data
+    const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
+    
+    let outputBuffer = Buffer.alloc(0);
+    let errorBuffer = '';
     
     rustProcess.stdout.on('data', (data) => {
-      outputData += data.toString();
+      outputBuffer = Buffer.concat([outputBuffer, data]);
     });
     
     rustProcess.stderr.on('data', (data) => {
-      errorData += data.toString();
+      const errorText = data.toString();
+      errorBuffer += errorText;
+      if (errorText.trim()) {
+        console.error('🔧 Rust voxel debug stderr:', errorText);
+      }
     });
     
     rustProcess.on('error', (error) => {
-      console.error('Rust process error:', error);
+      console.error('Rust voxel debug process error:', error);
       if (!res.headersSent) {
         res.status(500).json({ 
           success: false, 
@@ -1796,48 +1814,71 @@ app.post('/api/voxel-debug-rust', async (req, res) => {
     });
     
     rustProcess.on('close', (code) => {
+      console.log(`🔧 Rust voxel debug process closed with code ${code}, outputBuffer.length: ${outputBuffer.length}`);
+      
       if (code !== 0) {
-        console.error(`Rust process exited with code ${code}`);
+        console.error(`Rust voxel debug process exited with code ${code}`);
         if (!res.headersSent) {
           res.status(500).json({ 
             success: false, 
-            error: `Rust process exited with code ${code}: ${errorData}` 
+            error: `Rust process exited with code ${code}. Stderr: ${errorBuffer}` 
           });
         }
         return;
       }
       
       try {
-        const result = JSON.parse(outputData);
+        // Read binary output (no JSON parsing!)
+        // Binary format: [u32 voxelCount][f32* voxelGridPositions]
+        if (outputBuffer.length < 4) {
+          throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+        }
+        
+        const voxelCount = outputBuffer.readUInt32LE(0);
+        const expectedSize = 4 + voxelCount * 3 * 4; // 4 bytes header + voxelCount * 3 floats * 4 bytes
+        
+        if (outputBuffer.length < expectedSize) {
+          throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
+        }
+        
+        // Extract voxel grid positions (skip 4-byte header)
+        const voxelGridPositionsBuffer = outputBuffer.slice(4, expectedSize);
+        const voxelGridPositions = new Float32Array(voxelGridPositionsBuffer.buffer, voxelGridPositionsBuffer.byteOffset, voxelCount * 3);
+        
         const processingTime = Date.now() - startTime;
         
-        console.log('🔧 Backend: Rust voxel debug completed', {
-          voxelCount: result.voxel_count,
-          processingTime: result.processing_time,
-          totalTime: processingTime
-        });
-        
-        res.json({
-          success: true,
-          voxelGridPositions: result.voxel_grid_positions,
-          voxelCount: result.voxel_count,
-          processingTime: result.processing_time
-        });
-      } catch (parseError) {
-        console.error('Failed to parse Rust output:', parseError);
-        console.error('Raw output:', outputData);
+        console.log(`🔧 Rust voxel debug success: ${voxelCount} voxels, ${processingTime}ms`);
         if (!res.headersSent) {
-          res.status(500).json({ 
-            success: false, 
-            error: 'Failed to parse Rust output' 
+          res.json({
+            success: true,
+            voxelCenters: Array.from(voxelGridPositions), // Only convert to array for JSON response
+            voxelCount: voxelCount,
+            originalCount: pointCount,
+            processingTime: processingTime,
+            method: 'Backend Rust (binary protocol)'
+          });
+        } else {
+          console.error('🔧 Response already sent!');
+        }
+      } catch (parseError) {
+        console.error('Rust voxel debug binary protocol error:', parseError);
+        console.error('Rust voxel debug stderr:', errorBuffer);
+        console.error('Rust voxel debug stdout length:', outputBuffer.length);
+        if (!res.headersSent) {
+          res.status(500).json({
+            success: false,
+            error: `Binary protocol error: ${parseError.message}. Stderr: ${errorBuffer}`,
+            processingTime: Date.now() - startTime
           });
         }
       }
     });
     
-    // Send input to Rust process
-    rustProcess.stdin.write(inputJson);
+    // Send binary input to Rust process (no JSON serialization!)
+    console.log('🔧 Writing', inputBuffer.length, 'bytes to Rust voxel debug stdin');
+    rustProcess.stdin.write(inputBuffer);
     rustProcess.stdin.end();
+    console.log('🔧 Rust voxel debug stdin closed');
     
   } catch (error) {
     console.error('Rust voxel debug error:', error);

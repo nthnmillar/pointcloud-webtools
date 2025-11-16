@@ -1,6 +1,5 @@
 use wasm_bindgen::prelude::*;
-use std::collections::HashSet;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use js_sys::Float32Array;
 
 // Voxel struct for better cache locality (matches C++ implementation)
@@ -468,39 +467,45 @@ impl PointCloudToolsRust {
         let offset_y = min_y + half_voxel_size;
         let offset_z = min_z + half_voxel_size;
         
-        // OPTIMIZATION 2: Use HashSet for unique voxel coordinates (faster than HashMap for this use case)
-        let mut voxel_coords: HashSet<(i32, i32, i32)> = HashSet::new();
+        // OPTIMIZATION 2: Use FxHashSet with integer keys (much faster than tuple keys!)
+        // Integer keys are faster to hash than tuples (same optimization as downsampling)
+        let mut voxel_keys: FxHashSet<u64> = FxHashSet::default();
         
-        // OPTIMIZATION 3: Process points in chunks with unrolled inner loop
+        // OPTIMIZATION 3: Process points in chunks for better cache locality (same as downsampling)
         const CHUNK_SIZE: usize = 1024;
         let point_count = points.len() / 3;
         
         for chunk_start in (0..point_count).step_by(CHUNK_SIZE) {
             let chunk_end = (chunk_start + CHUNK_SIZE).min(point_count);
             
-            // OPTIMIZATION 4: Unrolled loop for better performance
             for i in chunk_start..chunk_end {
                 let i3 = i * 3;
                 let x = points[i3];
                 let y = points[i3 + 1];
                 let z = points[i3 + 2];
                 
-                // OPTIMIZATION 5: Use multiplication instead of division (same as C++/TS)
+                // OPTIMIZATION 4: Use multiplication instead of division
                 let voxel_x = ((x - min_x) * inv_voxel_size).floor() as i32;
                 let voxel_y = ((y - min_y) * inv_voxel_size).floor() as i32;
                 let voxel_z = ((z - min_z) * inv_voxel_size).floor() as i32;
                 
-                // OPTIMIZATION 6: Direct coordinate storage (no hashing needed for debug)
-                voxel_coords.insert((voxel_x, voxel_y, voxel_z));
+                // OPTIMIZATION 5: Use integer hash key (same as downsampling - much faster than tuple!)
+                let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
+                
+                voxel_keys.insert(voxel_key);
             }
         }
         
-        // OPTIMIZATION 7: Pre-allocate result vector with exact capacity
-        let voxel_count = voxel_coords.len();
+        // OPTIMIZATION 6: Pre-allocate result vector with exact capacity
+        let voxel_count = voxel_keys.len();
         let mut centers = Vec::with_capacity(voxel_count * 3);
         
-        // OPTIMIZATION 8: Single pass conversion with direct grid position calculation
-        for (voxel_x, voxel_y, voxel_z) in voxel_coords {
+        // OPTIMIZATION 7: Single pass conversion with direct grid position calculation
+        for voxel_key in voxel_keys {
+            // Extract voxel coordinates from integer key (same as C++/backend)
+            let voxel_x = (voxel_key >> 32) as i32;
+            let voxel_y = ((voxel_key >> 16) & 0xFFFF) as i16 as i32; // Sign-extend 16-bit
+            let voxel_z = (voxel_key & 0xFFFF) as i16 as i32; // Sign-extend 16-bit
             // Calculate grid center position (exact same as C++/TS implementation)
             let center_x = offset_x + voxel_x as f32 * voxel_size;
             let center_y = offset_y + voxel_y as f32 * voxel_size;

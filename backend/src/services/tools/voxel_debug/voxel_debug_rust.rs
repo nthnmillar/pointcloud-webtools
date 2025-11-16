@@ -1,112 +1,160 @@
-use std::collections::HashSet;
-use std::io::{self, BufRead};
-use serde::{Deserialize, Serialize};
+use std::io::{self, Read, Write};
+use rustc_hash::FxHashSet;
 
-#[derive(Debug, Deserialize)]
-struct InputData {
-    point_cloud_data: Vec<f32>,
-    voxel_size: f32,
-    global_bounds: GlobalBounds,
-}
-
-#[derive(Debug, Deserialize)]
-struct GlobalBounds {
-    min_x: f32,
-    min_y: f32,
-    min_z: f32,
-    max_x: f32,
-    max_y: f32,
-    max_z: f32,
-}
-
-#[derive(Debug, Serialize)]
-struct OutputData {
-    voxel_grid_positions: Vec<f32>,
-    voxel_count: usize,
-    processing_time: f64,
-}
+// Binary protocol for fast I/O (replaces JSON)
+// Input format: [u32 pointCount][f32 voxelSize][f32 minX][f32 minY][f32 minZ][f32 maxX][f32 maxY][f32 maxZ][f32* pointData]
+// Output format: [u32 voxelCount][f32* voxelGridPositions]
 
 fn main() {
-    let stdin = io::stdin();
-    let mut lines = stdin.lock().lines();
+    // OPTIMIZATION: Read binary input instead of JSON (much faster!)
+    // Binary format: [u32 pointCount][f32 voxelSize][f32 minX][f32 minY][f32 minZ][f32 maxX][f32 maxY][f32 maxZ][f32* pointData]
     
-    // Read input JSON from stdin
-    let mut input_json = String::new();
-    while let Some(line) = lines.next() {
-        let line = line.unwrap();
-        input_json.push_str(&line);
-        if line.trim().ends_with('}') {
-            break;
-        }
+    let mut stdin = io::stdin();
+    
+    // Read binary header (32 bytes: 4 for u32 + 7*4 for floats)
+    let mut header = [0u8; 32];
+    if stdin.read_exact(&mut header).is_err() {
+        std::process::exit(1);
     }
     
-    // Parse input JSON
-    let input: InputData = serde_json::from_str(&input_json)
-        .expect("Failed to parse input JSON");
+    let point_count = u32::from_le_bytes([header[0], header[1], header[2], header[3]]) as usize;
+    let voxel_size = f32::from_le_bytes([header[4], header[5], header[6], header[7]]);
+    let min_x = f32::from_le_bytes([header[8], header[9], header[10], header[11]]);
+    let min_y = f32::from_le_bytes([header[12], header[13], header[14], header[15]]);
+    let min_z = f32::from_le_bytes([header[16], header[17], header[18], header[19]]);
+    let _max_x = f32::from_le_bytes([header[20], header[21], header[22], header[23]]);
+    let _max_y = f32::from_le_bytes([header[24], header[25], header[26], header[27]]);
+    let _max_z = f32::from_le_bytes([header[28], header[29], header[30], header[31]]);
     
-    let start_time = std::time::Instant::now();
+    // Validate input
+    if point_count == 0 || voxel_size <= 0.0 {
+        // Write empty result (4 bytes: voxelCount = 0)
+        let voxel_count: u32 = 0;
+        let mut stdout = io::stdout();
+        if stdout.write_all(&voxel_count.to_le_bytes()).is_err() || stdout.flush().is_err() {
+            std::process::exit(1);
+        }
+        return;
+    }
+    
+    // Safety check: prevent unreasonable allocations (max 100M points = ~1.2GB)
+    const MAX_POINTS: usize = 100_000_000;
+    if point_count > MAX_POINTS {
+        eprintln!("Error: point_count {} exceeds maximum {}", point_count, MAX_POINTS);
+        std::process::exit(1);
+    }
+    
+    // Read point data directly into vector (optimized binary read)
+    let float_count = point_count * 3;
+    let bytes_to_read = float_count * 4;
+    
+    // Additional safety check for bytes_to_read
+    if bytes_to_read > 2_000_000_000 { // 2GB max
+        eprintln!("Error: bytes_to_read {} exceeds maximum 2GB", bytes_to_read);
+        std::process::exit(1);
+    }
+    
+    let mut buffer = vec![0u8; bytes_to_read];
+    
+    if stdin.read_exact(&mut buffer).is_err() {
+        std::process::exit(1);
+    }
+    
+    // Convert bytes to floats (little-endian) - safe conversion
+    let point_cloud_data: Vec<f32> = buffer
+        .chunks_exact(4)
+        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .collect();
     
     // Process voxel debug generation
     let voxel_grid_positions = generate_voxel_centers(
-        &input.point_cloud_data,
-        input.voxel_size,
-        &input.global_bounds,
+        &point_cloud_data,
+        point_count,
+        voxel_size,
+        min_x,
+        min_y,
+        min_z,
     );
     
-    let processing_time = start_time.elapsed().as_secs_f64() * 1000.0; // Convert to milliseconds
+    // OPTIMIZATION: Write binary output instead of JSON (much faster!)
+    // Binary format: [u32 voxelCount][f32* voxelGridPositions]
     
-    // Prepare output
+    let mut stdout = io::stdout();
+    
+    // Write voxel count (4 bytes)
     let voxel_count = voxel_grid_positions.len() / 3;
-    let output = OutputData {
-        voxel_grid_positions,
-        voxel_count,
-        processing_time,
-    };
+    if stdout.write_all(&(voxel_count as u32).to_le_bytes()).is_err() {
+        std::process::exit(1);
+    }
     
-    // Output result as JSON
-    println!("{}", serde_json::to_string(&output).unwrap());
+    // Write voxel grid positions directly (binary, no serialization overhead!)
+    // Convert floats to bytes in bulk for better performance
+    let bytes: Vec<u8> = voxel_grid_positions
+        .iter()
+        .flat_map(|&f| f.to_le_bytes().into_iter())
+        .collect();
+    if stdout.write_all(&bytes).is_err() || stdout.flush().is_err() {
+        std::process::exit(1);
+    }
 }
 
 fn generate_voxel_centers(
     points: &[f32],
+    point_count: usize,
     voxel_size: f32,
-    bounds: &GlobalBounds,
+    min_x: f32,
+    min_y: f32,
+    min_z: f32,
 ) -> Vec<f32> {
+    // OPTIMIZATION 1: Pre-calculate ALL constants at the start (like downsampling)
     let inv_voxel_size = 1.0 / voxel_size;
     let half_voxel_size = voxel_size * 0.5;
+    let offset_x = min_x + half_voxel_size;
+    let offset_y = min_y + half_voxel_size;
+    let offset_z = min_z + half_voxel_size;
     
-    // Calculate offsets to match TypeScript implementation
-    let offset_x = bounds.min_x + half_voxel_size;
-    let offset_y = bounds.min_y + half_voxel_size;
-    let offset_z = bounds.min_z + half_voxel_size;
+    // OPTIMIZATION 2: Use FxHashSet with integer keys (much faster than tuple keys!)
+    // Integer keys are faster to hash than tuples (same optimization as downsampling)
+    // Pre-allocate with estimated capacity to avoid reallocations (same as downsampling)
+    let estimated_voxels = (point_count / 100).min(100_000);
+    let mut voxel_keys: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(estimated_voxels, Default::default());
     
-    // Use HashSet to store unique voxel coordinates
-    let mut voxel_coords: HashSet<(i32, i32, i32)> = HashSet::new();
+    // OPTIMIZATION 3: Process points in chunks for better cache locality (same as downsampling)
+    const CHUNK_SIZE: usize = 1024;
     
-    // Process points in chunks for better performance
-    const CHUNK_SIZE: usize = 1000;
-    for chunk in points.chunks(CHUNK_SIZE * 3) {
-        for i in (0..chunk.len()).step_by(3) {
-            if i + 2 < chunk.len() {
-                let x = chunk[i];
-                let y = chunk[i + 1];
-                let z = chunk[i + 2];
-                
-                // Calculate voxel coordinates to match TypeScript: Math.floor((x - minX) * invVoxelSize)
-                let voxel_x = ((x - bounds.min_x) * inv_voxel_size).floor() as i32;
-                let voxel_y = ((y - bounds.min_y) * inv_voxel_size).floor() as i32;
-                let voxel_z = ((z - bounds.min_z) * inv_voxel_size).floor() as i32;
-                
-                voxel_coords.insert((voxel_x, voxel_y, voxel_z));
-            }
+    for chunk_start in (0..point_count).step_by(CHUNK_SIZE) {
+        let chunk_end = (chunk_start + CHUNK_SIZE).min(point_count);
+        
+        for i in chunk_start..chunk_end {
+            let i3 = i * 3;
+            let x = points[i3];
+            let y = points[i3 + 1];
+            let z = points[i3 + 2];
+            
+            // OPTIMIZATION 4: Use multiplication instead of division
+            let voxel_x = ((x - min_x) * inv_voxel_size).floor() as i32;
+            let voxel_y = ((y - min_y) * inv_voxel_size).floor() as i32;
+            let voxel_z = ((z - min_z) * inv_voxel_size).floor() as i32;
+            
+            // OPTIMIZATION 5: Use integer hash key (same as downsampling - much faster than tuple!)
+            let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
+            
+            voxel_keys.insert(voxel_key);
         }
     }
     
-    // Convert voxel coordinates to grid positions
-    let mut voxel_grid_positions = Vec::with_capacity(voxel_coords.len() * 3);
+    // OPTIMIZATION 6: Pre-allocate result vector with exact capacity
+    let voxel_count = voxel_keys.len();
+    let mut voxel_grid_positions = Vec::with_capacity(voxel_count * 3);
     
-    for (voxel_x, voxel_y, voxel_z) in voxel_coords {
-        // Convert voxel coordinates back to world coordinates to match TypeScript: offsetX + voxelX * voxelSize
+    // OPTIMIZATION 7: Single pass conversion with direct grid position calculation
+    for voxel_key in voxel_keys {
+        // Extract voxel coordinates from integer key (same as C++/WASM)
+        let voxel_x = (voxel_key >> 32) as i32;
+        let voxel_y = ((voxel_key >> 16) & 0xFFFF) as i16 as i32; // Sign-extend 16-bit
+        let voxel_z = (voxel_key & 0xFFFF) as i16 as i32; // Sign-extend 16-bit
+        
+        // Calculate voxel grid position (center of voxel grid cell)
         let center_x = offset_x + voxel_x as f32 * voxel_size;
         let center_y = offset_y + voxel_y as f32 * voxel_size;
         let center_z = offset_z + voxel_z as f32 * voxel_size;
