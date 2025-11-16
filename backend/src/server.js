@@ -594,7 +594,7 @@ wss.on('connection', (ws, req) => {
             
           } else if (type === 'point_smooth_python') {
             // Handle Python point cloud smoothing
-            const pythonExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth', 'point_smooth_python.py');
+            const pythonExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth', 'point_smooth_cython_wrapper.py');
             
             let pythonProcess;
             try {
