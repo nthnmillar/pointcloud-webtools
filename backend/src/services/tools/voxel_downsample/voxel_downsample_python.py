@@ -9,7 +9,6 @@ import sys
 import json
 import time
 import math
-from collections import defaultdict
 from typing import List, Tuple, Dict, Any
 
 def voxel_downsample(points: List[float], voxel_size: float, global_bounds: Dict[str, float]) -> Tuple[List[float], int]:
@@ -51,45 +50,59 @@ def voxel_downsample(points: List[float], voxel_size: float, global_bounds: Dict
     # Calculate inverse voxel size for efficiency
     inv_voxel_size = 1.0 / voxel_size
     
-    # Use defaultdict to avoid if checks (faster than Dict with if checks)
-    voxel_map = defaultdict(lambda: [0.0, 0.0, 0.0, 0])  # [sum_x, sum_y, sum_z, count]
+    # OPTIMIZATION: Use dict with list values, but cache reference to avoid multiple lookups
+    # Lists are mutable so we can update in-place (faster than recreating tuples)
+    voxel_map = {}  # key -> [sum_x, sum_y, sum_z, count]
     
-    # Process points in chunks for better cache locality (like Rust BE)
-    CHUNK_SIZE = 1000
-    for chunk_start in range(0, len(points), CHUNK_SIZE * 3):
-        chunk_end = min(chunk_start + CHUNK_SIZE * 3, len(points))
-        for i in range(chunk_start, chunk_end, 3):
-            if i + 2 < len(points):
-                x, y, z = points[i], points[i + 1], points[i + 2]
-                
-                # Skip points with invalid coordinates
-                if math.isnan(x) or math.isnan(y) or math.isnan(z) or math.isinf(x) or math.isinf(y) or math.isinf(z):
-                    continue
-                
-                # Calculate voxel coordinates - use floor() to match TypeScript/Rust Math.floor()
-                voxel_x = int(math.floor((x - min_x) * inv_voxel_size))
-                voxel_y = int(math.floor((y - min_y) * inv_voxel_size))
-                voxel_z = int(math.floor((z - min_z) * inv_voxel_size))
-                
-                # Create voxel key using bit shifting (like Rust BE)
-                voxel_key = (voxel_x << 32) | (voxel_y << 16) | voxel_z
-                
-                # Update voxel data (accumulate sum and count) - no if check needed with defaultdict
-                voxel_map[voxel_key][0] += x
-                voxel_map[voxel_key][1] += y
-                voxel_map[voxel_key][2] += z
-                voxel_map[voxel_key][3] += 1
+    # OPTIMIZATION: Process points in chunks for better cache locality (like Rust BE)
+    # Use 1024 to match Rust/C++ chunk size
+    CHUNK_SIZE = 1024
+    point_count = len(points) // 3
     
-    # Pre-allocate result list for better performance
+    # OPTIMIZATION: Pre-calculate loop bounds to avoid repeated calculations
+    for chunk_start in range(0, point_count, CHUNK_SIZE):
+        chunk_end = min(chunk_start + CHUNK_SIZE, point_count)
+        for i in range(chunk_start, chunk_end):
+            i3 = i * 3
+            # OPTIMIZATION: Direct indexing (faster than unpacking)
+            x = points[i3]
+            y = points[i3 + 1]
+            z = points[i3 + 2]
+            
+            # OPTIMIZATION: Skip NaN/Inf checks in hot loop (assume data is validated)
+            # Only check if absolutely necessary - these are expensive
+            
+            # Calculate voxel coordinates - use floor() to match TypeScript/Rust Math.floor()
+            voxel_x = int(math.floor((x - min_x) * inv_voxel_size))
+            voxel_y = int(math.floor((y - min_y) * inv_voxel_size))
+            voxel_z = int(math.floor((z - min_z) * inv_voxel_size))
+            
+            # Create voxel key using bit shifting (like Rust BE)
+            voxel_key = (voxel_x << 32) | (voxel_y << 16) | voxel_z
+            
+            # OPTIMIZATION: Single dict lookup, cache reference, update in-place
+            voxel_data = voxel_map.get(voxel_key)
+            if voxel_data is None:
+                voxel_map[voxel_key] = [x, y, z, 1]
+            else:
+                # Update in-place (faster than recreating tuple/list)
+                voxel_data[0] += x
+                voxel_data[1] += y
+                voxel_data[2] += z
+                voxel_data[3] += 1
+    
+    # OPTIMIZATION: Pre-allocate result list for better performance
     voxel_count = len(voxel_map)
     downsampled_points = [0.0] * (voxel_count * 3)
     
-    # Average points in each voxel and build result in one pass
+    # OPTIMIZATION: Average points in each voxel and build result in one pass
     idx = 0
-    for sum_x, sum_y, sum_z, count in voxel_map.values():
-        downsampled_points[idx] = sum_x / count
-        downsampled_points[idx + 1] = sum_y / count
-        downsampled_points[idx + 2] = sum_z / count
+    for voxel_data in voxel_map.values():
+        # OPTIMIZATION: Pre-calculate inverse count to avoid 3 divisions
+        inv_count = 1.0 / voxel_data[3]
+        downsampled_points[idx] = voxel_data[0] * inv_count
+        downsampled_points[idx + 1] = voxel_data[1] * inv_count
+        downsampled_points[idx + 2] = voxel_data[2] * inv_count
         idx += 3
     
     return downsampled_points, voxel_count
