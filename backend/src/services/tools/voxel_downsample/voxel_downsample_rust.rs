@@ -55,7 +55,8 @@ fn main() {
         std::process::exit(1);
     }
     
-    // Convert bytes to floats (little-endian) - safe conversion
+    // Convert bytes to floats (little-endian) - optimized conversion
+    // Use chunks_exact which is well-optimized by the compiler
     let point_cloud_data: Vec<f32> = buffer
         .chunks_exact(4)
         .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
@@ -127,7 +128,7 @@ fn voxel_downsample_internal(
             let voxel_z = ((z - min_z) * inv_voxel_size).floor() as i32;
                 
             // OPTIMIZATION 5: Use integer hash key
-                let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
+            let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
                 
             // OPTIMIZATION 6: Use entry() API (like C++ try_emplace) - single hash lookup
             // Use struct for better cache locality (matches WASM implementation)
@@ -145,16 +146,19 @@ fn voxel_downsample_internal(
         }
     }
     
-    // OPTIMIZATION 7: Pre-allocate output vector and write directly (matches WASM)
+    // OPTIMIZATION 7: Pre-allocate output vector and write directly using indexing (matches C++ BE)
+    // Use direct indexing instead of push() for better performance (like C++ does)
     let output_count = voxel_map.len();
-    let mut downsampled_points = Vec::with_capacity(output_count * 3);
+    let mut downsampled_points = vec![0.0f32; output_count * 3];
     
-    // Write results directly to pre-allocated vector
+    // Write results directly to pre-allocated vector using indexing (faster than push)
+    let mut output_index = 0;
     for (_voxel_key, voxel) in voxel_map {
         let count_f = voxel.count as f32;
-        downsampled_points.push(voxel.sum_x / count_f);
-        downsampled_points.push(voxel.sum_y / count_f);
-        downsampled_points.push(voxel.sum_z / count_f);
+        downsampled_points[output_index * 3] = voxel.sum_x / count_f;
+        downsampled_points[output_index * 3 + 1] = voxel.sum_y / count_f;
+        downsampled_points[output_index * 3 + 2] = voxel.sum_z / count_f;
+        output_index += 1;
     }
     
     downsampled_points
