@@ -17,12 +17,26 @@ export interface PointCloudSmoothingBERustResult {
   iterations: number;
 }
 
+interface PointSmoothRustResponseHeader {
+  type: 'point_smooth_rust_result';
+  requestId: string;
+  success: boolean;
+  originalCount: number;
+  smoothedCount: number;
+  processingTime: number;
+  smoothingRadius: number;
+  iterations: number;
+  dataLength: number;
+  error?: string;
+}
+
 export class PointCloudSmoothingBERust extends BaseService {
   private ws: WebSocket | null = null;
-  private pendingRequests = new Map<string, { resolve: (value: PointCloudSmoothingBERustResult) => void; reject: (reason?: any) => void }>();
+  private pendingRequests = new Map<string, { resolve: (value: PointCloudSmoothingBERustResult) => void; reject: (reason?: unknown) => void }>();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private pendingHeader: PointSmoothRustResponseHeader | null = null; // Track pending binary data header
 
   constructor(baseUrl: string = 'ws://localhost:3003') {
     super();
@@ -44,30 +58,71 @@ export class PointCloudSmoothingBERust extends BaseService {
         this.reconnectAttempts = 0;
       };
       
-      this.ws.onmessage = (event) => {
+      this.ws.onmessage = async (event) => {
         try {
-          const message = JSON.parse(event.data);
-          
-          if (message.type === 'point_smooth_rust_result') {
-            const { requestId, success, error, data } = message;
-            
-            if (this.pendingRequests.has(requestId)) {
-              const { resolve, reject } = this.pendingRequests.get(requestId)!;
-              this.pendingRequests.delete(requestId);
+          // Check if this is binary data or JSON header
+          if (event.data instanceof ArrayBuffer) {
+            // This is binary data
+            if (this.pendingHeader && this.pendingHeader.type === 'point_smooth_rust_result' && this.pendingHeader.success) {
+              // Create Float32Array directly from binary data (zero-copy!)
+              const smoothedPoints = new Float32Array(event.data, 0, this.pendingHeader.dataLength);
               
-              if (success) {
+              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+              if (pending) {
+                this.pendingRequests.delete(this.pendingHeader.requestId);
+                
                 const result: PointCloudSmoothingBERustResult = {
                   success: true,
-                  smoothedPoints: new Float32Array(data.smoothedPoints),
-                  originalCount: data.originalCount,
-                  smoothedCount: data.smoothedCount,
-                  processingTime: data.processingTime,
-                  smoothingRadius: data.smoothingRadius,
-                  iterations: data.iterations
+                  smoothedPoints: smoothedPoints,
+                  originalCount: this.pendingHeader.originalCount,
+                  smoothedCount: this.pendingHeader.smoothedCount,
+                  processingTime: this.pendingHeader.processingTime,
+                  smoothingRadius: this.pendingHeader.smoothingRadius,
+                  iterations: this.pendingHeader.iterations
                 };
-                resolve(result);
+                pending.resolve(result);
+              }
+              this.pendingHeader = null;
+            }
+          } else if (event.data instanceof Blob) {
+            // Convert Blob to ArrayBuffer
+            const arrayBuffer = await event.data.arrayBuffer();
+            if (this.pendingHeader && this.pendingHeader.type === 'point_smooth_rust_result' && this.pendingHeader.success) {
+              const smoothedPoints = new Float32Array(arrayBuffer, 0, this.pendingHeader.dataLength);
+              
+              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+              if (pending) {
+                this.pendingRequests.delete(this.pendingHeader.requestId);
+                
+                const result: PointCloudSmoothingBERustResult = {
+                  success: true,
+                  smoothedPoints: smoothedPoints,
+                  originalCount: this.pendingHeader.originalCount,
+                  smoothedCount: this.pendingHeader.smoothedCount,
+                  processingTime: this.pendingHeader.processingTime,
+                  smoothingRadius: this.pendingHeader.smoothingRadius,
+                  iterations: this.pendingHeader.iterations
+                };
+                pending.resolve(result);
+              }
+              this.pendingHeader = null;
+            }
+          } else {
+            // This is JSON header
+            const message = JSON.parse(event.data as string);
+            
+            if (message.type === 'point_smooth_rust_result') {
+              if (message.success && message.dataLength) {
+                // Store header and wait for binary data
+                this.pendingHeader = message;
               } else {
-                reject(new Error(error || 'Rust BE WebSocket smoothing failed'));
+                // Error response (no binary data)
+                const { requestId, error } = message;
+                const pending = this.pendingRequests.get(requestId);
+                if (pending) {
+                  this.pendingRequests.delete(requestId);
+                  pending.reject(new Error(error || 'Rust BE WebSocket smoothing processing failed'));
+                }
               }
             }
           }

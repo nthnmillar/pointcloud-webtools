@@ -440,29 +440,39 @@ wss.on('connection', (ws, req) => {
             console.log('🔧 Rust point smooth executable:', rustExecutable);
             const rustProcess = spawn(rustExecutable);
             
-            // Prepare input for Rust program
-            const input = {
-              point_cloud_data: Array.from(points),
-              smoothing_radius: smoothingRadius,
-              iterations: iterations
-            };
-            console.log('🔧 Rust point smooth input:', { pointCount: points.length / 3, smoothingRadius, iterations });
+            // Use binary protocol (same as voxel downsampling)
+            const pointCount = points.length / 3;
+            const pointsFloat32 = new Float32Array(points);
             
-            let outputData = '';
+            // Create binary header buffer (12 bytes: 4 for u32 + 4 for f32 + 4 for f32)
+            const headerBuffer = Buffer.allocUnsafe(12);
+            headerBuffer.writeUInt32LE(pointCount, 0);
+            headerBuffer.writeFloatLE(smoothingRadius, 4);
+            headerBuffer.writeFloatLE(iterations, 8);
+            
+            // Convert Float32Array to Buffer for point data (binary, no JSON!)
+            const pointDataBuffer = Buffer.from(pointsFloat32.buffer, pointsFloat32.byteOffset, pointsFloat32.byteLength);
+            
+            // Combine header + data
+            const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
+            
+            let outputBuffer = Buffer.alloc(0);
             let errorData = '';
             
             rustProcess.stdout.on('data', (data) => {
-              console.log('🔧 Rust point smooth stdout:', data.toString());
-              outputData += data.toString();
+              outputBuffer = Buffer.concat([outputBuffer, data]);
             });
             
             rustProcess.stderr.on('data', (data) => {
-              console.log('🔧 Rust point smooth stderr:', data.toString());
-              errorData += data.toString();
+              const errorText = data.toString();
+              errorData += errorText;
+              if (errorText.trim()) {
+                console.error('🔧 WebSocket: Rust point smooth stderr:', errorText);
+              }
             });
             
             rustProcess.on('error', (error) => {
-              console.error('Rust process error:', error);
+              console.error('🔧 WebSocket: Rust point smooth process error:', error);
               ws.send(JSON.stringify({
                 type: 'point_smooth_rust_result',
                 requestId,
@@ -472,8 +482,10 @@ wss.on('connection', (ws, req) => {
             });
             
             rustProcess.on('close', (code) => {
+              console.log(`🔧 WebSocket: Rust point smooth process closed with code ${code}, outputBuffer.length: ${outputBuffer.length}`);
+              
               if (code !== 0) {
-                console.error(`Rust process exited with code ${code}`);
+                console.error(`🔧 WebSocket: Rust point smooth process exited with code ${code}`);
                 ws.send(JSON.stringify({
                   type: 'point_smooth_rust_result',
                   requestId,
@@ -484,35 +496,60 @@ wss.on('connection', (ws, req) => {
               }
               
               try {
-                const result = JSON.parse(outputData);
+                // Read binary output (no JSON parsing!)
+                // Binary format: [u32 pointCount][f32* smoothedPoints]
+                if (outputBuffer.length < 4) {
+                  throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+                }
+                
+                const outputCount = outputBuffer.readUInt32LE(0);
+                const expectedSize = 4 + outputCount * 3 * 4; // 4 bytes header + outputCount * 3 floats * 4 bytes
+                
+                if (outputBuffer.length < expectedSize) {
+                  throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
+                }
+                
+                // Extract smoothed points (skip 4-byte header)
+                const smoothedPointsBuffer = outputBuffer.slice(4, expectedSize);
+                const smoothedPoints = new Float32Array(smoothedPointsBuffer.buffer, smoothedPointsBuffer.byteOffset, outputCount * 3);
+                
                 const processingTime = Date.now() - startTime;
                 
-                ws.send(JSON.stringify({
+                // Send binary response directly (no JSON conversion overhead!)
+                // Format: JSON header with metadata, then binary data
+                const responseHeader = {
                   type: 'point_smooth_rust_result',
                   requestId,
                   success: true,
-                  data: {
-                    smoothedPoints: result.smoothed_points,
-                    originalCount: result.original_count,
-                    smoothedCount: result.smoothed_count,
-                    processingTime: result.processing_time,
-                    smoothingRadius: result.smoothing_radius,
-                    iterations: result.iterations
-                  }
-                }));
+                  originalCount: pointCount,
+                  smoothedCount: outputCount,
+                  processingTime: processingTime,
+                  smoothingRadius: smoothingRadius,
+                  iterations: iterations,
+                  dataLength: outputCount * 3
+                };
+                
+                // Send header as JSON
+                ws.send(JSON.stringify(responseHeader));
+                
+                // Send binary data directly - use the sliced buffer
+                ws.send(smoothedPointsBuffer);
               } catch (parseError) {
-                console.error('Failed to parse Rust output:', parseError);
+                console.error('🔧 WebSocket: Rust point smooth binary protocol error:', parseError);
+                console.error('🔧 WebSocket: Rust point smooth stderr:', errorData);
+                console.error('🔧 WebSocket: Rust point smooth stdout length:', outputBuffer.length);
                 ws.send(JSON.stringify({
                   type: 'point_smooth_rust_result',
                   requestId,
                   success: false,
-                  error: 'Failed to parse Rust output'
+                  error: `Binary protocol error: ${parseError.message}`
                 }));
               }
             });
             
-            // Send input to Rust process
-            rustProcess.stdin.write(JSON.stringify(input));
+            // Send binary input to Rust process (no JSON serialization!)
+            console.log('🔧 WebSocket: Writing', inputBuffer.length, 'bytes to Rust point smooth stdin');
+            rustProcess.stdin.write(inputBuffer);
             rustProcess.stdin.end();
             
           } else if (type === 'point_smooth_cpp') {
@@ -520,26 +557,39 @@ wss.on('connection', (ws, req) => {
             const cppExecutable = path.join(__dirname, 'services', 'tools', 'point_smooth', 'point_smooth_cpp');
             const cppProcess = spawn(cppExecutable);
             
-            // Prepare input for C++ program
-            const input = {
-              point_cloud_data: Array.from(points),
-              smoothing_radius: smoothingRadius,
-              iterations: iterations
-            };
+            // Use binary protocol (same as Rust)
+            const pointCount = points.length / 3;
+            const pointsFloat32 = new Float32Array(points);
             
-            let outputData = '';
+            // Create binary header buffer (12 bytes: 4 for u32 + 4 for f32 + 4 for f32)
+            const headerBuffer = Buffer.allocUnsafe(12);
+            headerBuffer.writeUInt32LE(pointCount, 0);
+            headerBuffer.writeFloatLE(smoothingRadius, 4);
+            headerBuffer.writeFloatLE(iterations, 8);
+            
+            // Convert Float32Array to Buffer for point data (binary, no JSON!)
+            const pointDataBuffer = Buffer.from(pointsFloat32.buffer, pointsFloat32.byteOffset, pointsFloat32.byteLength);
+            
+            // Combine header + data
+            const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
+            
+            let outputBuffer = Buffer.alloc(0);
             let errorData = '';
             
             cppProcess.stdout.on('data', (data) => {
-              outputData += data.toString();
+              outputBuffer = Buffer.concat([outputBuffer, data]);
             });
             
             cppProcess.stderr.on('data', (data) => {
-              errorData += data.toString();
+              const errorText = data.toString();
+              errorData += errorText;
+              if (errorText.trim()) {
+                console.error('🔧 WebSocket: C++ point smooth stderr:', errorText);
+              }
             });
             
             cppProcess.on('error', (error) => {
-              console.error('C++ process error:', error);
+              console.error('🔧 WebSocket: C++ point smooth process error:', error);
               ws.send(JSON.stringify({
                 type: 'point_smooth_cpp_result',
                 requestId,
@@ -549,8 +599,10 @@ wss.on('connection', (ws, req) => {
             });
             
             cppProcess.on('close', (code) => {
+              console.log(`🔧 WebSocket: C++ point smooth process closed with code ${code}, outputBuffer.length: ${outputBuffer.length}`);
+              
               if (code !== 0) {
-                console.error(`C++ process exited with code ${code}`);
+                console.error(`🔧 WebSocket: C++ point smooth process exited with code ${code}`);
                 ws.send(JSON.stringify({
                   type: 'point_smooth_cpp_result',
                   requestId,
@@ -561,35 +613,60 @@ wss.on('connection', (ws, req) => {
               }
               
               try {
-                const result = JSON.parse(outputData);
+                // Read binary output (no JSON parsing!)
+                // Binary format: [u32 pointCount][f32* smoothedPoints]
+                if (outputBuffer.length < 4) {
+                  throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+                }
+                
+                const outputCount = outputBuffer.readUInt32LE(0);
+                const expectedSize = 4 + outputCount * 3 * 4; // 4 bytes header + outputCount * 3 floats * 4 bytes
+                
+                if (outputBuffer.length < expectedSize) {
+                  throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
+                }
+                
+                // Extract smoothed points (skip 4-byte header)
+                const smoothedPointsBuffer = outputBuffer.slice(4, expectedSize);
+                const smoothedPoints = new Float32Array(smoothedPointsBuffer.buffer, smoothedPointsBuffer.byteOffset, outputCount * 3);
+                
                 const processingTime = Date.now() - startTime;
                 
-                ws.send(JSON.stringify({
+                // Send binary response directly (no JSON conversion overhead!)
+                // Format: JSON header with metadata, then binary data
+                const responseHeader = {
                   type: 'point_smooth_cpp_result',
                   requestId,
                   success: true,
-                  data: {
-                    smoothedPoints: result.smoothed_points,
-                    originalCount: result.original_count,
-                    smoothedCount: result.smoothed_count,
-                    processingTime: result.processing_time,
-                    smoothingRadius: result.smoothing_radius,
-                    iterations: result.iterations
-                  }
-                }));
+                  originalCount: pointCount,
+                  smoothedCount: outputCount,
+                  processingTime: processingTime,
+                  smoothingRadius: smoothingRadius,
+                  iterations: iterations,
+                  dataLength: outputCount * 3
+                };
+                
+                // Send header as JSON
+                ws.send(JSON.stringify(responseHeader));
+                
+                // Send binary data directly - use the sliced buffer
+                ws.send(smoothedPointsBuffer);
               } catch (parseError) {
-                console.error('Failed to parse C++ output:', parseError);
+                console.error('🔧 WebSocket: C++ point smooth binary protocol error:', parseError);
+                console.error('🔧 WebSocket: C++ point smooth stderr:', errorData);
+                console.error('🔧 WebSocket: C++ point smooth stdout length:', outputBuffer.length);
                 ws.send(JSON.stringify({
                   type: 'point_smooth_cpp_result',
                   requestId,
                   success: false,
-                  error: 'Failed to parse C++ output'
+                  error: `Binary protocol error: ${parseError.message}`
                 }));
               }
             });
             
-            // Send input to C++ process
-            cppProcess.stdin.write(JSON.stringify(input));
+            // Send binary input to C++ process (no JSON serialization!)
+            console.log('🔧 WebSocket: Writing', inputBuffer.length, 'bytes to C++ point smooth stdin');
+            cppProcess.stdin.write(inputBuffer);
             cppProcess.stdin.end();
             
           } else if (type === 'point_smooth_python') {
@@ -610,19 +687,39 @@ wss.on('connection', (ws, req) => {
               return;
             }
             
-            let outputData = '';
+            // Use binary protocol (same as Rust/C++)
+            const pointCount = points.length / 3;
+            const pointsFloat32 = new Float32Array(points);
+            
+            // Create binary header buffer (12 bytes: 4 for u32 + 4 for f32 + 4 for f32)
+            const headerBuffer = Buffer.allocUnsafe(12);
+            headerBuffer.writeUInt32LE(pointCount, 0);
+            headerBuffer.writeFloatLE(smoothingRadius, 4);
+            headerBuffer.writeFloatLE(iterations, 8);
+            
+            // Convert Float32Array to Buffer for point data (binary, no JSON!)
+            const pointDataBuffer = Buffer.from(pointsFloat32.buffer, pointsFloat32.byteOffset, pointsFloat32.byteLength);
+            
+            // Combine header + data
+            const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
+            
+            let outputBuffer = Buffer.alloc(0);
             let errorData = '';
             
             pythonProcess.stdout.on('data', (data) => {
-              outputData += data.toString();
+              outputBuffer = Buffer.concat([outputBuffer, data]);
             });
             
             pythonProcess.stderr.on('data', (data) => {
-              errorData += data.toString();
+              const errorText = data.toString();
+              errorData += errorText;
+              if (errorText.trim()) {
+                console.error('🔧 WebSocket: Python point smooth stderr:', errorText);
+              }
             });
             
             pythonProcess.on('error', (error) => {
-              console.error('🔧 WebSocket: Python process error:', error);
+              console.error('🔧 WebSocket: Python point smooth process error:', error);
               ws.send(JSON.stringify({
                 type: 'point_smooth_python_result',
                 requestId,
@@ -632,8 +729,10 @@ wss.on('connection', (ws, req) => {
             });
             
             pythonProcess.on('close', (code) => {
+              console.log(`🔧 WebSocket: Python point smooth process closed with code ${code}, outputBuffer.length: ${outputBuffer.length}`);
+              
               if (code !== 0) {
-                console.error(`🔧 WebSocket: Python process exited with code ${code}`);
+                console.error(`🔧 WebSocket: Python point smooth process exited with code ${code}`);
                 ws.send(JSON.stringify({
                   type: 'point_smooth_python_result',
                   requestId,
@@ -644,55 +743,60 @@ wss.on('connection', (ws, req) => {
               }
               
               try {
-                // Parse JSON result from stdout (like Rust BE)
-                const result = JSON.parse(outputData);
+                // Read binary output (no JSON parsing!)
+                // Binary format: [u32 pointCount][f32* smoothedPoints]
+                if (outputBuffer.length < 4) {
+                  throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+                }
+                
+                const outputCount = outputBuffer.readUInt32LE(0);
+                const expectedSize = 4 + outputCount * 3 * 4; // 4 bytes header + outputCount * 3 floats * 4 bytes
+                
+                if (outputBuffer.length < expectedSize) {
+                  throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
+                }
+                
+                // Extract smoothed points (skip 4-byte header)
+                const smoothedPointsBuffer = outputBuffer.slice(4, expectedSize);
+                const smoothedPoints = new Float32Array(smoothedPointsBuffer.buffer, smoothedPointsBuffer.byteOffset, outputCount * 3);
+                
                 const processingTime = Date.now() - startTime;
                 
-                if (result.success) {
-                  
-                  ws.send(JSON.stringify({
-                    type: 'point_smooth_python_result',
-                    requestId,
-                    success: true,
-                    data: {
-                      smoothedPoints: result.smoothed_points,
-                      originalCount: result.original_count,
-                      smoothedCount: result.smoothed_count,
-                      processingTime: result.processing_time,
-                      smoothingRadius: result.smoothing_radius,
-                      iterations: result.iterations
-                    }
-                  }));
-                } else {
-                  ws.send(JSON.stringify({
-                    type: 'point_smooth_python_result',
-                    requestId,
-                    success: false,
-                    error: result.error || 'Python processing failed'
-                  }));
-                }
+                // Send binary response directly (no JSON conversion overhead!)
+                // Format: JSON header with metadata, then binary data
+                const responseHeader = {
+                  type: 'point_smooth_python_result',
+                  requestId,
+                  success: true,
+                  originalCount: pointCount,
+                  smoothedCount: outputCount,
+                  processingTime: processingTime,
+                  smoothingRadius: smoothingRadius,
+                  iterations: iterations,
+                  dataLength: outputCount * 3
+                };
+                
+                // Send header as JSON
+                ws.send(JSON.stringify(responseHeader));
+                
+                // Send binary data directly - use the sliced buffer
+                ws.send(smoothedPointsBuffer);
               } catch (parseError) {
-                console.error('🔧 WebSocket: Failed to parse Python output:', parseError);
-                console.error('🔧 WebSocket: Raw output (stdout):', outputData);
-                console.error('🔧 WebSocket: Raw error (stderr):', errorData);
+                console.error('🔧 WebSocket: Python point smooth binary protocol error:', parseError);
+                console.error('🔧 WebSocket: Python point smooth stderr:', errorData);
+                console.error('🔧 WebSocket: Python point smooth stdout length:', outputBuffer.length);
                 ws.send(JSON.stringify({
                   type: 'point_smooth_python_result',
                   requestId,
                   success: false,
-                  error: 'Failed to parse Python output'
+                  error: `Binary protocol error: ${parseError.message}`
                 }));
               }
             });
             
-            // Send JSON input to Python process (like Rust BE)
-            const input = {
-              point_cloud_data: Array.from(points),
-              smoothing_radius: smoothingRadius,
-              iterations: iterations
-            };
-            
-            console.log('🔧 Python: Sending JSON input:', JSON.stringify(input).substring(0, 200) + '...');
-            pythonProcess.stdin.write(JSON.stringify(input));
+            // Send binary input to Python process (no JSON serialization!)
+            console.log('🔧 WebSocket: Writing', inputBuffer.length, 'bytes to Python point smooth stdin');
+            pythonProcess.stdin.write(inputBuffer);
             pythonProcess.stdin.end();
             
           } else if (type === 'voxel_debug_cpp') {

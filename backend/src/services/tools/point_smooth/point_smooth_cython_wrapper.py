@@ -2,10 +2,11 @@
 """
 Wrapper script for Cython-optimized point cloud smoothing.
 Uses the compiled Cython module if available, falls back to pure Python.
+Uses binary protocol for fast I/O.
 """
 
 import sys
-import json
+import struct
 import time
 
 try:
@@ -22,45 +23,48 @@ except ImportError:
 def main():
     """Main function to process point cloud smoothing request."""
     try:
-        input_json = sys.stdin.read()
-        input_data = json.loads(input_json)
+        # Read binary input (12 bytes header: u32 pointCount, f32 smoothingRadius, f32 iterations)
+        header = sys.stdin.buffer.read(12)
+        if len(header) != 12:
+            sys.exit(1)
         
-        points = input_data['point_cloud_data']
-        smoothing_radius = input_data['smoothing_radius']
-        iterations = input_data['iterations']
+        point_count, smoothing_radius, iterations = struct.unpack('<Iff', header)
+        iterations = int(iterations)
         
+        # Validate input
+        if point_count == 0 or smoothing_radius <= 0 or iterations <= 0:
+            # Write empty result (4 bytes: pointCount = 0)
+            sys.stdout.buffer.write(struct.pack('<I', 0))
+            sys.stdout.buffer.flush()
+            return
+        
+        # Read point data (pointCount * 3 floats)
+        float_count = point_count * 3
+        bytes_to_read = float_count * 4
+        point_data = sys.stdin.buffer.read(bytes_to_read)
+        if len(point_data) != bytes_to_read:
+            sys.exit(1)
+        
+        # Unpack floats (little-endian)
+        points = list(struct.unpack(f'<{float_count}f', point_data))
+        
+        # Process point cloud smoothing
         start_time = time.time()
         smoothed_points = point_cloud_smooth(points, smoothing_radius, iterations)
         processing_time = (time.time() - start_time) * 1000
         
-        result = {
-            "success": True,
-            "smoothed_points": smoothed_points,
-            "original_count": len(points) // 3,
-            "smoothed_count": len(smoothed_points) // 3,
-            "processing_time": processing_time,
-            "smoothing_radius": smoothing_radius,
-            "iterations": iterations,
-            "using_cython": USING_CYTHON
-        }
-        
-        print(json.dumps(result))
+        # Write binary output
+        # Format: [u32 pointCount][f32* smoothedPoints]
+        output_count = len(smoothed_points) // 3
+        sys.stdout.buffer.write(struct.pack('<I', output_count))
+        sys.stdout.buffer.write(struct.pack(f'<{len(smoothed_points)}f', *smoothed_points))
+        sys.stdout.buffer.flush()
         
     except Exception as e:
-        error_result = {
-            "success": False,
-            "error": str(e),
-            "smoothed_points": [],
-            "original_count": 0,
-            "smoothed_count": 0,
-            "processing_time": 0,
-            "smoothing_radius": 0,
-            "iterations": 0,
-            "using_cython": USING_CYTHON
-        }
-        print(json.dumps(error_result))
+        # On error, write empty result
+        sys.stdout.buffer.write(struct.pack('<I', 0))
+        sys.stdout.buffer.flush()
         sys.exit(1)
 
 if __name__ == "__main__":
     main()
-

@@ -1,8 +1,12 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
-#include <sstream>
-#include <cstdlib>
+#include <cstring>
+#include <cstdint>
+
+// Binary protocol for fast I/O (replaces JSON)
+// Input format: [uint32_t pointCount][float smoothingRadius][float iterations][float* pointData]
+// Output format: [uint32_t pointCount][float* smoothedPoints]
 
 // Ultra-optimized point cloud smoothing using direct memory management (same as C++ WASM)
 void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCount, float smoothingRadius, int iterations) {
@@ -131,9 +135,9 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
             
             // Update point position (same as C++ WASM)
             if (count > 0) {
-                outputData[i3] = sumX / count;
-                outputData[i3 + 1] = sumY / count;
-                outputData[i3 + 2] = sumZ / count;
+                outputData[i3] = (x + sumX) / (count + 1);
+                outputData[i3 + 1] = (y + sumY) / (count + 1);
+                outputData[i3 + 2] = (z + sumZ) / (count + 1);
             }
         }
     }
@@ -143,71 +147,55 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
 }
 
 int main() {
-    std::string jsonInput;
-    std::getline(std::cin, jsonInput);
+    // OPTIMIZATION: Read binary input instead of JSON (much faster!)
+    // Binary format: [uint32_t pointCount][float smoothingRadius][float iterations][float* pointData]
     
-    // Simple JSON parsing - find the values we need
-    size_t pointsStart = jsonInput.find("\"point_cloud_data\":[");
-    size_t radiusStart = jsonInput.find("\"smoothing_radius\":");
-    size_t iterationsStart = jsonInput.find("\"iterations\":");
-    
-    if (pointsStart == std::string::npos || radiusStart == std::string::npos || iterationsStart == std::string::npos) {
-        std::cout << "{\"error\":\"Invalid JSON format\"}" << std::endl;
-        return 1;
+    // Read binary header in one read (12 bytes: 4 for uint32 + 4 for float + 4 for float)
+    alignas(4) char header[12];
+    if (!std::cin.read(header, 12) || std::cin.gcount() != 12) {
+        return 1; // Failed to read header
     }
     
-    // Parse smoothing radius
-    size_t radiusValueStart = jsonInput.find(":", radiusStart) + 1;
-    size_t radiusValueEnd = jsonInput.find(",", radiusValueStart);
-    if (radiusValueEnd == std::string::npos) radiusValueEnd = jsonInput.find("}", radiusValueStart);
-    float smoothingRadius = std::stof(jsonInput.substr(radiusValueStart, radiusValueEnd - radiusValueStart));
+    // Extract values from header (little-endian, safe unaligned access)
+    uint32_t pointCount;
+    float smoothingRadius, iterations;
+    std::memcpy(&pointCount, &header[0], sizeof(uint32_t));
+    std::memcpy(&smoothingRadius, &header[4], sizeof(float));
+    std::memcpy(&iterations, &header[8], sizeof(float));
+    int iterationsInt = static_cast<int>(iterations);
     
-    // Parse iterations
-    size_t iterationsValueStart = jsonInput.find(":", iterationsStart) + 1;
-    size_t iterationsValueEnd = jsonInput.find(",", iterationsValueStart);
-    if (iterationsValueEnd == std::string::npos) iterationsValueEnd = jsonInput.find("}", iterationsValueStart);
-    int iterations = std::stoi(jsonInput.substr(iterationsValueStart, iterationsValueEnd - iterationsValueStart));
-    
-    // Count points in the array
-    size_t arrayStart = jsonInput.find("[", pointsStart) + 1;
-    size_t arrayEnd = jsonInput.find("]", arrayStart);
-    std::string arrayContent = jsonInput.substr(arrayStart, arrayEnd - arrayStart);
-    
-    // Count commas to determine point count
-    int pointCount = 0;
-    size_t pos = 0;
-    while ((pos = arrayContent.find(",", pos)) != std::string::npos) {
-        pointCount++;
-        pos++;
+    // Validate input
+    if (pointCount == 0 || smoothingRadius <= 0 || iterationsInt <= 0) {
+        // Write empty result (4 bytes: pointCount = 0)
+        uint32_t outputCount = 0;
+        std::cout.write(reinterpret_cast<const char*>(&outputCount), sizeof(uint32_t));
+        std::cout.flush();
+        return 0;
     }
-    pointCount = (pointCount + 1) / 3; // Convert to point count
     
-    // Allocate memory for input and output data
-    int length = pointCount * 3;
-    float* inputData = (float*)malloc(length * sizeof(float));
-    float* outputData = (float*)malloc(length * sizeof(float));
+    // Read point data directly into vector
+    const size_t floatCount = pointCount * 3;
+    std::vector<float> inputData(floatCount);
     
-    // Parse point data
-    std::istringstream iss(arrayContent);
-    for (int i = 0; i < length; i++) {
-        iss >> inputData[i];
-        if (iss.peek() == ',') iss.ignore();
+    if (!std::cin.read(reinterpret_cast<char*>(inputData.data()), floatCount * sizeof(float))) {
+        return 1; // Failed to read point data
     }
+    
+    // Allocate output buffer
+    std::vector<float> outputData(floatCount);
     
     // Call ultra-optimized smoothing function
-    pointCloudSmoothingDirect(inputData, outputData, pointCount, smoothingRadius, iterations);
+    pointCloudSmoothingDirect(inputData.data(), outputData.data(), pointCount, smoothingRadius, iterationsInt);
     
-    // Output JSON results
-    std::cout << "{\"smoothed_points\":[";
-    for (int i = 0; i < length; i++) {
-        if (i > 0) std::cout << ",";
-        std::cout << outputData[i];
-    }
-    std::cout << "],\"original_count\":" << pointCount << ",\"smoothed_count\":" << pointCount << ",\"processing_time\":0}" << std::endl;
+    // OPTIMIZATION: Write binary output instead of JSON (much faster!)
+    // Binary format: [uint32_t pointCount][float* smoothedPoints]
     
-    // Free allocated memory
-    free(inputData);
-    free(outputData);
+    // Write output count (4 bytes)
+    std::cout.write(reinterpret_cast<const char*>(&pointCount), sizeof(uint32_t));
+    
+    // Write smoothed points directly (binary, no serialization overhead!)
+    std::cout.write(reinterpret_cast<const char*>(outputData.data()), floatCount * sizeof(float));
+    std::cout.flush();
     
     return 0;
 }

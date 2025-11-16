@@ -1,62 +1,77 @@
-use std::io::{self, BufRead};
-use serde::{Deserialize, Serialize};
+use std::io::{self, Read, Write};
 
-#[derive(Debug, Deserialize)]
-struct InputData {
-    point_cloud_data: Vec<f32>,
-    smoothing_radius: f32,
-    iterations: i32,
-}
-
-#[derive(Debug, Serialize)]
-struct OutputData {
-    smoothed_points: Vec<f32>,
-    original_count: usize,
-    smoothed_count: usize,
-    processing_time: f64,
-}
+// Binary protocol for fast I/O (replaces JSON)
+// Input format: [u32 pointCount][f32 smoothingRadius][f32 iterations][f32* pointData]
+// Output format: [u32 pointCount][f32* smoothedPoints]
 
 fn main() {
-    let stdin = io::stdin();
-    let mut lines = stdin.lock().lines();
+    // OPTIMIZATION: Read binary input instead of JSON (much faster!)
+    // Binary format: [u32 pointCount][f32 smoothingRadius][f32 iterations][f32* pointData]
     
-    // Read input JSON from stdin
-    let mut input_json = String::new();
-    while let Some(line) = lines.next() {
-        let line = line.unwrap();
-        input_json.push_str(&line);
-        if line.trim().ends_with('}') {
-            break;
-        }
+    let mut stdin = io::stdin();
+    
+    // Read binary header (12 bytes: 4 for u32 + 4 for f32 + 4 for f32)
+    let mut header = [0u8; 12];
+    if stdin.read_exact(&mut header).is_err() {
+        std::process::exit(1);
     }
     
-    // Parse input JSON
-    let input: InputData = serde_json::from_str(&input_json)
-        .expect("Failed to parse input JSON");
+    let point_count = u32::from_le_bytes([header[0], header[1], header[2], header[3]]) as usize;
+    let smoothing_radius = f32::from_le_bytes([header[4], header[5], header[6], header[7]]);
+    let iterations = f32::from_le_bytes([header[8], header[9], header[10], header[11]]) as i32;
     
-    let start_time = std::time::Instant::now();
+    // Validate input
+    if point_count == 0 || smoothing_radius <= 0.0 || iterations <= 0 {
+        // Write empty result (4 bytes: pointCount = 0)
+        let output_count: u32 = 0;
+        let mut stdout = io::stdout();
+        if stdout.write_all(&output_count.to_le_bytes()).is_err() || stdout.flush().is_err() {
+            std::process::exit(1);
+        }
+        return;
+    }
+    
+    // Read point data directly into vector (optimized binary read)
+    let float_count = point_count * 3;
+    let bytes_to_read = float_count * 4;
+    let mut buffer = vec![0u8; bytes_to_read];
+    
+    if stdin.read_exact(&mut buffer).is_err() {
+        std::process::exit(1);
+    }
+    
+    // Convert bytes to floats (little-endian) - optimized conversion
+    let point_cloud_data: Vec<f32> = buffer
+        .chunks_exact(4)
+        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .collect();
     
     // Process point cloud smoothing
     let smoothed_points = point_cloud_smooth(
-        &input.point_cloud_data,
-        input.smoothing_radius,
-        input.iterations,
+        &point_cloud_data,
+        smoothing_radius,
+        iterations,
     );
     
-    let processing_time = start_time.elapsed().as_secs_f64() * 1000.0; // Convert to milliseconds
+    // OPTIMIZATION: Write binary output instead of JSON (much faster!)
+    // Binary format: [u32 pointCount][f32* smoothedPoints]
     
-    // Prepare output
-    let original_count = input.point_cloud_data.len() / 3; // Convert from Float32Array length to point count
-    let smoothed_count = smoothed_points.len() / 3; // Convert from Float32Array length to point count
-    let output = OutputData {
-        smoothed_points,
-        original_count,
-        smoothed_count,
-        processing_time,
-    };
+    let mut stdout = io::stdout();
     
-    // Output result as JSON
-    println!("{}", serde_json::to_string(&output).unwrap());
+    // Write output count (4 bytes)
+    let output_count = smoothed_points.len() / 3;
+    if stdout.write_all(&(output_count as u32).to_le_bytes()).is_err() {
+        std::process::exit(1);
+    }
+    
+    // Write smoothed points directly (binary, no serialization overhead!)
+    let bytes: Vec<u8> = smoothed_points
+        .iter()
+        .flat_map(|&f| f.to_le_bytes().into_iter())
+        .collect();
+    if stdout.write_all(&bytes).is_err() || stdout.flush().is_err() {
+        std::process::exit(1);
+    }
 }
 
 fn point_cloud_smooth(

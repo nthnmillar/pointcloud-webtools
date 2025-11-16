@@ -17,19 +17,17 @@ export interface PointCloudSmoothingBEPythonResult {
   iterations: number;
 }
 
-interface WebSocketMessage {
-  type: string;
-  requestId?: string;
-  success?: boolean;
+interface PointSmoothPythonResponseHeader {
+  type: 'point_smooth_python_result';
+  requestId: string;
+  success: boolean;
+  originalCount: number;
+  smoothedCount: number;
+  processingTime: number;
+  smoothingRadius: number;
+  iterations: number;
+  dataLength: number;
   error?: string;
-  data?: {
-    smoothedPoints?: number[];
-    originalCount?: number;
-    smoothedCount?: number;
-    processingTime?: number;
-    smoothingRadius?: number;
-    iterations?: number;
-  };
 }
 
 interface PendingRequest {
@@ -43,6 +41,7 @@ export class PointCloudSmoothingBEPython extends BaseService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private pendingHeader: PointSmoothPythonResponseHeader | null = null; // Track pending binary data header
 
   constructor() {
     super();
@@ -68,35 +67,72 @@ export class PointCloudSmoothingBEPython extends BaseService {
         this.reconnectAttempts = 0;
       };
       
-      this.ws.onmessage = (event: MessageEvent) => {
+      this.ws.onmessage = async (event: MessageEvent) => {
         try {
-          const message: WebSocketMessage = JSON.parse(event.data as string);
-          
-          if (message.type === 'point_smooth_python_result') {
-            const { requestId, success, error, data } = message;
-            
-            if (requestId && this.pendingRequests.has(requestId)) {
-              const request = this.pendingRequests.get(requestId);
-              if (request) {
-                this.pendingRequests.delete(requestId);
+          // Check if this is binary data or JSON header
+          if (event.data instanceof ArrayBuffer) {
+            // This is binary data
+            if (this.pendingHeader && this.pendingHeader.type === 'point_smooth_python_result' && this.pendingHeader.success) {
+              // Create Float32Array directly from binary data (zero-copy!)
+              const smoothedPoints = new Float32Array(event.data, 0, this.pendingHeader.dataLength);
+              
+              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+              if (pending) {
+                this.pendingRequests.delete(this.pendingHeader.requestId);
                 
-                if (success && data) {
-                  const result: PointCloudSmoothingBEPythonResult = {
-                    success: true,
-                    smoothedPoints: new Float32Array(data.smoothedPoints || []),
-                    originalCount: data.originalCount || 0,
-                    smoothedCount: data.smoothedCount || 0,
-                    processingTime: data.processingTime || 0,
-                    smoothingRadius: data.smoothingRadius || 0,
-                    iterations: data.iterations || 0
-                  };
-                  request.resolve(result);
-                } else {
-                  request.reject(new Error(error || 'Python BE WebSocket smoothing failed'));
+                const result: PointCloudSmoothingBEPythonResult = {
+                  success: true,
+                  smoothedPoints: smoothedPoints,
+                  originalCount: this.pendingHeader.originalCount,
+                  smoothedCount: this.pendingHeader.smoothedCount,
+                  processingTime: this.pendingHeader.processingTime,
+                  smoothingRadius: this.pendingHeader.smoothingRadius,
+                  iterations: this.pendingHeader.iterations
+                };
+                pending.resolve(result);
+              }
+              this.pendingHeader = null;
+            }
+          } else if (event.data instanceof Blob) {
+            // Convert Blob to ArrayBuffer
+            const arrayBuffer = await event.data.arrayBuffer();
+            if (this.pendingHeader && this.pendingHeader.type === 'point_smooth_python_result' && this.pendingHeader.success) {
+              const smoothedPoints = new Float32Array(arrayBuffer, 0, this.pendingHeader.dataLength);
+              
+              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+              if (pending) {
+                this.pendingRequests.delete(this.pendingHeader.requestId);
+                
+                const result: PointCloudSmoothingBEPythonResult = {
+                  success: true,
+                  smoothedPoints: smoothedPoints,
+                  originalCount: this.pendingHeader.originalCount,
+                  smoothedCount: this.pendingHeader.smoothedCount,
+                  processingTime: this.pendingHeader.processingTime,
+                  smoothingRadius: this.pendingHeader.smoothingRadius,
+                  iterations: this.pendingHeader.iterations
+                };
+                pending.resolve(result);
+              }
+              this.pendingHeader = null;
+            }
+          } else {
+            // This is JSON header
+            const message = JSON.parse(event.data as string);
+            
+            if (message.type === 'point_smooth_python_result') {
+              if (message.success && message.dataLength) {
+                // Store header and wait for binary data
+                this.pendingHeader = message;
+              } else {
+                // Error response (no binary data)
+                const { requestId, error } = message;
+                const pending = this.pendingRequests.get(requestId);
+                if (pending) {
+                  this.pendingRequests.delete(requestId);
+                  pending.reject(new Error(error || 'Python BE WebSocket smoothing processing failed'));
                 }
               }
-            } else {
-              console.warn('🔧 PointCloudSmoothingBEPython disposed: No pending request found for', requestId);
             }
           }
         } catch (error) {
