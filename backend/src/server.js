@@ -942,7 +942,6 @@ wss.on('connection', (ws, req) => {
             // Handle Python voxel downsampling
             console.log('🔧 WebSocket: Starting Python voxel downsampling process');
             console.log('🔧 WebSocket: Processing Python BE request with type:', type);
-            console.log('🔧 WebSocket: Python globalBounds:', globalBounds);
             const pythonExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample_cython.py');
             console.log('🔧 WebSocket: Python executable path:', pythonExecutable);
             
@@ -960,15 +959,40 @@ wss.on('connection', (ws, req) => {
               return;
             }
             
-            let outputData = '';
+            // Use binary protocol (same as C++/Rust)
+            const pointCount = points.length / 3;
+            const pointsFloat32 = new Float32Array(points);
+            
+            // Create binary header buffer (32 bytes: 4 for u32 + 7*4 for floats)
+            const headerBuffer = Buffer.allocUnsafe(32);
+            headerBuffer.writeUInt32LE(pointCount, 0);
+            headerBuffer.writeFloatLE(voxelSize, 4);
+            headerBuffer.writeFloatLE(globalBounds.minX, 8);
+            headerBuffer.writeFloatLE(globalBounds.minY, 12);
+            headerBuffer.writeFloatLE(globalBounds.minZ, 16);
+            headerBuffer.writeFloatLE(globalBounds.maxX, 20);
+            headerBuffer.writeFloatLE(globalBounds.maxY, 24);
+            headerBuffer.writeFloatLE(globalBounds.maxZ, 28);
+            
+            // Convert Float32Array to Buffer for point data (binary, no JSON!)
+            const pointDataBuffer = Buffer.from(pointsFloat32.buffer, pointsFloat32.byteOffset, pointsFloat32.byteLength);
+            
+            // Combine header + data
+            const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
+            
+            let outputBuffer = Buffer.alloc(0);
             let errorData = '';
             
             pythonProcess.stdout.on('data', (data) => {
-              outputData += data.toString();
+              outputBuffer = Buffer.concat([outputBuffer, data]);
             });
             
             pythonProcess.stderr.on('data', (data) => {
-              errorData += data.toString();
+              const errorText = data.toString();
+              errorData += errorText;
+              if (errorText.trim()) {
+                console.error('🔧 WebSocket: Python voxel downsampling stderr:', errorText);
+              }
             });
             
             pythonProcess.on('error', (error) => {
@@ -982,6 +1006,8 @@ wss.on('connection', (ws, req) => {
             });
             
             pythonProcess.on('close', (code) => {
+              console.log(`🔧 WebSocket: Python voxel downsampling process closed with code ${code}, outputBuffer.length: ${outputBuffer.length}`);
+              
               if (code !== 0) {
                 console.error(`🔧 WebSocket: Python process exited with code ${code}`);
                 ws.send(JSON.stringify({
@@ -994,64 +1020,53 @@ wss.on('connection', (ws, req) => {
               }
               
               try {
-                // Parse JSON result from stdout (like Rust BE)
-                const result = JSON.parse(outputData);
+                // Read binary output (no JSON parsing!)
+                // Binary format: [u32 outputCount][f32* downsampledPoints]
+                if (outputBuffer.length < 4) {
+                  throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+                }
+                
+                const outputCount = outputBuffer.readUInt32LE(0);
+                const expectedSize = 4 + outputCount * 3 * 4; // 4 bytes header + outputCount * 3 floats * 4 bytes
+                
+                if (outputBuffer.length < expectedSize) {
+                  throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
+                }
+                
+                // Extract downsampled points (skip 4-byte header)
+                const downsampledPointsBuffer = outputBuffer.slice(4, expectedSize);
+                const downsampledPoints = new Float32Array(downsampledPointsBuffer.buffer, downsampledPointsBuffer.byteOffset, outputCount * 3);
+                
                 const processingTime = Date.now() - startTime;
                 
-                if (result.success) {
-                  console.log('🔧 Python: Result success, downsampled_points length:', result.downsampled_points.length);
-                  console.log('🔧 Python: Result data:', result);
-                  
-                  ws.send(JSON.stringify({
-                    type: 'voxel_downsample_python_result',
-                    requestId,
-                    success: true,
-                    data: {
-                      downsampledPoints: result.downsampled_points,
-                      originalCount: result.original_count,
-                      downsampledCount: result.downsampled_count,
-                      processingTime: result.processing_time,
-                      voxelSize: result.voxel_size,
-                      voxelCount: result.voxel_count
-                    }
-                  }));
-                } else {
-                  ws.send(JSON.stringify({
-                    type: 'voxel_downsample_python_result',
-                    requestId,
-                    success: false,
-                    error: result.error || 'Python processing failed'
-                  }));
-                }
+                ws.send(JSON.stringify({
+                  type: 'voxel_downsample_python_result',
+                  requestId,
+                  success: true,
+                  data: {
+                    downsampledPoints: Array.from(downsampledPoints),
+                    originalCount: pointCount,
+                    downsampledCount: outputCount,
+                    voxelCount: outputCount,
+                    processingTime: processingTime
+                  }
+                }));
               } catch (parseError) {
-                console.error('🔧 WebSocket: Failed to parse Python output:', parseError);
-                console.error('🔧 WebSocket: Raw output (stdout):', outputData);
-                console.error('🔧 WebSocket: Raw error (stderr):', errorData);
+                console.error('🔧 WebSocket: Python voxel downsampling binary protocol error:', parseError);
+                console.error('🔧 WebSocket: Python voxel downsampling stderr:', errorData);
+                console.error('🔧 WebSocket: Python voxel downsampling stdout length:', outputBuffer.length);
                 ws.send(JSON.stringify({
                   type: 'voxel_downsample_python_result',
                   requestId,
                   success: false,
-                  error: 'Failed to parse Python output'
+                  error: `Binary protocol error: ${parseError.message}`
                 }));
               }
             });
             
-            // Send JSON input to Python process (like Rust BE)
-            const input = {
-              point_cloud_data: Array.from(points),
-              voxel_size: voxelSize,
-              global_bounds: {
-                min_x: globalBounds.minX,
-                min_y: globalBounds.minY,
-                min_z: globalBounds.minZ,
-                max_x: globalBounds.maxX,
-                max_y: globalBounds.maxY,
-                max_z: globalBounds.maxZ
-              }
-            };
-            
-            console.log('🔧 Python: Sending JSON input:', JSON.stringify(input).substring(0, 200) + '...');
-            pythonProcess.stdin.write(JSON.stringify(input));
+            // Send binary input to Python process (no JSON serialization!)
+            console.log('🔧 WebSocket: Writing', inputBuffer.length, 'bytes to Python voxel downsampling stdin');
+            pythonProcess.stdin.write(inputBuffer);
             pythonProcess.stdin.end();
           }
           
