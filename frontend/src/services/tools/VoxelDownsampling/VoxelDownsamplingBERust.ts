@@ -24,12 +24,25 @@ export interface VoxelDownsamplingBERustResult {
   voxelCount: number;
 }
 
+interface VoxelDownsampleRustResponseHeader {
+  type: 'voxel_downsample_rust_result';
+  requestId: string;
+  success: boolean;
+  originalCount: number;
+  downsampledCount: number;
+  voxelCount: number;
+  processingTime: number;
+  dataLength: number;
+  error?: string;
+}
+
 export class VoxelDownsamplingBERust extends BaseService {
   private ws: WebSocket | null = null;
-  private pendingRequests = new Map<string, { resolve: (value: VoxelDownsamplingBERustResult) => void; reject: (reason?: any) => void }>();
+  private pendingRequests = new Map<string, { resolve: (value: VoxelDownsamplingBERustResult) => void; reject: (reason?: unknown) => void }>();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private pendingHeader: VoxelDownsampleRustResponseHeader | null = null; // Track pending binary data header
 
   constructor() {
     super();
@@ -58,30 +71,71 @@ export class VoxelDownsamplingBERust extends BaseService {
         this.ws.send(JSON.stringify({ type: 'test', message: 'Hello from frontend' }));
       };
       
-      this.ws.onmessage = (event) => {
+      this.ws.onmessage = async (event) => {
         try {
-          const message = JSON.parse(event.data);
-          
-          if (message.type === 'voxel_downsample_rust_result') {
-            const { requestId, success, error, data } = message;
-            
-            if (this.pendingRequests.has(requestId)) {
-              const { resolve, reject } = this.pendingRequests.get(requestId)!;
-              this.pendingRequests.delete(requestId);
+          // Check if this is binary data or JSON header
+          if (event.data instanceof ArrayBuffer) {
+            // This is binary data
+            if (this.pendingHeader && this.pendingHeader.type === 'voxel_downsample_rust_result' && this.pendingHeader.success) {
+              // Create Float32Array directly from binary data (zero-copy!)
+              const downsampledPoints = new Float32Array(event.data, 0, this.pendingHeader.dataLength);
               
-              if (success) {
+              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+              if (pending) {
+                this.pendingRequests.delete(this.pendingHeader.requestId);
+                
                 const result: VoxelDownsamplingBERustResult = {
                   success: true,
-                  downsampledPoints: new Float32Array(data.downsampledPoints),
-                  originalCount: data.originalCount,
-                  downsampledCount: data.downsampledCount,
-                  processingTime: data.processingTime,
-                  reductionRatio: data.originalCount / data.downsampledCount,
-                  voxelCount: data.voxelCount || data.downsampledCount  // Each point = one voxel, use voxelCount if provided
+                  downsampledPoints: downsampledPoints,
+                  originalCount: this.pendingHeader.originalCount,
+                  downsampledCount: this.pendingHeader.downsampledCount,
+                  processingTime: this.pendingHeader.processingTime,
+                  reductionRatio: this.pendingHeader.originalCount / this.pendingHeader.downsampledCount,
+                  voxelCount: this.pendingHeader.voxelCount || this.pendingHeader.downsampledCount
                 };
-                resolve(result);
+                pending.resolve(result);
+              }
+              this.pendingHeader = null;
+            }
+          } else if (event.data instanceof Blob) {
+            // Convert Blob to ArrayBuffer
+            const arrayBuffer = await event.data.arrayBuffer();
+            if (this.pendingHeader && this.pendingHeader.type === 'voxel_downsample_rust_result' && this.pendingHeader.success) {
+              const downsampledPoints = new Float32Array(arrayBuffer, 0, this.pendingHeader.dataLength);
+              
+              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+              if (pending) {
+                this.pendingRequests.delete(this.pendingHeader.requestId);
+                
+                const result: VoxelDownsamplingBERustResult = {
+                  success: true,
+                  downsampledPoints: downsampledPoints,
+                  originalCount: this.pendingHeader.originalCount,
+                  downsampledCount: this.pendingHeader.downsampledCount,
+                  processingTime: this.pendingHeader.processingTime,
+                  reductionRatio: this.pendingHeader.originalCount / this.pendingHeader.downsampledCount,
+                  voxelCount: this.pendingHeader.voxelCount || this.pendingHeader.downsampledCount
+                };
+                pending.resolve(result);
+              }
+              this.pendingHeader = null;
+            }
+          } else {
+            // This is JSON header
+            const message = JSON.parse(event.data as string);
+            
+            if (message.type === 'voxel_downsample_rust_result') {
+              if (message.success && message.dataLength) {
+                // Store header and wait for binary data
+                this.pendingHeader = message;
               } else {
-                reject(new Error(error || 'Rust BE WebSocket processing failed'));
+                // Error response (no binary data)
+                const { requestId, error } = message;
+                const pending = this.pendingRequests.get(requestId);
+                if (pending) {
+                  this.pendingRequests.delete(requestId);
+                  pending.reject(new Error(error || 'Rust BE WebSocket processing failed'));
+                }
               }
             }
           }

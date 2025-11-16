@@ -398,18 +398,24 @@ wss.on('connection', (ws, req) => {
                 
                 const processingTime = Date.now() - startTime;
                 
-                ws.send(JSON.stringify({
+                // Send binary response directly (no JSON conversion overhead!)
+                // Format: JSON header with metadata, then binary data
+                const responseHeader = {
                   type: 'voxel_downsample_rust_result',
                   requestId,
                   success: true,
-                  data: {
-                    downsampledPoints: Array.from(downsampledPoints),
-                    originalCount: pointCount,
-                    downsampledCount: outputCount,
-                    voxelCount: outputCount,
-                    processingTime
-                  }
-                }));
+                  originalCount: pointCount,
+                  downsampledCount: outputCount,
+                  voxelCount: outputCount,
+                  processingTime,
+                  dataLength: outputCount * 3
+                };
+                
+                // Send header as JSON
+                ws.send(JSON.stringify(responseHeader));
+                
+                // Send binary data directly - use the sliced buffer, not the Float32Array's buffer
+                ws.send(downsampledPointsBuffer);
               } catch (parseError) {
                 console.error('Rust Binary protocol error:', parseError);
                 ws.send(JSON.stringify({
@@ -1044,18 +1050,24 @@ wss.on('connection', (ws, req) => {
                 
                 const processingTime = Date.now() - startTime;
                 
-                ws.send(JSON.stringify({
+                // Send binary response directly (no JSON conversion overhead!)
+                // Format: JSON header with metadata, then binary data
+                const responseHeader = {
                   type: 'voxel_downsample_python_result',
                   requestId,
                   success: true,
-                  data: {
-                    downsampledPoints: Array.from(downsampledPoints),
-                    originalCount: pointCount,
-                    downsampledCount: outputCount,
-                    voxelCount: outputCount,
-                    processingTime: processingTime
-                  }
-                }));
+                  originalCount: pointCount,
+                  downsampledCount: outputCount,
+                  voxelCount: outputCount,
+                  processingTime: processingTime,
+                  dataLength: outputCount * 3
+                };
+                
+                // Send header as JSON
+                ws.send(JSON.stringify(responseHeader));
+                
+                // Send binary data directly - use the sliced buffer, not the Float32Array's buffer
+                ws.send(downsampledPointsBuffer);
               } catch (parseError) {
                 console.error('🔧 WebSocket: Python voxel downsampling binary protocol error:', parseError);
                 console.error('🔧 WebSocket: Python voxel downsampling stderr:', errorData);

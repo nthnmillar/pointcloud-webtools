@@ -24,12 +24,26 @@ export interface VoxelDownsamplingBEPythonResult {
   voxelCount: number;
 }
 
+interface VoxelDownsamplePythonResponseHeader {
+  type: 'voxel_downsample_python_result';
+  requestId: string;
+  success: boolean;
+  originalCount: number;
+  downsampledCount: number;
+  voxelCount: number;
+  processingTime: number;
+  dataLength: number;
+  voxelSize?: number;
+  error?: string;
+}
+
 export class VoxelDownsamplingBEPython extends BaseService {
   private ws: WebSocket | null = null;
-  private pendingRequests = new Map<string, { resolve: (value: VoxelDownsamplingBEPythonResult) => void; reject: (reason?: any) => void }>();
+  private pendingRequests = new Map<string, { resolve: (value: VoxelDownsamplingBEPythonResult) => void; reject: (reason?: unknown) => void }>();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private pendingHeader: VoxelDownsamplePythonResponseHeader | null = null; // Track pending binary data header
 
   constructor() {
     super();
@@ -55,37 +69,71 @@ export class VoxelDownsamplingBEPython extends BaseService {
         this.reconnectAttempts = 0;
       };
 
-      this.ws.onmessage = (event) => {
+      this.ws.onmessage = async (event) => {
         try {
-          const data = JSON.parse(event.data);
-          
-          if (data.type === 'voxel_downsample_python_result') {
-            const requestId = data.requestId;
-            const pendingRequest = this.pendingRequests.get(requestId);
-            
-            if (pendingRequest) {
-              this.pendingRequests.delete(requestId);
+          // Check if this is binary data or JSON header
+          if (event.data instanceof ArrayBuffer) {
+            // This is binary data
+            if (this.pendingHeader && this.pendingHeader.type === 'voxel_downsample_python_result' && this.pendingHeader.success) {
+              // Create Float32Array directly from binary data (zero-copy!)
+              const downsampledPoints = new Float32Array(event.data, 0, this.pendingHeader.dataLength);
               
-              if (data.success) {
-                // Access nested data object
-                const resultData = data.data;
-                
-                // Convert ArrayBuffer back to Float32Array
-                const downsampledPoints = new Float32Array(resultData.downsampledPoints);
+              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+              if (pending) {
+                this.pendingRequests.delete(this.pendingHeader.requestId);
                 
                 const result: VoxelDownsamplingBEPythonResult = {
                   success: true,
-                  downsampledPoints,
-                  originalCount: resultData.originalCount,
-                  downsampledCount: resultData.downsampledCount,
-                  processingTime: resultData.processingTime,
-                  voxelSize: resultData.voxelSize,
-                  voxelCount: resultData.voxelCount
+                  downsampledPoints: downsampledPoints,
+                  originalCount: this.pendingHeader.originalCount,
+                  downsampledCount: this.pendingHeader.downsampledCount,
+                  processingTime: this.pendingHeader.processingTime,
+                  voxelSize: this.pendingHeader.voxelSize,
+                  voxelCount: this.pendingHeader.voxelCount
                 };
+                pending.resolve(result);
+              }
+              this.pendingHeader = null;
+            }
+          } else if (event.data instanceof Blob) {
+            // Convert Blob to ArrayBuffer
+            const arrayBuffer = await event.data.arrayBuffer();
+            if (this.pendingHeader && this.pendingHeader.type === 'voxel_downsample_python_result' && this.pendingHeader.success) {
+              const downsampledPoints = new Float32Array(arrayBuffer, 0, this.pendingHeader.dataLength);
+              
+              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+              if (pending) {
+                this.pendingRequests.delete(this.pendingHeader.requestId);
                 
-                pendingRequest.resolve(result);
+                const result: VoxelDownsamplingBEPythonResult = {
+                  success: true,
+                  downsampledPoints: downsampledPoints,
+                  originalCount: this.pendingHeader.originalCount,
+                  downsampledCount: this.pendingHeader.downsampledCount,
+                  processingTime: this.pendingHeader.processingTime,
+                  voxelSize: this.pendingHeader.voxelSize,
+                  voxelCount: this.pendingHeader.voxelCount
+                };
+                pending.resolve(result);
+              }
+              this.pendingHeader = null;
+            }
+          } else {
+            // This is JSON header
+            const message = JSON.parse(event.data as string);
+            
+            if (message.type === 'voxel_downsample_python_result') {
+              if (message.success && message.dataLength) {
+                // Store header and wait for binary data
+                this.pendingHeader = message;
               } else {
-                pendingRequest.reject(new Error(data.error || 'Voxel downsampling failed'));
+                // Error response (no binary data)
+                const { requestId, error } = message;
+                const pending = this.pendingRequests.get(requestId);
+                if (pending) {
+                  this.pendingRequests.delete(requestId);
+                  pending.reject(new Error(error || 'Voxel downsampling failed'));
+                }
               }
             }
           }

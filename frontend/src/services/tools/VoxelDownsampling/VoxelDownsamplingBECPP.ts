@@ -25,12 +25,24 @@ export interface VoxelDownsampleResult {
   error?: string;
 }
 
+interface VoxelDownsampleResponseHeader {
+  type: 'voxel_downsample_result';
+  requestId: string;
+  success: boolean;
+  originalCount: number;
+  downsampledCount: number;
+  voxelCount: number;
+  processingTime: number;
+  dataLength: number;
+  error?: string;
+}
+
 export class VoxelDownsamplingBECPP extends BaseService {
   private ws: WebSocket | null = null
-  private pendingRequests = new Map<string, { resolve: (value: VoxelDownsampleResult) => void; reject: (reason?: any) => void }>()
+  private pendingRequests = new Map<string, { resolve: (value: VoxelDownsampleResult) => void; reject: (reason?: unknown) => void }>()
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
-  private pendingHeader: any = null // Track pending binary data header
+  private pendingHeader: VoxelDownsampleResponseHeader | null = null // Track pending binary data header
 
   constructor(serviceManager: ServiceManager) {
     super();
