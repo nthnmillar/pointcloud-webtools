@@ -9,21 +9,21 @@ This project provides comprehensive benchmarks comparing point cloud processing 
 ### Browser Performance (WASM)
 | Tool | Fastest | Notes |
 |------|---------|-------|
-| **Voxel Downsampling** | Rust WASM (~150ms) | Very close to C++ WASM (~157ms, 5% difference) |
+| **Voxel Downsampling** | Rust WASM Main (140ms) | Very close to C++ WASM (143ms, 2% difference) |
 | **Voxel Debug** | Rust WASM (~1ms) | Best for visualization |
 | **Point Smoothing** | Rust WASM Worker (~29ms) | Fastest overall |
 
-**Key Insight**: For voxel downsampling, Rust and C++ WASM are very close (5% difference) because both use LLVM-based compilers. For other tools, Rust WASM may have advantages.
+**Key Insight**: For voxel downsampling, Rust and C++ WASM are very close (140ms vs 143ms, only 2% difference) because both use LLVM-based compilers. For other tools, Rust WASM may have advantages.
 
 ### Backend Performance
-| Tool | Fastest | C++ vs Rust | Notes |
-|------|---------|-------------|-------|
-| **Voxel Downsampling** | Rust BE (~700ms) | C++ ~2x slower (~1,444ms) | HashMap-heavy algorithm |
-| **Point Smoothing** | Rust BE (~57ms) | Nearly equal (~60ms) | Grid-based algorithm |
-| **Python BE** | - | 18-36x slower | Readable but slow |
+| Tool | Fastest | C++ vs Rust | Python (Cython) | Notes |
+|------|---------|-------------|-----------------|-------|
+| **Voxel Downsampling** | Rust BE (643ms) | C++ 2.4x slower (1,549ms) | Python 4.4x slower (2,856ms) | HashMap-heavy algorithm |
+| **Point Smoothing** | Rust BE (~57ms) | Nearly equal (~60ms) | - | Grid-based algorithm |
+| **Python BE (Cython)** | - | - | Compiled Python | ~13% faster than pure Python, limited by dict overhead |
 
 **Key Insight**: Performance parity depends on algorithm characteristics:
-- **HashMap-heavy algorithms** (voxel downsampling): Rust significantly faster (2x) due to `FxHashMap` optimization
+- **HashMap-heavy algorithms** (voxel downsampling): Rust significantly faster (2.4x) due to `FxHashMap` optimization
 - **Grid-based algorithms** (point smoothing): Rust and C++ nearly equivalent
 
 ## Detailed Tool Comparisons
@@ -33,18 +33,20 @@ This project provides comprehensive benchmarks comparing point cloud processing 
 **Algorithm**: Grid-based averaging with HashMap for voxel grouping
 
 **Performance Highlights**:
-- **WASM**: Rust and C++ very close (~150ms vs ~157ms, only 5% difference)
-- **Backend**: Rust 2x faster than C++ (~700ms vs ~1,444ms)
+- **WASM**: Rust and C++ very close (140ms vs 143ms, only 2% difference)
+- **Backend**: Rust 2.4x faster than C++ (643ms vs 1,549ms)
+- **Python (Cython)**: 4.4x slower than Rust (2,856ms), but compiled Python code
 - **Root Cause**: Rust's `FxHashMap` vs C++'s `ankerl::unordered_dense::map` (both optimized, but Rust's is faster)
 
 **Why WASM is Close but Backend Differs**:
-- **WASM**: Both use LLVM (Emscripten for C++, rustc for Rust), so similar optimizations minimize differences
+- **WASM**: Both use LLVM (Emscripten for C++, rustc for Rust), so similar optimizations minimize differences (only 2% gap)
 - **Backend**: Native execution exposes the true performance difference - Rust's `FxHashMap` is inherently faster for integer-key workloads
-- C++ BE is fully optimized (clang, ankerl::unordered_dense::map, FastHash), but Rust's hash map is still faster
+- C++ BE is fully optimized (clang, ankerl::unordered_dense::map, FastHash), but Rust's hash map is still 2.4x faster
+- **Python (Cython)**: Compiled Python code, but Python dict operations are still the bottleneck (4.4x slower than Rust)
 
 **Best Choice**:
-- Browser: Rust WASM Worker
-- Backend: Rust BE (fastest), C++ BE (good alternative)
+- Browser: Rust WASM Worker (162ms, non-blocking)
+- Backend: Rust BE (fastest, 643ms), C++ BE (1,549ms), Python BE Cython (2,856ms, 4.4x slower than Rust)
 
 ### Point Cloud Smoothing
 
@@ -109,7 +111,7 @@ The performance difference between C++ and Rust backends varies significantly ba
 | **HashMap-Heavy Workloads** | Rust Backend | 2x faster than C++ |
 | **Grid-Based Workloads** | Rust or C++ Backend | Either works (nearly equal) |
 | **Team Expertise** | Match team preference | C++ is good if team knows it |
-| **Readability/Prototyping** | Python Backend | Slower but highly readable |
+| **Python Backend** | - | 4.4x slower than Rust |
 
 ## Key Technical Insights
 
@@ -120,9 +122,9 @@ The performance difference between C++ and Rust backends varies significantly ba
   - Efficient memory access patterns
 
 ### 2. Backend Performance Parity
-- **HashMap-heavy**: Rust's advantage is significant (2x)
+- **HashMap-heavy**: Rust's advantage is significant (2.4x vs C++, 4.4x vs Python Cython)
 - **Grid-based**: Nearly equivalent performance
-- **Python**: Always slowest (18-36x) but most readable
+- **Python (Cython)**: 4.4x slower than Rust (2,856ms vs 643ms)
 
 ### 3. Worker Overhead
 - **Small datasets** (< 10K points): Noticeable overhead (~19ms)
@@ -164,10 +166,10 @@ All implementations use:
    - Use if team expertise favors C++
    - Consider flat hash maps for HashMap-heavy workloads
 
-3. **Python for Prototyping**
-   - Excellent readability
-   - Use for non-time-critical paths
-   - Consider NumPy/Cython for production
+3. **Python (Cython)**
+   - Compiled Python code (fair comparison to C++/Rust)
+   - ~13% faster than pure Python
+   - Still 4.4x slower than Rust due to Python dict overhead
 
 4. **WASM vs Backend**
    - **WASM**: Use for real-time, interactive processing

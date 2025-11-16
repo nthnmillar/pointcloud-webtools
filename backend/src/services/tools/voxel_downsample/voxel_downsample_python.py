@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Optimized Python Backend Voxel Downsampling Tool
+Ultra-Optimized Python Backend Voxel Downsampling Tool
 Reduces point cloud density by averaging points within voxel grid cells.
 Optimized to match Rust BE performance using spatial hashing and chunked processing.
 """

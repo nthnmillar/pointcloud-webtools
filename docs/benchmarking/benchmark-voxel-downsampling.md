@@ -24,14 +24,14 @@ See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algo
 
 | Implementation | Time (ms) | Relative Speed | Notes |
 |---------------|-----------|----------------|-------|
-| **Rust WASM Main** | ~150 ms | 1.0x | Fast but blocks UI (1M points) |
-| **C++ WASM Main** | ~157 ms | 1.05x | Very close to Rust WASM (1M points) |
-| **Rust WASM Worker** | ~1-2 ms | 1.0x (fastest WASM) | Best for browser (small datasets) |
-| **C++ WASM Worker** | ~3-4 ms | 1.5-2x | Good performance (small datasets) |
-| **TypeScript** | ~1-3 ms | 1.0-1.5x | Good for small datasets |
-| **Rust Backend** | ~700 ms | Baseline | Fastest backend |
-| **C++ Backend** | ~1,444 ms | 2.06x | Optimized with clang + ankerl::unordered_dense::map |
-| **Python Backend** | ~4,600-4,700 ms | 6.6x | Slowest but readable |
+| **TypeScript WASM** | 210 ms | 1.5x | Good performance, pure JS |
+| **C++ WASM Main** | 143 ms | 1.02x | Very close to Rust WASM |
+| **Rust WASM Main** | 140 ms | 1.0x | Fastest WASM (1M points) |
+| **C++ WASM Worker** | 171 ms | 1.22x | Good performance with worker overhead |
+| **Rust WASM Worker** | 162 ms | 1.16x | Best for browser (non-blocking) |
+| **Rust Backend** | 643 ms | Baseline | Fastest backend |
+| **C++ Backend** | 1,549 ms | 2.41x | Optimized with clang + ankerl::unordered_dense::map |
+| **Python Backend (Cython)** | 2,856 ms | 4.44x | Compiled Python, still slower due to dict overhead |
 
 ### Performance Analysis
 
@@ -45,20 +45,33 @@ See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algo
 - The small difference is due to hash map implementation details, but LLVM optimizations minimize the gap
 
 #### Backend Performance - Why C++ and Rust Differ
-- **Rust Backend** (~700ms) is **2x faster** than C++ Backend (~1,444ms)
+- **Rust Backend** (643ms) is **2.4x faster** than C++ Backend (1,549ms)
 - **Key Difference**: Hash map implementation performance
   - **Rust**: Uses `FxHashMap` (rustc-hash) - specifically optimized for integer keys
   - **C++**: Uses `ankerl::unordered_dense::map` with FastHash (matching FxHash algorithm)
   - Even with the same hash function and a fast hash map library, Rust's `FxHashMap` is still faster
 - **Compiler**: Both use LLVM (clang for C++, rustc for Rust), so compiler differences are minimal
-- **Conclusion**: The 2x difference is due to Rust's `FxHashMap` being inherently faster for this workload, not compiler or algorithm differences
+- **Conclusion**: The 2.4x difference is due to Rust's `FxHashMap` being inherently faster for this workload, not compiler or algorithm differences
+
+#### Python Backend (Cython) Performance
+- **Python Backend (Cython)** (2,856ms) is **4.4x slower** than Rust Backend (643ms)
+- **Cython Implementation**: 
+  - Compiled Python code (`.pyx` → C → native binary)
+  - Uses type annotations (`cdef int`, `cdef float`) for C-level performance
+  - Same Python syntax, compiled to native code
+- **Why Still Slower**:
+  - Python dict operations are still the bottleneck (dict lookups/insertions go through Python's C API)
+  - Even compiled, Python dicts have overhead compared to C++/Rust hash maps
+  - Cython optimizes numeric operations but can't fully optimize dict operations
+- **Improvement**: ~13% faster than pure Python (~3,400ms → ~2,856ms)
+- **Fair Comparison**: Yes - Cython is compiled Python, comparable to compiled C++/Rust backends
 
 #### Why WASM is Close but Backend Differs
 - **WASM**: Both use LLVM, and the WASM runtime may optimize hash map operations similarly
 - **Backend**: Native execution exposes the true performance difference between hash map implementations
 - Rust's `FxHashMap` is specifically designed for performance with integer keys, giving it an edge in native execution
   
-- **Python Backend** is slowest (~4.6s) but most maintainable
+- **Python Backend (Cython)** is slower (2.9s) - compiled Python code, but still 4.4x slower than Rust
 
 ### Accuracy Verification
 
@@ -112,9 +125,9 @@ for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
 - Or **Rust Backend** for server-side processing
 
 ### For Large Datasets (> 1M points)
-- Use **Rust Backend** (fastest overall, ~700ms for 1M points)
-- **C++ Backend** if Rust unavailable (~1,444ms for 1M points, still good performance)
-- Avoid Python Backend for time-critical applications
+- Use **Rust Backend** (fastest overall, ~643ms for 1M points)
+- **C++ Backend** if Rust unavailable (~1,549ms for 1M points, still good performance)
+- **Python Backend (Cython)** (~2,856ms for 1M points, 4.4x slower than Rust)
 
 ## Technical Notes
 
@@ -129,7 +142,27 @@ for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
    - Even with a fast hash map library and matching hash function, Rust's `FxHashMap` is still faster
    - This is a known characteristic of Rust's hash map implementation
 2. **Compiler**: Uses clang (LLVM) with `-O3 -flto -march=native` - same optimization level as Rust
-3. **Conclusion**: The 2x difference is due to Rust's `FxHashMap` being inherently faster for integer-key workloads
+3. **Conclusion**: The 2.4x difference is due to Rust's `FxHashMap` being inherently faster for integer-key workloads
+
+### Python Backend (Cython) Implementation Details
+1. **Cython Compilation**:
+   - Source: `.pyx` file (Python with type annotations)
+   - Compilation: Cython → C → native binary (`.so` file)
+   - Compiler flags: `-O3 -march=native -ffast-math` (same as C++/Rust)
+2. **Type Annotations**:
+   ```cython
+   cdef int point_count = len(points) // 3
+   cdef float x, y, z
+   cdef int voxel_x, voxel_y, voxel_z
+   ```
+   - `cdef` declares C-level variables (no Python object overhead)
+   - Direct C operations for numeric calculations
+3. **Limitations**:
+   - Python dict operations still use Python's C API (bottleneck)
+   - Python list operations still have overhead
+   - Cython can't fully optimize Python object operations
+4. **Performance**: ~13% faster than pure Python, but still 4.4x slower than Rust
+   - Dict operations are the limiting factor, not numeric operations
 
 ### Optimizations Applied to C++ Backend
 - ✅ FastHash (matching Rust's FxHash algorithm)
@@ -138,9 +171,25 @@ for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
 - ✅ Full compiler optimizations (-O3, -flto, -march=native)
 - ✅ Optimized output loop (pointer arithmetic, pre-calculated inverse)
 
-**Result**: C++ BE is fully optimized, but Rust's `FxHashMap` is still 2x faster for this specific workload.
+**Result**: C++ BE is fully optimized, but Rust's `FxHashMap` is still 2.4x faster for this specific workload.
+
+### Python Backend (Cython) Optimizations
+- ✅ Cython compilation (Python → C → native binary)
+- ✅ Type annotations (`cdef int`, `cdef float`) for C-level variables
+- ✅ C floor function (`from libc.math cimport floor`)
+- ✅ While loops instead of range() for better C code generation
+- ✅ Explicit type casts to avoid Python object overhead
+- ✅ Compiler optimizations (`-O3 -march=native -ffast-math`)
+
+**Result**: Python BE (Cython) is ~13% faster than pure Python, but still 4.4x slower than Rust due to Python dict overhead.
 
 ## Conclusion
 
-All implementations are **fair, optimized, and produce identical results**. The performance differences reflect platform-specific optimizations rather than algorithm differences. Rust provides the best performance-to-maintainability ratio for both WASM and backend implementations.
+All implementations are **fair, optimized, and produce identical results**. The performance differences reflect platform-specific optimizations rather than algorithm differences:
+
+- **WASM**: Rust and C++ are very close (140ms vs 143ms, only 2% difference) due to LLVM optimizations
+- **Backend**: Rust is fastest (643ms), C++ is good (1,549ms), Python (Cython) is acceptable (2,856ms)
+- **Python (Cython)**: Compiled Python code, fair comparison to compiled C++/Rust, but limited by Python dict overhead
+
+Rust provides the best performance for both WASM and backend implementations. Python (Cython) is compiled Python code but still 4.4x slower than Rust due to Python dict overhead.
 

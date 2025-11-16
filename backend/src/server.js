@@ -912,7 +912,7 @@ wss.on('connection', (ws, req) => {
             console.log('🔧 WebSocket: Starting Python voxel downsampling process');
             console.log('🔧 WebSocket: Processing Python BE request with type:', type);
             console.log('🔧 WebSocket: Python globalBounds:', globalBounds);
-            const pythonExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample_python.py');
+            const pythonExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample_cython.py');
             console.log('🔧 WebSocket: Python executable path:', pythonExecutable);
             
             let pythonProcess;
