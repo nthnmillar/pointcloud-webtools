@@ -814,7 +814,7 @@ wss.on('connection', (ws, req) => {
             console.log('🔧 WebSocket: Starting Python voxel debug process');
             console.log('🔧 WebSocket: Processing Python BE request with type:', type);
             console.log('🔧 WebSocket: Python globalBounds:', globalBounds);
-            const pythonExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug_python.py');
+            const pythonExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug_cython.py');
             console.log('🔧 WebSocket: Python executable path:', pythonExecutable);
             
             let pythonProcess;
