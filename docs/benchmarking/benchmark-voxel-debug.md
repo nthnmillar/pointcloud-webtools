@@ -29,48 +29,49 @@ See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algo
 
 | Implementation | Time (ms) | Relative Speed | Notes |
 |---------------|-----------|----------------|-------|
-| **C++ WASM Main** | 131 ms | 1.0x | Fastest WASM implementation |
-| **Rust WASM Main** | 145 ms | 1.11x | Very close to C++ WASM |
-| **TypeScript** | 197 ms | 1.50x | Good performance, pure JS |
-| **C++ WASM Worker** | 168 ms | 1.28x | Good performance with worker overhead |
-| **Rust WASM Worker** | 200 ms | 1.53x | Worker overhead more noticeable |
-| **Rust Backend** | 701 ms | Baseline | Fastest backend |
-| **Python Backend (Cython)** | 709 ms | 1.01x | Nearly identical to Rust BE! |
-| **C++ Backend** | 1,564 ms | 2.23x | Significantly slower than Rust/Python |
+| **C++ WASM Main** | 157 ms | 1.0x | Fastest WASM implementation |
+| **Rust WASM Main** | 160 ms | 1.02x | Very close to C++ WASM |
+| **C++ WASM Worker** | 163 ms | 1.04x | Minimal worker overhead |
+| **Rust WASM Worker** | 185 ms | 1.18x | Slightly more worker overhead |
+| **TypeScript** | 205 ms | 1.31x | Good performance, pure JS |
+| **C++ Backend** | 403 ms | 2.57x | Fastest backend (after binary optimization) |
+| **Rust Backend** | 663 ms | 4.22x | Good performance |
+| **Python Backend (Cython)** | 699 ms | 4.45x | Very close to Rust BE |
 
 ### Performance Analysis
 
 #### Browser Performance (WASM) - C++ and Rust are Very Close
-- **C++ WASM Main** (131ms) is **slightly faster** than **Rust WASM Main** (145ms) - only 11% difference
+- **C++ WASM Main** (157ms) is **slightly faster** than **Rust WASM Main** (160ms) - only 2% difference
 - Both use **LLVM-based compilers** (Emscripten for C++, native LLVM for Rust)
 - Both use integer keys for HashSet operations
-- The small difference is due to hash set implementation details and compiler optimizations
+- Worker overhead is minimal for both implementations
 
-#### Backend Performance - Python Cython Nearly Matches Rust!
+#### Backend Performance - C++ BE is Fastest After Binary Optimization
 
-**Key Finding**: **Python Backend (Cython)** at 709ms is **nearly identical** to **Rust Backend** at 701ms (only 1% difference)!
+**Key Finding**: After implementing **binary protocol optimization**, **C++ Backend** (403ms) is now **fastest**, followed by Rust BE (663ms) and Python BE (699ms).
 
-**Why Cython Python is Fast:**
-1. **Compiled to C**: Cython compiles Python code to C, which is then compiled to native machine code
-2. **Type Annotations**: Uses `cdef` type declarations to eliminate Python object overhead
-3. **C-Level Operations**: Uses C `floor()` function, direct memory access, and C-style loops
-4. **Integer Keys**: Uses integer keys (same as C++/Rust) instead of Python tuples, avoiding Python object creation overhead
-5. **Binary I/O**: Uses binary protocol (no JSON parsing overhead)
-6. **Optimized Compilation**: Compiled with `-O3 -march=native -ffast-math` flags
+**Why C++ BE is Fastest:**
+1. **Binary Protocol**: All backends now use WebSocket with binary protocol instead of HTTP/JSON, eliminating serialization overhead
+2. **Optimized Compilation**: Compiled with `clang++` using `-O3 -march=native -ffast-math -flto` flags
+3. **Efficient I/O**: Single `memcpy` for header reading, direct binary I/O
+4. **Hash Set Performance**: Uses `std::unordered_map` with integer keys, well-optimized by compiler
 
-**Why C++ Backend is Slow (2.2x slower than Rust/Python):**
-1. **Hash Set Implementation**: Uses `ankerl::unordered_dense::set` with `FastHash`, but still slower than Rust's `FxHashSet`
-2. **Hash Function Overhead**: Despite using `FastHash` (matching Rust's FxHash algorithm), the C++ hash set implementation has more overhead
-3. **Memory Layout**: Rust's `FxHashSet` is specifically optimized for integer keys and has better cache locality
-4. **Compiler Optimizations**: Rust's compiler may apply more aggressive optimizations for hash set operations
+**Why Rust BE and Python BE are Close:**
+- **Rust BE** (663ms): Uses `FxHashSet` with integer keys, highly optimized
+- **Python BE** (699ms): Cython compiles to C, uses integer keys, nearly matches Rust performance
+- Both benefit from binary protocol optimization
 
-**Key Insight**: For HashSet-heavy algorithms like voxel debug, **Rust's `FxHashSet` and Cython's compiled dict are both highly optimized**, while C++'s hash set implementations (even with external libraries) have inherent overhead that's difficult to eliminate.
+**Binary Protocol Impact:**
+The switch from HTTP/JSON to WebSocket/binary protocol was critical for backend performance:
+- Eliminates JSON serialization/deserialization overhead
+- Zero-copy data transfer between Node.js and native processes
+- Direct binary I/O for point cloud data
 
 ### Accuracy Verification
 
-All implementations produce **identical results**:
+All implementations produce **consistent results**:
 - ✅ Same voxel count (~25,942, within input variance)
-- ✅ Same voxel center positions (TypeScript and Python BE match exactly; C++/Rust/WASM may have minor position differences due to integer packing/extraction)
+- ⚠️ Voxel center positions may have minor differences between implementations due to floating-point precision and coordinate extraction methods
 
 ## Key Differences from Voxel Downsampling
 
@@ -87,7 +88,7 @@ const parseRegex = /^(-?\d+),(-?\d+),(-?\d+)$/;
 const match = voxelKey.match(parseRegex);
 ```
 
-### C++ WASM Integer Keys
+### C++ WASM/BE Integer Keys
 ```cpp
 uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
                    (static_cast<uint64_t>(voxelY) << 16) |
@@ -109,32 +110,41 @@ voxel_key = (<long long>voxel_x << 32) | (<long long>voxel_y << 16) | <long long
 voxel_keys[voxel_key] = None  # dict with integer keys
 ```
 
+## Key Optimizations Applied
+
+### Binary Protocol (All Backends)
+All backend implementations now use **WebSocket with binary protocol** instead of HTTP with JSON:
+- **Eliminates JSON serialization overhead** (significant for large point clouds)
+- **Zero-copy data transfer**: Direct binary I/O between Node.js and native processes
+- **Frontend**: Sends binary data directly via WebSocket (`ws.send(pointCloudData.buffer)`) - no JSON conversion
+- **Backend**: Sends binary response directly via WebSocket (`ws.send(voxelGridPositionsBuffer)`) - no JSON conversion
+
+This optimization was critical - it significantly improved all backend performance, with C++ BE benefiting the most.
+
 ## Recommendations
 
 ### For Browser (WASM)
-- **Use C++ WASM Main** (131ms) for fastest performance if UI blocking is acceptable
-- **Use Rust WASM Main** (145ms) for very close performance with Rust's safety guarantees
-- **Use C++ WASM Worker** (168ms) for non-blocking processing
-- **Use TypeScript** (197ms) for simpler code and good performance
+- **Use C++ WASM Main** (157ms) for fastest performance if UI blocking is acceptable
+- **Use Rust WASM Main** (160ms) for very close performance with Rust's safety guarantees
+- **Use C++ WASM Worker** (163ms) for non-blocking processing with minimal overhead
+- **Use TypeScript** (205ms) for simpler code and good performance
 
 ### For Backend
-- **Use Rust Backend** (701ms) or **Python Backend (Cython)** (709ms) - both are nearly identical in performance!
-- **Avoid C++ Backend** (1,564ms) - 2.2x slower than Rust/Python due to hash set implementation overhead
-- **Key Insight**: Cython Python is as fast as Rust for this HashSet-heavy algorithm, making it an excellent choice if you prefer Python's ecosystem
+- **Use C++ Backend** (403ms) - fastest backend implementation
+- **Use Rust Backend** (663ms) - good performance, excellent safety guarantees
+- **Use Python Backend (Cython)** (699ms) - very close to Rust, excellent if you prefer Python ecosystem
+
+All backends are now well-optimized with binary protocol, making them suitable for production use.
 
 ## Technical Notes
 
-### Why Python Cython Matches Rust Performance
-1. **Compiled to Native Code**: Cython compiles to C, which is then compiled to native machine code with full optimizations
-2. **Zero Python Overhead**: `cdef` type declarations eliminate Python object creation and method dispatch
-3. **C-Level Operations**: Direct C function calls (`floor()`, memory access) bypass Python interpreter
-4. **Integer Keys**: Uses integer keys (same as C++/Rust) instead of Python tuples, avoiding object creation
-5. **Optimized Compilation**: `-O3 -march=native -ffast-math` flags enable maximum optimization
+### Binary Protocol Implementation
+All backend implementations use the same binary protocol:
+1. **Input**: JSON header (small metadata) + binary `Float32Array` for point cloud data
+2. **Output**: JSON header (metadata) + binary `Float32Array` for voxel grid positions
+3. **Zero-copy**: Frontend creates `Float32Array` directly from `ArrayBuffer` without conversion
 
-### Why C++ Backend is Slower
-Despite using `ankerl::unordered_dense::set` (a high-performance hash set) and `FastHash` (matching Rust's FxHash algorithm), C++ backend is still 2.2x slower because:
-1. **Library Overhead**: Even optimized C++ hash set libraries have more overhead than Rust's `FxHashSet`
-2. **Memory Layout**: Rust's `FxHashSet` is specifically optimized for integer keys with better cache locality
-3. **Compiler Optimizations**: Rust's compiler applies more aggressive optimizations for hash set operations
-4. **Hash Function**: While `FastHash` matches FxHash algorithm, the integration with C++ hash set may have overhead
-
+### Compiler Optimizations
+- **C++ BE**: `clang++` with `-O3 -march=native -ffast-math -flto`
+- **Rust BE**: `opt-level = 3`, `lto = "fat"`, `codegen-units = 1`
+- **Python BE**: Cython compiled with `-O3 -march=native -ffast-math`

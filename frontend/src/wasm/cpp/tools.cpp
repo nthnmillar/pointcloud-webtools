@@ -512,15 +512,16 @@ void showVoxelDebug(const emscripten::val& inputPoints, float voxelSize, float m
     float offsetZ = minZ + halfVoxelSize;
     
     for (const uint64_t voxelKey : voxelKeys) {
-        // Extract voxel coordinates from integer key
-        int voxelX = static_cast<int>(voxelKey >> 32);
-        int voxelY = static_cast<int>((voxelKey >> 16) & 0xFFFF);
-        int voxelZ = static_cast<int>(voxelKey & 0xFFFF);
+        // Extract voxel coordinates from integer key (same as internal function)
+        // voxelX: bits 32-63 (32 bits), voxelY: bits 16-31 (16 bits), voxelZ: bits 0-15 (16 bits)
+        int voxelX = static_cast<int32_t>(voxelKey >> 32);
+        int voxelY = static_cast<int16_t>((voxelKey >> 16) & 0xFFFF); // Sign-extend 16-bit to int
+        int voxelZ = static_cast<int16_t>(voxelKey & 0xFFFF); // Sign-extend 16-bit to int
         
         // Calculate voxel grid position (center of voxel grid cell)
-        float gridX = offsetX + voxelX * voxelSize;
-        float gridY = offsetY + voxelY * voxelSize;
-        float gridZ = offsetZ + voxelZ * voxelSize;
+        float gridX = offsetX + static_cast<float>(voxelX) * voxelSize;
+        float gridY = offsetY + static_cast<float>(voxelY) * voxelSize;
+        float gridZ = offsetZ + static_cast<float>(voxelZ) * voxelSize;
         
         g_voxelDebug.voxelCenters.emplace_back(gridX, gridY, gridZ);
     }
