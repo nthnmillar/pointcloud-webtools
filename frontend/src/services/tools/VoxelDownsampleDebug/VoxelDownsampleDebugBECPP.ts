@@ -23,122 +23,195 @@ export interface VoxelDebugResult {
   error?: string;
 }
 
+interface VoxelDebugResponseHeader {
+  type: 'voxel_debug_cpp_result';
+  requestId: string;
+  success: boolean;
+  voxelCount: number;
+  processingTime: number;
+  dataLength: number;
+  error?: string;
+}
+
 export class VoxelDownsampleDebugBECPP extends BaseService {
+  private ws: WebSocket | null = null;
+  private pendingRequests = new Map<string, { resolve: (value: VoxelDebugResult) => void; reject: (reason?: unknown) => void }>();
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
+  private pendingHeader: VoxelDebugResponseHeader | null = null; // Track pending binary data header
+
   constructor(_serviceManager: ServiceManager) {
     super();
+    this.connect();
   }
 
   async initialize(): Promise<void> {
+    // WebSocket connection is handled in constructor
     this.isInitialized = true;
-    Log.Info('VoxelDownsampleDebugBECPP', 'Backend debug service initialized for C++ processing');
-  }
-
-  private async retryBackendRequest<T>(
-    requestFn: () => Promise<T>,
-    maxRetries: number = 5,
-    delayMs: number = 1000
-  ): Promise<T> {
-    let lastError: Error | null = null;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await requestFn();
-      } catch (error) {
-        lastError = error as Error;
-        
-        // Check if this is a network error (backend not ready)
-        const isNetworkError = error instanceof TypeError && 
-          (error.message.includes('fetch') || error.message.includes('CORS'));
-        
-        if (isNetworkError && attempt < maxRetries) {
-          Log.Info('VoxelDownsampleDebugBECPP', `Backend not ready, retrying in ${delayMs}ms (attempt ${attempt}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-          continue;
-        }
-        
-        // If it's not a network error or we've exhausted retries, throw
-        throw error;
-      }
-    }
-    
-    throw lastError;
-  }
-
-  async generateVoxelCenters(params: VoxelDebugParams): Promise<VoxelDebugResult> {
-    console.log('🔧 Backend Debug: Using real C++ backend processing for voxel debug generation', {
-      pointCount: params.pointCloudData.length / 3,
-      voxelSize: params.voxelSize,
-      bounds: params.globalBounds
-    });
-    
-    try {
-      const startTime = performance.now();
-      
-      // Use retry mechanism for backend request
-      const result = await this.retryBackendRequest(async () => {
-        const response = await fetch('http://localhost:3003/api/voxel-debug', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            pointCloudData: Array.from(params.pointCloudData),
-            voxelSize: params.voxelSize,
-            globalBounds: params.globalBounds
-          })
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Backend request failed: ${response.status} ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        
-        if (!result.success) {
-          throw new Error(result.error || 'Backend processing failed');
-        }
-        
-        return result;
-      });
-      
-      // Convert backend result to Float32Array
-      const voxelCenters = new Float32Array(result.voxelCenters || []);
-      const processingTime = performance.now() - startTime;
-      
-      console.log('🔧 Backend Debug: Real C++ backend result', {
-        voxelCount: result.voxelCount || 0,
-        voxelCentersLength: result.voxelCenters?.length || 0,
-        firstFewCenters: result.voxelCenters?.slice(0, 9) || [],
-        voxelCentersArray: Array.from(voxelCenters).slice(0, 9),
-        processingTime: processingTime.toFixed(2) + 'ms'
-      });
-      
-      Log.Info('VoxelDownsampleDebugBECPP', 'Voxel centers generated using real C++ backend', {
-        voxelCount: result.voxelCount || 0,
-        processingTime: processingTime.toFixed(2) + 'ms'
-      });
-
-      return {
-        success: true,
-        voxelCenters: voxelCenters,
-        voxelCount: result.voxelCount || 0,
-        processingTime
-      };
-    } catch (error) {
-      Log.Error('VoxelDownsampleDebugBECPP', 'Real C++ backend voxel centers generation failed after retries', error);
-      
-      // No fallback - BE must use real C++ processing for benchmarking
-      console.log('🔧 Backend Debug: No fallback allowed - BE must use real C++ processing');
-      
-      
-      return {
-        success: false,
-        error: 'Backend C++ processing required for benchmarking - no fallback allowed'
-      };
-    }
   }
 
   dispose(): void {
-    // Cleanup implementation if needed
+    this.destroy();
+  }
+
+  private connect(): void {
+    try {
+      Log.Info('VoxelDownsampleDebugBECPP', 'Connecting to WebSocket', { baseUrl: 'ws://localhost:3003' });
+      
+      this.ws = new WebSocket('ws://localhost:3003');
+      
+      this.ws.onopen = () => {
+        Log.Info('VoxelDownsampleDebugBECPP', 'WebSocket connected');
+        this.reconnectAttempts = 0;
+      };
+      
+      this.ws.onmessage = async (event) => {
+        try {
+          // Check if this is binary data or JSON header
+          if (event.data instanceof ArrayBuffer) {
+            // This is binary data
+            if (this.pendingHeader && this.pendingHeader.type === 'voxel_debug_cpp_result' && this.pendingHeader.success) {
+              // Create Float32Array directly from binary data (zero-copy!)
+              const voxelCenters = new Float32Array(event.data, 0, this.pendingHeader.dataLength);
+              
+              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+              if (pending) {
+                this.pendingRequests.delete(this.pendingHeader.requestId);
+                
+                const result: VoxelDebugResult = {
+                  success: true,
+                  voxelCenters: voxelCenters,
+                  voxelCount: this.pendingHeader.voxelCount,
+                  processingTime: this.pendingHeader.processingTime
+                };
+                pending.resolve(result);
+              }
+              this.pendingHeader = null;
+            }
+          } else if (event.data instanceof Blob) {
+            // Convert Blob to ArrayBuffer
+            const arrayBuffer = await event.data.arrayBuffer();
+            if (this.pendingHeader && this.pendingHeader.type === 'voxel_debug_cpp_result' && this.pendingHeader.success) {
+              const voxelCenters = new Float32Array(arrayBuffer, 0, this.pendingHeader.dataLength);
+              
+              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+              if (pending) {
+                this.pendingRequests.delete(this.pendingHeader.requestId);
+                
+                const result: VoxelDebugResult = {
+                  success: true,
+                  voxelCenters: voxelCenters,
+                  voxelCount: this.pendingHeader.voxelCount,
+                  processingTime: this.pendingHeader.processingTime
+                };
+                pending.resolve(result);
+              }
+              this.pendingHeader = null;
+            }
+          } else {
+            // This is JSON header
+            const message = JSON.parse(event.data as string);
+            
+            if (message.type === 'voxel_debug_cpp_result') {
+              if (message.success && message.dataLength) {
+                // Store header and wait for binary data
+                this.pendingHeader = message;
+              } else {
+                // Error response (no binary data)
+                const { requestId, error } = message;
+                const pending = this.pendingRequests.get(requestId);
+                if (pending) {
+                  this.pendingRequests.delete(requestId);
+                  pending.reject(new Error(error || 'C++ BE WebSocket debug processing failed'));
+                }
+              }
+            }
+          }
+        } catch (error) {
+          Log.Error('VoxelDownsampleDebugBECPP', 'Error parsing WebSocket message', error);
+        }
+      };
+      
+      this.ws.onclose = () => {
+        Log.Info('VoxelDownsampleDebugBECPP', 'WebSocket disconnected');
+        this.ws = null;
+        
+        // Attempt to reconnect
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          Log.Info('VoxelDownsampleDebugBECPP', `Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+          setTimeout(() => this.connect(), this.reconnectDelay * this.reconnectAttempts);
+        }
+      };
+      
+      this.ws.onerror = (error) => {
+        Log.Error('VoxelDownsampleDebugBECPP', 'WebSocket error', error);
+        console.error('🔧 VoxelDownsampleDebugBECPP: WebSocket error:', error);
+      };
+      
+    } catch (error) {
+      console.error('🔧 VoxelDownsampleDebugBECPP: Failed to connect WebSocket:', error);
+      Log.Error('VoxelDownsampleDebugBECPP', 'Failed to connect WebSocket', error);
+    }
+  }
+
+  async generateVoxelCenters(params: VoxelDebugParams): Promise<VoxelDebugResult> {
+    Log.Info('VoxelDownsampleDebugBECPP', 'Starting voxel debug generation via WebSocket', {
+      pointCount: params.pointCloudData.length / 3,
+      voxelSize: params.voxelSize
+    });
+    
+    return new Promise((resolve, reject) => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        console.error('🔧 VoxelDownsampleDebugBECPP: WebSocket not connected', {
+          wsExists: !!this.ws,
+          readyState: this.ws?.readyState,
+          expectedState: WebSocket.OPEN
+        });
+        Log.Error('VoxelDownsampleDebugBECPP', 'WebSocket not connected', {
+          wsExists: !!this.ws,
+          readyState: this.ws?.readyState
+        });
+        reject(new Error('WebSocket not connected'));
+        return;
+      }
+
+      const requestId = `debug_cpp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Store the promise resolvers
+      this.pendingRequests.set(requestId, { resolve, reject });
+
+      // Send binary data directly - no JSON serialization of points!
+      const header = {
+        type: 'voxel_debug_cpp',
+        requestId,
+        voxelSize: params.voxelSize,
+        globalBounds: params.globalBounds,
+        dataLength: params.pointCloudData.length
+      };
+
+      // Send header as JSON (small)
+      this.ws.send(JSON.stringify(header));
+      
+      // Send binary data directly (fast)
+      this.ws.send(params.pointCloudData.buffer);
+
+      // Set a timeout
+      setTimeout(() => {
+        if (this.pendingRequests.has(requestId)) {
+          this.pendingRequests.delete(requestId);
+          reject(new Error('C++ BE WebSocket debug timeout'));
+        }
+      }, 30000); // 30 second timeout
+    });
+  }
+
+  destroy(): void {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    this.pendingRequests.clear();
   }
 }

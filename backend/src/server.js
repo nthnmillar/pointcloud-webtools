@@ -148,6 +148,9 @@ wss.on('connection', (ws, req) => {
           // Store header and wait for binary data
           console.log('🔧 Backend: Setting pendingHeader for point_smooth_python:', message);
           pendingHeader = message;
+        } else if (message.type === 'voxel_debug_cpp') {
+          // Store header and wait for binary data
+          pendingHeader = message;
         } else if (message.type === 'voxel_debug_rust') {
           // Store header and wait for binary data
           pendingHeader = message;
@@ -692,6 +695,141 @@ wss.on('connection', (ws, req) => {
             pythonProcess.stdin.write(JSON.stringify(input));
             pythonProcess.stdin.end();
             
+          } else if (type === 'voxel_debug_cpp') {
+            // Handle C++ voxel debug
+            console.log('🔧 WebSocket: Starting C++ voxel debug process');
+            const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug');
+            console.log('🔧 WebSocket: C++ executable path:', cppExecutable);
+            
+            let cppProcess;
+            try {
+              cppProcess = spawn(cppExecutable);
+              console.log('🔧 WebSocket: C++ process spawned successfully');
+            } catch (spawnError) {
+              console.error('🔧 WebSocket: Failed to spawn C++ process:', spawnError);
+              ws.send(JSON.stringify({
+                type: 'voxel_debug_cpp_result',
+                requestId,
+                success: false,
+                error: 'Failed to spawn C++ process: ' + spawnError.message
+              }));
+              return;
+            }
+            
+            // Use binary protocol (same as HTTP endpoint)
+            const pointCount = points.length / 3;
+            const pointsFloat32 = new Float32Array(points);
+            
+            // Create binary header buffer (32 bytes: 4 for u32 + 7*4 for floats)
+            const headerBuffer = Buffer.allocUnsafe(32);
+            headerBuffer.writeUInt32LE(pointCount, 0);
+            headerBuffer.writeFloatLE(voxelSize, 4);
+            headerBuffer.writeFloatLE(globalBounds.minX, 8);
+            headerBuffer.writeFloatLE(globalBounds.minY, 12);
+            headerBuffer.writeFloatLE(globalBounds.minZ, 16);
+            headerBuffer.writeFloatLE(globalBounds.maxX, 20);
+            headerBuffer.writeFloatLE(globalBounds.maxY, 24);
+            headerBuffer.writeFloatLE(globalBounds.maxZ, 28);
+            
+            // Convert Float32Array to Buffer for point data (binary, no JSON!)
+            const pointDataBuffer = Buffer.from(pointsFloat32.buffer, pointsFloat32.byteOffset, pointsFloat32.byteLength);
+            
+            // Combine header + data
+            const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
+            
+            let outputBuffer = Buffer.alloc(0);
+            let errorData = '';
+
+            cppProcess.stdout.on('data', (data) => {
+              outputBuffer = Buffer.concat([outputBuffer, data]);
+            });
+
+            cppProcess.stderr.on('data', (data) => {
+              const errorText = data.toString();
+              errorData += errorText;
+              if (errorText.trim()) {
+                console.error('🔧 WebSocket: C++ voxel debug stderr:', errorText);
+              }
+            });
+
+            cppProcess.on('error', (error) => {
+              console.error('🔧 WebSocket: C++ voxel debug process error:', error);
+              ws.send(JSON.stringify({
+                type: 'voxel_debug_cpp_result',
+                requestId,
+                success: false,
+                error: 'C++ process failed to start'
+              }));
+            });
+            
+            cppProcess.on('close', (code) => {
+              console.log(`🔧 WebSocket: C++ voxel debug process closed with code ${code}, outputBuffer.length: ${outputBuffer.length}`);
+              
+              if (code !== 0) {
+                console.error(`🔧 WebSocket: C++ voxel debug process exited with code ${code}`);
+                ws.send(JSON.stringify({
+                  type: 'voxel_debug_cpp_result',
+                  requestId,
+                  success: false,
+                  error: `C++ process exited with code ${code}: ${errorData}`
+                }));
+                return;
+              }
+
+              try {
+                // Read binary output (no JSON parsing!)
+                // Binary format: [u32 voxelCount][f32* voxelGridPositions]
+                if (outputBuffer.length < 4) {
+                  throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+                }
+                
+                const voxelCount = outputBuffer.readUInt32LE(0);
+                const expectedSize = 4 + voxelCount * 3 * 4; // 4 bytes header + voxelCount * 3 floats * 4 bytes
+                
+                if (outputBuffer.length < expectedSize) {
+                  throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
+                }
+                
+                // Extract voxel grid positions (skip 4-byte header)
+                const voxelGridPositionsBuffer = outputBuffer.slice(4, expectedSize);
+                const voxelGridPositions = new Float32Array(voxelGridPositionsBuffer.buffer, voxelGridPositionsBuffer.byteOffset, voxelCount * 3);
+                
+                const processingTime = Date.now() - startTime;
+
+                // Send binary response directly (no JSON conversion overhead!)
+                // Format: JSON header with metadata, then binary data
+                const responseHeader = {
+                  type: 'voxel_debug_cpp_result',
+                  requestId,
+                  success: true,
+                  voxelCount: voxelCount,
+                  processingTime: processingTime,
+                  dataLength: voxelCount * 3
+                };
+                
+                // Send header as JSON
+                ws.send(JSON.stringify(responseHeader));
+                
+                // Send binary data directly - use the sliced buffer
+                ws.send(voxelGridPositionsBuffer);
+              } catch (parseError) {
+                console.error('🔧 WebSocket: C++ voxel debug binary protocol error:', parseError);
+                console.error('🔧 WebSocket: C++ voxel debug stderr:', errorData);
+                console.error('🔧 WebSocket: C++ voxel debug stdout length:', outputBuffer.length);
+                ws.send(JSON.stringify({
+                  type: 'voxel_debug_cpp_result',
+                  requestId,
+                  success: false,
+                  error: `Binary protocol error: ${parseError.message}`
+                }));
+              }
+            });
+            
+            // Send binary input to C++ process (no JSON serialization!)
+            console.log('🔧 WebSocket: Writing', inputBuffer.length, 'bytes to C++ voxel debug stdin');
+            cppProcess.stdin.write(inputBuffer);
+            cppProcess.stdin.end();
+            
           } else if (type === 'voxel_debug_rust') {
             // Handle Rust voxel debug
             console.log('🔧 WebSocket: Starting Rust voxel debug process');
@@ -793,16 +931,22 @@ wss.on('connection', (ws, req) => {
                 
                 const processingTime = Date.now() - startTime;
 
-                ws.send(JSON.stringify({
+                // Send binary response directly (no JSON conversion overhead!)
+                // Format: JSON header with metadata, then binary data
+                const responseHeader = {
                   type: 'voxel_debug_rust_result',
                   requestId,
                   success: true,
-                  data: {
-                    voxelGridPositions: Array.from(voxelGridPositions),
-                    voxelCount: voxelCount,
-                    processingTime: processingTime
-                  }
-                }));
+                  voxelCount: voxelCount,
+                  processingTime: processingTime,
+                  dataLength: voxelCount * 3
+                };
+                
+                // Send header as JSON
+                ws.send(JSON.stringify(responseHeader));
+                
+                // Send binary data directly - use the sliced buffer
+                ws.send(voxelGridPositionsBuffer);
               } catch (parseError) {
                 console.error('🔧 WebSocket: Rust voxel debug binary protocol error:', parseError);
                 console.error('🔧 WebSocket: Rust voxel debug stderr:', errorData);
@@ -922,16 +1066,22 @@ wss.on('connection', (ws, req) => {
                 
                 const processingTime = Date.now() - startTime;
                 
-                ws.send(JSON.stringify({
+                // Send binary response directly (no JSON conversion overhead!)
+                // Format: JSON header with metadata, then binary data
+                const responseHeader = {
                   type: 'voxel_debug_python_result',
                   requestId,
                   success: true,
-                  data: {
-                    voxelGridPositions: Array.from(voxelGridPositions),
-                    voxelCount: voxelCount,
-                    processingTime: processingTime
-                  }
-                }));
+                  voxelCount: voxelCount,
+                  processingTime: processingTime,
+                  dataLength: voxelCount * 3
+                };
+                
+                // Send header as JSON
+                ws.send(JSON.stringify(responseHeader));
+                
+                // Send binary data directly - use the sliced buffer
+                ws.send(voxelGridPositionsBuffer);
               } catch (parseError) {
                 console.error('🔧 WebSocket: Python voxel debug binary protocol error:', parseError);
                 console.error('🔧 WebSocket: Python voxel debug stderr:', errorData);
