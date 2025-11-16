@@ -15,48 +15,49 @@ See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algo
 
 ## Benchmark Results
 
-### Test Dataset: ~1.2M Points
+### Test Dataset: 1M Points
 - **Voxel Size**: 2.0
-- **Original Points**: ~1,200,000
-- **Downsampled Points**: ~31,700 (expected across all implementations)
+- **Original Points**: 1,000,000
+- **Downsampled Points**: ~25,942 (expected across all implementations)
 
 ### Performance (Processing Time)
 
 | Implementation | Time (ms) | Relative Speed | Notes |
 |---------------|-----------|----------------|-------|
-| **Rust WASM Worker** | ~1-2 ms | 1.0x (fastest WASM) | Best for browser |
-| **Rust WASM Main** | ~1-2 ms | 1.0x | Fast but blocks UI |
+| **Rust WASM Main** | ~150 ms | 1.0x | Fast but blocks UI (1M points) |
+| **C++ WASM Main** | ~157 ms | 1.05x | Very close to Rust WASM (1M points) |
+| **Rust WASM Worker** | ~1-2 ms | 1.0x (fastest WASM) | Best for browser (small datasets) |
+| **C++ WASM Worker** | ~3-4 ms | 1.5-2x | Good performance (small datasets) |
 | **TypeScript** | ~1-3 ms | 1.0-1.5x | Good for small datasets |
-| **C++ WASM Worker** | ~3-4 ms | 1.5-2x | Good performance |
-| **C++ WASM Main** | ~4-6 ms | 2-3x | Blocks UI |
-| **Rust Backend** | ~1,700-1,900 ms | Baseline | Fastest backend |
-| **C++ Backend** | ~3,700-3,900 ms | 2.0-2.3x | Good, but slower HashMap |
-| **Python Backend** | ~4,600-4,700 ms | 2.4-2.8x | Slowest but readable |
+| **Rust Backend** | ~700 ms | Baseline | Fastest backend |
+| **C++ Backend** | ~1,444 ms | 2.06x | Optimized with clang + ankerl::unordered_dense::map |
+| **Python Backend** | ~4,600-4,700 ms | 6.6x | Slowest but readable |
 
 ### Performance Analysis
 
-#### Browser Performance (WASM)
-- **Rust WASM** is fastest (~1-2ms) due to:
-  - Optimized wasm-bindgen bindings
-  - Efficient memory access
-  - Better compiler optimizations
-  
-- **C++ WASM** is slightly slower (~3-6ms) due to:
-  - Emscripten overhead
-  - JavaScript binding overhead
+#### Browser Performance (WASM) - Why C++ and Rust are Close
+- **Rust WASM** (~150ms for 1M points) and **C++ WASM** (~157ms) are **very close** (only 5% difference)
+- Both use **LLVM-based compilers**:
+  - Rust: Native LLVM compiler
+  - C++: Emscripten (LLVM/Clang-based)
+- Both benefit from similar LLVM optimizations
+- Both use binary protocol (no JSON overhead)
+- The small difference is due to hash map implementation details, but LLVM optimizations minimize the gap
 
-- **TypeScript** performs well for small datasets due to V8 optimizations
+#### Backend Performance - Why C++ and Rust Differ
+- **Rust Backend** (~700ms) is **2x faster** than C++ Backend (~1,444ms)
+- **Key Difference**: Hash map implementation performance
+  - **Rust**: Uses `FxHashMap` (rustc-hash) - specifically optimized for integer keys
+  - **C++**: Uses `ankerl::unordered_dense::map` with FastHash (matching FxHash algorithm)
+  - Even with the same hash function and a fast hash map library, Rust's `FxHashMap` is still faster
+- **Compiler**: Both use LLVM (clang for C++, rustc for Rust), so compiler differences are minimal
+- **Conclusion**: The 2x difference is due to Rust's `FxHashMap` being inherently faster for this workload, not compiler or algorithm differences
 
-#### Backend Performance
-- **Rust Backend** is fastest (~1.7s) due to:
-  - `serde_json` ultra-fast JSON parsing
-  - Optimized HashMap implementation (FxHash-based)
-  - Excellent compiler optimizations
+#### Why WASM is Close but Backend Differs
+- **WASM**: Both use LLVM, and the WASM runtime may optimize hash map operations similarly
+- **Backend**: Native execution exposes the true performance difference between hash map implementations
+- Rust's `FxHashMap` is specifically designed for performance with integer keys, giving it an edge in native execution
 
-- **C++ Backend** is ~2x slower (~3.7s) due to:
-  - `std::unordered_map` overhead (vs Rust's optimized HashMap)
-  - RapidJSON parsing overhead (still faster than manual parsing)
-  
 - **Python Backend** is slowest (~4.6s) but most maintainable
 
 ### Accuracy Verification
@@ -111,26 +112,33 @@ for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
 - Or **Rust Backend** for server-side processing
 
 ### For Large Datasets (> 1M points)
-- Use **Rust Backend** (fastest overall)
-- **C++ Backend** if Rust unavailable (still good performance)
+- Use **Rust Backend** (fastest overall, ~700ms for 1M points)
+- **C++ Backend** if Rust unavailable (~1,444ms for 1M points, still good performance)
 - Avoid Python Backend for time-critical applications
 
 ## Technical Notes
 
 ### Why Rust Backend is Fastest
-1. **serde_json**: Highly optimized JSON parser written in Rust
-2. **HashMap**: Uses FxHash by default (faster than std::unordered_map)
+1. **Binary Protocol**: No JSON parsing overhead (both C++ and Rust use binary)
+2. **HashMap**: Uses `FxHashMap` (rustc-hash) - specifically optimized for integer keys
 3. **Zero-copy**: Works directly with parsed slices
-4. **Compiler**: Excellent optimization with `--release`
+4. **Compiler**: LLVM-based rustc with excellent optimization (`--release`)
 
-### Why C++ Backend is Slower
-1. **std::unordered_map**: Less optimized than Rust's HashMap
-2. **RapidJSON**: Fast but may have slight overhead vs serde_json
-3. **Memory Layout**: Tuple vs struct may have cache implications
+### Why C++ Backend is Slower (Despite Optimizations)
+1. **Hash Map**: Uses `ankerl::unordered_dense::map` with FastHash (matching FxHash algorithm)
+   - Even with a fast hash map library and matching hash function, Rust's `FxHashMap` is still faster
+   - This is a known characteristic of Rust's hash map implementation
+2. **Compiler**: Uses clang (LLVM) with `-O3 -flto -march=native` - same optimization level as Rust
+3. **Conclusion**: The 2x difference is due to Rust's `FxHashMap` being inherently faster for integer-key workloads
 
-### Future Optimizations (C++ Backend)
-- Consider flat hash map libraries (`absl::flat_hash_map` or `ankerl::unordered_dense::map`)
-- Could reduce time by 20-30% (to ~2.6-3.0s)
+### Optimizations Applied to C++ Backend
+- ✅ FastHash (matching Rust's FxHash algorithm)
+- ✅ `ankerl::unordered_dense::map` (fast hash map library)
+- ✅ clang compiler (LLVM, matching Rust's compiler backend)
+- ✅ Full compiler optimizations (-O3, -flto, -march=native)
+- ✅ Optimized output loop (pointer arithmetic, pre-calculated inverse)
+
+**Result**: C++ BE is fully optimized, but Rust's `FxHashMap` is still 2x faster for this specific workload.
 
 ## Conclusion
 

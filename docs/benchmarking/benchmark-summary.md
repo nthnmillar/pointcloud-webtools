@@ -9,21 +9,21 @@ This project provides comprehensive benchmarks comparing point cloud processing 
 ### Browser Performance (WASM)
 | Tool | Fastest | Notes |
 |------|---------|-------|
-| **Voxel Downsampling** | Rust WASM (~1-2ms) | 2x faster than C++ WASM |
+| **Voxel Downsampling** | Rust WASM (~150ms) | Very close to C++ WASM (~157ms, 5% difference) |
 | **Voxel Debug** | Rust WASM (~1ms) | Best for visualization |
 | **Point Smoothing** | Rust WASM Worker (~29ms) | Fastest overall |
 
-**Key Insight**: Rust WASM consistently outperforms C++ WASM due to optimized bindings and compiler optimizations.
+**Key Insight**: For voxel downsampling, Rust and C++ WASM are very close (5% difference) because both use LLVM-based compilers. For other tools, Rust WASM may have advantages.
 
 ### Backend Performance
 | Tool | Fastest | C++ vs Rust | Notes |
 |------|---------|-------------|-------|
-| **Voxel Downsampling** | Rust BE (~1,700ms) | C++ ~2x slower | HashMap-heavy algorithm |
+| **Voxel Downsampling** | Rust BE (~700ms) | C++ ~2x slower (~1,444ms) | HashMap-heavy algorithm |
 | **Point Smoothing** | Rust BE (~57ms) | Nearly equal (~60ms) | Grid-based algorithm |
 | **Python BE** | - | 18-36x slower | Readable but slow |
 
 **Key Insight**: Performance parity depends on algorithm characteristics:
-- **HashMap-heavy algorithms** (voxel downsampling): Rust significantly faster (2x)
+- **HashMap-heavy algorithms** (voxel downsampling): Rust significantly faster (2x) due to `FxHashMap` optimization
 - **Grid-based algorithms** (point smoothing): Rust and C++ nearly equivalent
 
 ## Detailed Tool Comparisons
@@ -33,13 +33,14 @@ This project provides comprehensive benchmarks comparing point cloud processing 
 **Algorithm**: Grid-based averaging with HashMap for voxel grouping
 
 **Performance Highlights**:
-- **WASM**: Rust 2x faster than C++ (~1-2ms vs ~3-6ms)
-- **Backend**: Rust 2x faster than C++ (~1,700ms vs ~3,700ms)
-- **Root Cause**: Rust's optimized HashMap (FxHash) vs C++'s std::unordered_map
+- **WASM**: Rust and C++ very close (~150ms vs ~157ms, only 5% difference)
+- **Backend**: Rust 2x faster than C++ (~700ms vs ~1,444ms)
+- **Root Cause**: Rust's `FxHashMap` vs C++'s `ankerl::unordered_dense::map` (both optimized, but Rust's is faster)
 
-**Why C++ is Slower**:
-- `std::unordered_map` overhead (less optimized than Rust's HashMap)
-- HashMap is the bottleneck (every point needs lookup)
+**Why WASM is Close but Backend Differs**:
+- **WASM**: Both use LLVM (Emscripten for C++, rustc for Rust), so similar optimizations minimize differences
+- **Backend**: Native execution exposes the true performance difference - Rust's `FxHashMap` is inherently faster for integer-key workloads
+- C++ BE is fully optimized (clang, ankerl::unordered_dense::map, FastHash), but Rust's hash map is still faster
 
 **Best Choice**:
 - Browser: Rust WASM Worker

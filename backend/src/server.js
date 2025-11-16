@@ -1079,7 +1079,10 @@ app.post('/api/voxel-downsample', async (req, res) => {
     const pointsFloat32 = new Float32Array(points);
     
     // Use C++ backend with binary protocol (no JSON serialization!)
-    const cppProcess = await voxelDownsamplePool.getProcess();
+    const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample');
+    console.log('🔧 Spawning C++ process:', cppExecutable);
+    const cppProcess = spawn(cppExecutable);
+    console.log('🔧 C++ process spawned, PID:', cppProcess.pid);
     
     // Create binary header buffer (32 bytes: 4 for uint32 + 7*4 for floats)
     const headerBuffer = Buffer.allocUnsafe(32);
@@ -1103,9 +1106,41 @@ app.post('/api/voxel-downsample', async (req, res) => {
     
     cppProcess.stdout.on('data', (data) => {
       outputBuffer = Buffer.concat([outputBuffer, data]);
+      console.log('🔧 Received', data.length, 'bytes from stdout, total:', outputBuffer.length);
     });
     
-    cppProcess.stdout.on('end', () => {
+    cppProcess.stderr.on('data', (data) => {
+      const errorText = data.toString();
+      errorBuffer += errorText;
+      if (errorText.trim()) {
+        console.error('🔧 C++ stderr:', errorText);
+      }
+    });
+    
+    cppProcess.on('error', (error) => {
+      console.error('C++ process error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          success: false, 
+          error: 'C++ process failed to start' 
+        });
+      }
+    });
+    
+    cppProcess.on('close', (code) => {
+      console.log(`🔧 C++ process closed with code ${code}, outputBuffer.length: ${outputBuffer.length}, errorBuffer length: ${errorBuffer.length}`);
+      
+      if (code !== 0) {
+        console.error(`C++ process exited with code ${code}`);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            error: `C++ process exited with code ${code}. Stderr: ${errorBuffer}` 
+          });
+        }
+        return;
+      }
+      
       try {
         // Read binary output (no JSON parsing!)
         // Binary format: [uint32_t outputCount][float* downsampledPoints]
@@ -1126,71 +1161,49 @@ app.post('/api/voxel-downsample', async (req, res) => {
         
         const processingTime = Date.now() - startTime;
         
-        voxelDownsamplePool.releaseProcess(cppProcess);
-        
-        res.json({
-          success: true,
-          downsampledPoints: Array.from(downsampledPoints), // Only convert to array for JSON response
-          originalCount: pointCount,
-          downsampledCount: outputCount,
-          voxelCount: outputCount,
-          reductionRatio: pointCount / outputCount,
-          processingTime: processingTime,
-          method: 'Backend C++ (binary protocol)'
-        });
+        console.log(`🔧 Sending success response: ${outputCount} points, ${processingTime}ms`);
+        if (!res.headersSent) {
+          res.json({
+            success: true,
+            downsampledPoints: Array.from(downsampledPoints), // Only convert to array for JSON response
+            originalCount: pointCount,
+            downsampledCount: outputCount,
+            voxelCount: outputCount,
+            reductionRatio: pointCount / outputCount,
+            processingTime: processingTime,
+            method: 'Backend C++ (binary protocol)'
+          });
+        } else {
+          console.error('🔧 Response already sent!');
+        }
       } catch (parseError) {
         console.error('C++ Binary protocol error:', parseError);
-        const processingTime = Date.now() - startTime;
-        voxelDownsamplePool.releaseProcess(cppProcess);
-        
+        console.error('C++ stderr:', errorBuffer);
+        console.error('C++ stdout length:', outputBuffer.length);
         if (!res.headersSent) {
           res.status(500).json({
             success: false,
             error: `Binary protocol error: ${parseError.message}. Stderr: ${errorBuffer}`,
-            processingTime
-          });
-        }
-      }
-    });
-    
-    cppProcess.stderr.on('data', (data) => {
-      errorBuffer += data.toString();
-    });
-    
-    cppProcess.on('error', (error) => {
-      console.error('C++ process error:', error);
-      voxelDownsamplePool.releaseProcess(cppProcess);
-      if (!res.headersSent) {
-        res.status(500).json({ 
-          success: false, 
-          error: 'C++ process failed to start' 
-        });
-      }
-    });
-    
-    cppProcess.on('close', (code) => {
-      if (code !== 0) {
-        console.error(`C++ process exited with code ${code}`);
-        voxelDownsamplePool.releaseProcess(cppProcess);
-        if (!res.headersSent) {
-          res.status(500).json({ 
-            success: false, 
-            error: `C++ process exited with code ${code}. Stderr: ${errorBuffer}` 
+            processingTime: Date.now() - startTime
           });
         }
       }
     });
     
     // Send binary input to C++ process (no JSON serialization!)
+    console.log('🔧 Writing', inputBuffer.length, 'bytes to stdin');
     cppProcess.stdin.write(inputBuffer);
     cppProcess.stdin.end();
+    console.log('🔧 Stdin closed');
     
   } catch (error) {
     console.error('Voxel downsampling error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
   }
 });
 
