@@ -1352,90 +1352,49 @@ app.post('/api/voxel-debug', async (req, res) => {
     }
 
     const startTime = Date.now();
-    
-    // Use real C++ backend processing
-    console.log('🔧 Backend: Using real C++ backend processing for voxel debug');
-    
-    // Path to the C++ executable
-    const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug');
-    
-    // Prepare input for C++ program
     const pointCount = pointCloudData.length / 3;
-    const input = `${pointCount} ${voxelSize} ${globalBounds.minX} ${globalBounds.minY} ${globalBounds.minZ} ${globalBounds.maxX} ${globalBounds.maxY} ${globalBounds.maxZ}\n`;
+    const pointsFloat32 = new Float32Array(pointCloudData);
     
-    // Add point cloud data - optimized with array join (much faster than string concatenation)
-    const pointDataArray = [];
-    for (let i = 0; i < pointCloudData.length; i += 3) {
-      pointDataArray.push(`${pointCloudData[i]} ${pointCloudData[i + 1]} ${pointCloudData[i + 2]}`);
-    }
-    
-    const fullInput = input + pointDataArray.join('\n') + '\n';
-    
-    // Debug: Log first few lines of input to C++ executable
-    console.log('🔧 Backend: C++ input (first 5 lines):');
-    const lines = fullInput.split('\n');
-    for (let i = 0; i < Math.min(5, lines.length); i++) {
-      console.log(`  Line ${i}: ${lines[i]}`);
-    }
-    
-    // Execute C++ program
+    // Use C++ backend with binary protocol (no JSON/text serialization!)
+    const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug');
+    console.log('🔧 Spawning C++ voxel debug process:', cppExecutable);
     const cppProcess = spawn(cppExecutable);
+    console.log('🔧 C++ voxel debug process spawned, PID:', cppProcess.pid);
     
-    let voxelCount = 0;
-    let originalCount = 0;
-    let voxelGridPositions = [];
+    // Create binary header buffer (32 bytes: 4 for uint32 + 7*4 for floats)
+    const headerBuffer = Buffer.allocUnsafe(32);
+    headerBuffer.writeUInt32LE(pointCount, 0);
+    headerBuffer.writeFloatLE(voxelSize, 4);
+    headerBuffer.writeFloatLE(globalBounds.minX, 8);
+    headerBuffer.writeFloatLE(globalBounds.minY, 12);
+    headerBuffer.writeFloatLE(globalBounds.minZ, 16);
+    headerBuffer.writeFloatLE(globalBounds.maxX, 20);
+    headerBuffer.writeFloatLE(globalBounds.maxY, 24);
+    headerBuffer.writeFloatLE(globalBounds.maxZ, 28);
     
-    let outputBuffer = '';
+    // Convert Float32Array to Buffer for point data (binary, no text!)
+    const pointDataBuffer = Buffer.from(pointsFloat32.buffer, pointsFloat32.byteOffset, pointsFloat32.byteLength);
+    
+    // Combine header + data
+    const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
+    
+    let outputBuffer = Buffer.alloc(0);
+    let errorBuffer = '';
     
     cppProcess.stdout.on('data', (data) => {
-      outputBuffer += data.toString();
-      console.log('🔧 Backend: C++ stdout chunk:', data.toString());
-    });
-    
-    cppProcess.stdout.on('end', () => {
-      console.log('🔧 Backend: C++ stdout complete:', outputBuffer);
-      
-      // Split by whitespace to get all numbers
-      const allNumbers = outputBuffer.trim().split(/\s+/).map(parseFloat).filter(n => !isNaN(n));
-      
-      if (allNumbers.length > 0) {
-        // First number is the voxel count
-        voxelCount = allNumbers[0];
-        originalCount = pointCount;
-        
-        // Rest are the voxel center coordinates
-        if (allNumbers.length > 1) {
-          voxelGridPositions = allNumbers.slice(1);
-        }
-      }
-      
-      console.log('🔧 Backend: Parsed voxelCount:', voxelCount, 'positions:', voxelGridPositions.length);
-      
-      // Send response after processing stdout
-      const processingTime = Date.now() - startTime;
-      
-      console.log('🔧 Backend: C++ voxel debug processing completed', {
-        voxelCount: voxelCount,
-        processingTime: processingTime + 'ms'
-      });
-      
-      res.json({
-        success: true,
-        voxelCenters: voxelGridPositions,
-        voxelCount: voxelCount,
-        originalCount: originalCount,
-        processingTime: processingTime,
-        method: 'Backend C++ (real)'
-      });
+      outputBuffer = Buffer.concat([outputBuffer, data]);
     });
     
     cppProcess.stderr.on('data', (data) => {
-      console.error('🔧 Backend: C++ stderr:', data.toString());
+      const errorText = data.toString();
+      errorBuffer += errorText;
+      if (errorText.trim()) {
+        console.error('🔧 C++ voxel debug stderr:', errorText);
+      }
     });
     
-    // Handle process errors
     cppProcess.on('error', (error) => {
-      console.error('C++ process error:', error);
+      console.error('C++ voxel debug process error:', error);
       if (!res.headersSent) {
         res.status(500).json({ 
           success: false, 
@@ -1445,20 +1404,71 @@ app.post('/api/voxel-debug', async (req, res) => {
     });
     
     cppProcess.on('close', (code) => {
+      console.log(`🔧 C++ voxel debug process closed with code ${code}, outputBuffer.length: ${outputBuffer.length}`);
+      
       if (code !== 0) {
-        console.error(`C++ process exited with code ${code}`);
+        console.error(`C++ voxel debug process exited with code ${code}`);
         if (!res.headersSent) {
           res.status(500).json({ 
             success: false, 
-            error: `C++ process exited with code ${code}` 
+            error: `C++ process exited with code ${code}. Stderr: ${errorBuffer}` 
+          });
+        }
+        return;
+      }
+      
+      try {
+        // Read binary output (no text parsing!)
+        // Binary format: [uint32_t voxelCount][float* voxelGridPositions]
+        if (outputBuffer.length < 4) {
+          throw new Error(`Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`);
+        }
+        
+        const voxelCount = outputBuffer.readUInt32LE(0);
+        const expectedSize = 4 + voxelCount * 3 * 4; // 4 bytes header + voxelCount * 3 floats * 4 bytes
+        
+        if (outputBuffer.length < expectedSize) {
+          throw new Error(`Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`);
+        }
+        
+        // Extract voxel grid positions (skip 4-byte header)
+        const voxelGridPositionsBuffer = outputBuffer.slice(4, expectedSize);
+        const voxelGridPositions = new Float32Array(voxelGridPositionsBuffer.buffer, voxelGridPositionsBuffer.byteOffset, voxelCount * 3);
+        
+        const processingTime = Date.now() - startTime;
+        
+        console.log(`🔧 C++ voxel debug success: ${voxelCount} voxels, ${processingTime}ms`);
+        if (!res.headersSent) {
+          res.json({
+            success: true,
+            voxelCenters: Array.from(voxelGridPositions), // Only convert to array for JSON response
+            voxelCount: voxelCount,
+            originalCount: pointCount,
+            processingTime: processingTime,
+            method: 'Backend C++ (binary protocol)'
+          });
+        } else {
+          console.error('🔧 Response already sent!');
+        }
+      } catch (parseError) {
+        console.error('C++ voxel debug binary protocol error:', parseError);
+        console.error('C++ voxel debug stderr:', errorBuffer);
+        console.error('C++ voxel debug stdout length:', outputBuffer.length);
+        if (!res.headersSent) {
+          res.status(500).json({
+            success: false,
+            error: `Binary protocol error: ${parseError.message}. Stderr: ${errorBuffer}`,
+            processingTime: Date.now() - startTime
           });
         }
       }
     });
     
-    // Send input to C++ process
-    cppProcess.stdin.write(fullInput);
+    // Send binary input to C++ process (no text serialization!)
+    console.log('🔧 Writing', inputBuffer.length, 'bytes to C++ voxel debug stdin');
+    cppProcess.stdin.write(inputBuffer);
     cppProcess.stdin.end();
+    console.log('🔧 C++ voxel debug stdin closed');
     
   } catch (error) {
     console.error('Voxel debug error:', error);
