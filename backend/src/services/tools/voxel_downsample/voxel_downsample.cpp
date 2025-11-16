@@ -8,7 +8,7 @@
 #include <iomanip>
 #include <cctype>
 #include <cstring>
-#include "include/ankerl/unordered_dense.h"
+#include <unordered_map>
 
 // Fast hash function for 64-bit integers (matches Rust's FxHash exactly)
 // FxHash uses a simple multiply and rotate - very fast for integer keys
@@ -41,34 +41,25 @@ int main() {
     // OPTIMIZATION: Read binary input instead of JSON (much faster!)
     // Binary format: [uint32_t pointCount][float voxelSize][float minX][float minY][float minZ][float maxX][float maxY][float maxZ][float* pointData]
     
-    // Read binary header (32 bytes: 4 for uint32 + 7*4 for floats)
-    uint32_t pointCount;
-    float voxelSize, minX, minY, minZ, maxX, maxY, maxZ;
-    
-    if (!std::cin.read(reinterpret_cast<char*>(&pointCount), sizeof(uint32_t))) {
+    // Read binary header in one read (32 bytes: 4 for uint32 + 7*4 for floats)
+    // OPTIMIZATION: Single read is much faster than 8 separate reads
+    // Use aligned storage to avoid potential alignment issues
+    alignas(4) char header[32];
+    if (!std::cin.read(header, 32) || std::cin.gcount() != 32) {
         return 1; // Failed to read header
     }
-    if (!std::cin.read(reinterpret_cast<char*>(&voxelSize), sizeof(float))) {
-        return 1;
-    }
-    if (!std::cin.read(reinterpret_cast<char*>(&minX), sizeof(float))) {
-        return 1;
-    }
-    if (!std::cin.read(reinterpret_cast<char*>(&minY), sizeof(float))) {
-        return 1;
-    }
-    if (!std::cin.read(reinterpret_cast<char*>(&minZ), sizeof(float))) {
-        return 1;
-    }
-    if (!std::cin.read(reinterpret_cast<char*>(&maxX), sizeof(float))) {
-        return 1;
-    }
-    if (!std::cin.read(reinterpret_cast<char*>(&maxY), sizeof(float))) {
-        return 1;
-    }
-    if (!std::cin.read(reinterpret_cast<char*>(&maxZ), sizeof(float))) {
-        return 1;
-    }
+    
+    // Extract values from header (little-endian, safe unaligned access)
+    uint32_t pointCount;
+    float voxelSize, minX, minY, minZ, maxX, maxY, maxZ;
+    std::memcpy(&pointCount, &header[0], sizeof(uint32_t));
+    std::memcpy(&voxelSize, &header[4], sizeof(float));
+    std::memcpy(&minX, &header[8], sizeof(float));
+    std::memcpy(&minY, &header[12], sizeof(float));
+    std::memcpy(&minZ, &header[16], sizeof(float));
+    std::memcpy(&maxX, &header[20], sizeof(float));
+    std::memcpy(&maxY, &header[24], sizeof(float));
+    std::memcpy(&maxZ, &header[28], sizeof(float));
     
     // Validate input
     if (pointCount == 0 || voxelSize <= 0) {
@@ -95,13 +86,13 @@ int main() {
     // OPTIMIZED C++ voxel downsampling - use contiguous memory for cache efficiency
     float invVoxelSize = 1.0f / voxelSize;
     
-    // OPTIMIZATION 1: Use ankerl::unordered_dense::map (fast hash map, matches Rust FxHashMap performance)
+    // OPTIMIZATION 1: Use std::unordered_map with FastHash (matches C++ WASM exactly)
     // Use FastHash for integer keys (matches Rust FxHashMap)
     // Estimate: ~1% of points become voxels (rough estimate based on typical downsampling)
     int estimatedVoxels = pointCount / 100;
     if (estimatedVoxels < 100) estimatedVoxels = 100; // Minimum capacity
-    ankerl::unordered_dense::map<uint64_t, Voxel, FastHash> voxelMap;
-    voxelMap.reserve(estimatedVoxels * 2); // Reserve 2x to reduce rehashing further
+    std::unordered_map<uint64_t, Voxel, FastHash> voxelMap;
+    voxelMap.reserve(estimatedVoxels); // Match WASM reserve amount
     
     const int CHUNK_SIZE = 1024;
     // Process from contiguous memory - maximum cache efficiency
@@ -115,14 +106,10 @@ int main() {
             float y = inputData[i3 + 1];
             float z = inputData[i3 + 2];
             
-            // Use fast floor conversion (matches Rust's .floor() as i32)
-            // Casting float to int truncates towards zero, so for negative we need to adjust
-            float vx = (x - minX) * invVoxelSize;
-            float vy = (y - minY) * invVoxelSize;
-            float vz = (z - minZ) * invVoxelSize;
-            int voxelX = static_cast<int>(vx) - (vx < 0.0f ? 1 : 0);
-            int voxelY = static_cast<int>(vy) - (vy < 0.0f ? 1 : 0);
-            int voxelZ = static_cast<int>(vz) - (vz < 0.0f ? 1 : 0);
+            // Calculate voxel coordinates - use floor() to match C++ WASM exactly
+            int voxelX = static_cast<int>(std::floor((x - minX) * invVoxelSize));
+            int voxelY = static_cast<int>(std::floor((y - minY) * invVoxelSize));
+            int voxelZ = static_cast<int>(std::floor((z - minZ) * invVoxelSize));
             
             uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
                                (static_cast<uint64_t>(voxelY) << 16) |
@@ -142,22 +129,27 @@ int main() {
         }
     }
     
-    // OPTIMIZATION 3: Pre-allocate output vector and write directly (matches WASM)
+    // OPTIMIZATION 3: Pre-allocate output vector and write directly (matches WASM exactly)
     // This avoids push_back reallocation overhead
     int outputCount = voxelMap.size();
     std::vector<float> downsampledPoints;
     downsampledPoints.resize(outputCount * 3); // Pre-allocate exact size
     
-    // Write results directly to pre-allocated vector (like WASM writes to output buffer)
-    // OPTIMIZATION: Use pointer arithmetic for faster indexing
-    float* outputPtr = downsampledPoints.data();
+    // Write results directly to pre-allocated vector (matches C++ WASM exactly)
+    int outputIndex = 0;
     for (const auto& [voxelKey, voxel] : voxelMap) {
-        float count_f = static_cast<float>(voxel.count);
-        float inv_count = 1.0f / count_f; // Pre-calculate inverse to avoid 3 divisions
-        *outputPtr++ = voxel.sumX * inv_count;
-        *outputPtr++ = voxel.sumY * inv_count;
-        *outputPtr++ = voxel.sumZ * inv_count;
+        downsampledPoints[outputIndex * 3] = voxel.sumX / voxel.count;
+        downsampledPoints[outputIndex * 3 + 1] = voxel.sumY / voxel.count;
+        downsampledPoints[outputIndex * 3 + 2] = voxel.sumZ / voxel.count;
+        outputIndex++;
     }
+    
+    // End timing (measure only processing, not I/O)
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto processingTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+    
+    // Write processing time to stderr for debugging (doesn't interfere with binary output)
+    std::cerr << "C++ BE computation time: " << processingTime << " ms" << std::endl;
     
     // OPTIMIZATION: Write binary output instead of JSON (much faster!)
     // Binary format: [uint32_t outputCount][float* downsampledPoints]

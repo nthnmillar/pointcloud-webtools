@@ -199,7 +199,9 @@ wss.on('connection', (ws, req) => {
           
           if (type === 'voxel_downsample') {
             // Use C++ backend with binary protocol (no JSON serialization!)
-            const cppProcess = await voxelDownsamplePool.getProcess();
+            // OPTIMIZATION: Spawn fresh process like Rust (no pool overhead)
+            const cppExecutable = path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample');
+            const cppProcess = spawn(cppExecutable);
           
             // Create binary header buffer (32 bytes: 4 for uint32 + 7*4 for floats)
             const headerBuffer = Buffer.allocUnsafe(32);
@@ -225,7 +227,18 @@ wss.on('connection', (ws, req) => {
               outputBuffer = Buffer.concat([outputBuffer, data]);
           });
           
-          cppProcess.stdout.on('end', () => {
+          cppProcess.on('close', (code) => {
+            if (code !== 0) {
+              console.error(`C++ process exited with code ${code}`);
+              ws.send(JSON.stringify({
+                type: 'voxel_downsample_result',
+                requestId,
+                success: false,
+                  error: `C++ process exited with code ${code}. Stderr: ${errorBuffer}`
+              }));
+              return;
+            }
+            
             try {
                 // Read binary output (no JSON parsing!)
                 // Binary format: [uint32_t outputCount][float* downsampledPoints]
@@ -246,22 +259,28 @@ wss.on('connection', (ws, req) => {
                 
               const processingTime = Date.now() - startTime;
               
-              voxelDownsamplePool.releaseProcess(cppProcess);
-              
-              ws.send(JSON.stringify({
+              // Send binary response directly (no JSON conversion overhead!)
+              // Format: JSON header with metadata, then binary data
+              const responseHeader = {
                 type: 'voxel_downsample_result',
                 requestId,
                 success: true,
-                  downsampledPoints: Array.from(downsampledPoints), // Only convert to array for JSON response
-                  originalCount: pointCount,
-                  downsampledCount: outputCount,
-                  voxelCount: outputCount,
-                  processingTime
-              }));
+                originalCount: pointCount,
+                downsampledCount: outputCount,
+                voxelCount: outputCount,
+                processingTime,
+                dataLength: outputCount * 3
+              };
+              
+              // Send header as JSON
+              ws.send(JSON.stringify(responseHeader));
+              
+              // Send binary data directly - use the sliced buffer, not the Float32Array's buffer
+              // (Float32Array.buffer might include extra data beyond the slice)
+              ws.send(downsampledPointsBuffer);
             } catch (parseError) {
                 console.error('C++ Binary protocol error:', parseError);
               const processingTime = Date.now() - startTime;
-              voxelDownsamplePool.releaseProcess(cppProcess);
               
               ws.send(JSON.stringify({
                 type: 'voxel_downsample_result',
@@ -279,26 +298,12 @@ wss.on('connection', (ws, req) => {
           
           cppProcess.on('error', (error) => {
             console.error('C++ process error:', error);
-            voxelDownsamplePool.releaseProcess(cppProcess);
             ws.send(JSON.stringify({
               type: 'voxel_downsample_result',
               requestId,
               success: false,
               error: 'C++ process failed to start'
             }));
-          });
-          
-          cppProcess.on('close', (code) => {
-            if (code !== 0) {
-              console.error(`C++ process exited with code ${code}`);
-              voxelDownsamplePool.releaseProcess(cppProcess);
-              ws.send(JSON.stringify({
-                type: 'voxel_downsample_result',
-                requestId,
-                success: false,
-                  error: `C++ process exited with code ${code}. Stderr: ${errorBuffer}`
-              }));
-            }
           });
           
             // Send binary input to C++ process (no JSON serialization!)
@@ -1168,20 +1173,33 @@ app.post('/api/voxel-downsample', async (req, res) => {
       if (!res.headersSent) {
         res.status(500).json({ 
           success: false, 
-          error: 'C++ process failed to start' 
+          error: 'C++ process failed to start: ' + error.message 
         });
       }
     });
     
-    cppProcess.on('close', (code) => {
-      console.log(`🔧 C++ process closed with code ${code}, outputBuffer.length: ${outputBuffer.length}, errorBuffer length: ${errorBuffer.length}`);
+    cppProcess.on('close', (code, signal) => {
+      console.log(`🔧 C++ process closed with code ${code}, signal ${signal}, outputBuffer.length: ${outputBuffer.length}, errorBuffer length: ${errorBuffer.length}`);
       
-      if (code !== 0) {
-        console.error(`C++ process exited with code ${code}`);
+      if (code !== 0 || signal !== null) {
+        console.error(`C++ process exited with code ${code}, signal ${signal}`);
+        console.error('C++ stderr:', errorBuffer);
         if (!res.headersSent) {
           res.status(500).json({ 
             success: false, 
-            error: `C++ process exited with code ${code}. Stderr: ${errorBuffer}` 
+            error: `C++ process exited with code ${code}${signal ? ', signal ' + signal : ''}. Stderr: ${errorBuffer || 'none'}` 
+          });
+        }
+        return;
+      }
+      
+      // If process exited successfully but no output, something went wrong
+      if (outputBuffer.length === 0) {
+        console.error('C++ process exited successfully but produced no output');
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            error: 'C++ process produced no output. Stderr: ' + (errorBuffer || 'none')
           });
         }
         return;
