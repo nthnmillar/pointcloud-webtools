@@ -36,6 +36,7 @@ emcc src/wasm/cpp/tools.cpp \
   -s EXPORTED_FUNCTIONS="['_voxelDownsampleDirect', '_voxelDebugDirect', '_malloc', '_free']" \
   -s NO_DISABLE_EXCEPTION_CATCHING=1 \
   -O3 \
+  -ffast-math \
   -flto \
   -msimd128 \
   --bind
