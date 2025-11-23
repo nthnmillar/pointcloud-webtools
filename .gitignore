@@ -48,3 +48,13 @@ src/build/
 !**/*.rs
 !**/Cargo.toml
 !**/Cargo.lock
+
+# Cython and C++ build artifacts
+**/*_cython.c
+**/*.o
+**/*.s
+# Keep executables and shared libraries (needed for runtime)
+!**/*_cpp
+!**/voxel_downsample
+!**/voxel_debug
+!**/*.so

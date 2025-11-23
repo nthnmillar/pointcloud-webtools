@@ -24,8 +24,10 @@ yarn dev
 ### Prerequisites
 - **Node.js 18+** and yarn
 - **Emscripten** (`emcc`) - Required for building C++ WASM modules (frontend auto-builds on startup)
-- **Rust** (cargo) - Required for building Rust WASM modules (`wasm-pack` auto-installs if missing)
-- **Python 3.x** - Optional, only needed for Python backend tools
+- **Rust** (cargo) - Required for building Rust WASM modules and backend executables (`wasm-pack` auto-installs if missing)
+- **Python 3.x** - Required for Python backend tools (Cython implementations)
+- **Cython** - Required for Python Cython backend tools
+- **C/C++ Compiler** (clang++ or g++) - Required for building C++ backend executables and compiling Cython extensions
 
 **Note**: If WASM compilation fails, ensure `frontend/compile_wasm.sh` is executable:
 ```bash
