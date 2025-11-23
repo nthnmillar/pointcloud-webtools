@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 #include <cstdint>
+#include <algorithm>
 
 // Binary protocol for fast I/O (replaces JSON)
 // Input format: [uint32_t pointCount][float smoothingRadius][float iterations][float* pointData]
@@ -19,10 +20,8 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
     // Pre-calculate squared radius to avoid sqrt in inner loop
     float radiusSquared = smoothingRadius * smoothingRadius;
     
-    // Copy input data to output buffer
-    for (int i = 0; i < length; i++) {
-        outputData[i] = inputData[i];
-    }
+    // Copy input data to output buffer (optimized with memcpy)
+    std::memcpy(outputData, inputData, length * sizeof(float));
     
     // Pre-allocate temporary buffer once (same as C++ WASM)
     float* tempBuffer = (float*)malloc(length * sizeof(float));
@@ -52,11 +51,16 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
     int gridDepth = static_cast<int>((maxZ - minZ) * invCellSize) + 1;
     int gridSize = gridWidth * gridHeight * gridDepth; // Pre-compute (same as Rust)
     
-    // Create spatial hash grid with pre-allocated capacity
-    std::vector<std::vector<int>> grid(gridSize);
-    for (auto& cell : grid) {
-        cell.reserve(8); // Pre-allocate capacity for better performance
-    }
+    // OPTIMIZATION: Use flat array structure for better cache locality
+    // Instead of vector<vector<int>> (separate allocations), use:
+    // - flatGrid: single array storing all point indices
+    // - gridOffsets: where each cell starts in flatGrid
+    // - gridCounts: how many points in each cell
+    // This provides much better cache locality!
+    std::vector<int> flatGrid;
+    flatGrid.reserve(pointCount * 2); // Reserve space (estimate: 2x point count for safety)
+    std::vector<int> gridOffsets(gridSize + 1); // +1 for end marker
+    std::vector<int> gridCounts(gridSize, 0);
     
     // Hash function to get grid index (same as C++ WASM - truncate toward zero)
     auto getGridIndex = [&](float x, float y, float z) -> int {
@@ -71,29 +75,58 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
         // Copy current state to temp buffer (optimized with memcpy, same as Rust's clone)
         std::memcpy(tempBuffer, outputData, length * sizeof(float));
         
-        // Clear grid efficiently
-        for (auto& cell : grid) {
-            cell.clear();
-        }
+        // Clear grid efficiently (reset counts, keep flatGrid allocated)
+        std::fill(gridCounts.begin(), gridCounts.end(), 0);
+        flatGrid.clear();
         
-        // Populate grid with PREVIOUS iteration's point positions (same as C++ WASM)
+        // Two-pass approach for flat array: first count, then populate in order
+        // Pass 1: Count points per cell
+        float* tempPtr = tempBuffer;
         for (int i = 0; i < pointCount; i++) {
             int i3 = i * 3;
-            float x = tempBuffer[i3];
-            float y = tempBuffer[i3 + 1];
-            float z = tempBuffer[i3 + 2];
+            float x = tempPtr[i3];
+            float y = tempPtr[i3 + 1];
+            float z = tempPtr[i3 + 2];
             int gridIndex = getGridIndex(x, y, z);
             if (gridIndex >= 0 && gridIndex < gridSize) {
-                grid[gridIndex].push_back(i);
+                gridCounts[gridIndex]++;
             }
         }
         
-        // Process each point using spatial hash (same as C++ WASM)
+        // Build offsets array (cumulative sum)
+        int offset = 0;
+        for (int i = 0; i < gridSize; i++) {
+            gridOffsets[i] = offset;
+            offset += gridCounts[i];
+        }
+        gridOffsets[gridSize] = offset; // End marker
+        
+        // Reset counts for second pass
+        std::fill(gridCounts.begin(), gridCounts.end(), 0);
+        flatGrid.resize(offset); // Pre-allocate exact size
+        
+        // Pass 2: Populate flatGrid in order (maintains cell grouping for cache locality)
         for (int i = 0; i < pointCount; i++) {
             int i3 = i * 3;
-            float x = tempBuffer[i3];
-            float y = tempBuffer[i3 + 1];
-            float z = tempBuffer[i3 + 2];
+            float x = tempPtr[i3];
+            float y = tempPtr[i3 + 1];
+            float z = tempPtr[i3 + 2];
+            int gridIndex = getGridIndex(x, y, z);
+            if (gridIndex >= 0 && gridIndex < gridSize) {
+                int pos = gridOffsets[gridIndex] + gridCounts[gridIndex];
+                flatGrid[pos] = i;
+                gridCounts[gridIndex]++;
+            }
+        }
+        
+        // Process each point using spatial hash (optimized with direct pointer access)
+        float* outPtr = outputData;
+        for (int i = 0; i < pointCount; i++) {
+            int i3 = i * 3;
+            // Direct pointer access (faster than array indexing)
+            float x = tempPtr[i3];
+            float y = tempPtr[i3 + 1];
+            float z = tempPtr[i3 + 2];
             
             float sumX = 0.0f, sumY = 0.0f, sumZ = 0.0f;
             int count = 0;
@@ -109,15 +142,19 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
                         );
                         
                         if (gridIndex >= 0 && gridIndex < gridSize) {
-                            // Store reference to avoid repeated indexing (optimization)
-                            const std::vector<int>& cell = grid[gridIndex];
-                            for (int neighborIndex : cell) {
+                            // OPTIMIZATION: Use flat array with direct pointer access (much better cache locality!)
+                            int cellStart = gridOffsets[gridIndex];
+                            int cellEnd = gridOffsets[gridIndex + 1];
+                            // Direct iteration over flat array (contiguous memory = better cache performance)
+                            for (int idx = cellStart; idx < cellEnd; idx++) {
+                                int neighborIndex = flatGrid[idx];
                                 if (i == neighborIndex) continue; // Skip self (same as Rust)
                                 
                                 int n3 = neighborIndex * 3;
-                                float nx = tempBuffer[n3];
-                                float ny = tempBuffer[n3 + 1];
-                                float nz = tempBuffer[n3 + 2];
+                                // Direct pointer access (faster)
+                                float nx = tempPtr[n3];
+                                float ny = tempPtr[n3 + 1];
+                                float nz = tempPtr[n3 + 2];
                                 
                                 float dx2 = x - nx;
                                 float dy2 = y - ny;
@@ -136,11 +173,13 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
                 }
             }
             
-            // Update point position (same as C++ WASM)
+            // Update point position (direct pointer write, pre-compute count + 1)
             if (count > 0) {
-                outputData[i3] = (x + sumX) / (count + 1);
-                outputData[i3 + 1] = (y + sumY) / (count + 1);
-                outputData[i3 + 2] = (z + sumZ) / (count + 1);
+                // Pre-compute count + 1 to avoid repeated addition
+                float countPlus1 = static_cast<float>(count + 1);
+                outPtr[i3] = (x + sumX) / countPlus1;
+                outPtr[i3 + 1] = (y + sumY) / countPlus1;
+                outPtr[i3 + 2] = (z + sumZ) / countPlus1;
             }
         }
     }
