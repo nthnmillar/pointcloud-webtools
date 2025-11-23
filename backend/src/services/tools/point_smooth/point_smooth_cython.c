@@ -1981,21 +1981,24 @@ static CYTHON_INLINE int __Pyx_ListComp_Append(PyObject* list, PyObject* x) {
 #define __Pyx_ListComp_Append(L,x) PyList_Append(L,x)
 #endif
 
-/* SetItemInt.proto */
-#define __Pyx_SetItemInt(o, i, v, type, is_signed, to_py_func, is_list, wraparound, boundscheck, has_gil, unsafe_shared)\
-    (__Pyx_fits_Py_ssize_t(i, type, is_signed) ?\
-    __Pyx_SetItemInt_Fast(o, (Py_ssize_t)i, v, is_list, wraparound, boundscheck, unsafe_shared) :\
-    (is_list ? (PyErr_SetString(PyExc_IndexError, "list assignment index out of range"), -1) :\
-               __Pyx_SetItemInt_Generic(o, to_py_func(i), v)))
-static int __Pyx_SetItemInt_Generic(PyObject *o, PyObject *j, PyObject *v);
-static CYTHON_INLINE int __Pyx_SetItemInt_Fast(PyObject *o, Py_ssize_t i, PyObject *v,
-                                               int is_list, int wraparound, int boundscheck, int unsafe_shared);
+/* SliceObject.proto */
+#define __Pyx_PyObject_DelSlice(obj, cstart, cstop, py_start, py_stop, py_slice, has_cstart, has_cstop, wraparound)\
+    __Pyx_PyObject_SetSlice(obj, (PyObject*)NULL, cstart, cstop, py_start, py_stop, py_slice, has_cstart, has_cstop, wraparound)
+static CYTHON_INLINE int __Pyx_PyObject_SetSlice(
+        PyObject* obj, PyObject* value, Py_ssize_t cstart, Py_ssize_t cstop,
+        PyObject** py_start, PyObject** py_stop, PyObject** py_slice,
+        int has_cstart, int has_cstop, int wraparound);
 
 /* PyObjectFastCallMethod.proto */
 #if CYTHON_VECTORCALL && PY_VERSION_HEX >= 0x03090000
 #define __Pyx_PyObject_FastCallMethod(name, args, nargsf) PyObject_VectorcallMethod(name, args, nargsf, NULL)
 #else
 static PyObject *__Pyx_PyObject_FastCallMethod(PyObject *name, PyObject *const *args, size_t nargsf);
+#endif
+
+/* PyRange_Check.proto */
+#if CYTHON_COMPILING_IN_PYPY && !defined(PyRange_Check)
+  #define PyRange_Check(obj)  __Pyx_TypeCheck((obj), &PyRange_Type)
 #endif
 
 /* ListAppend.proto (used by append) */
@@ -2035,6 +2038,16 @@ static CYTHON_INLINE int __Pyx_PyObject_Append(PyObject* L, PyObject* x);
 
 /* RaiseUnexpectedTypeError.proto */
 static int __Pyx_RaiseUnexpectedTypeError(const char *expected, PyObject *obj);
+
+/* SetItemInt.proto */
+#define __Pyx_SetItemInt(o, i, v, type, is_signed, to_py_func, is_list, wraparound, boundscheck, has_gil, unsafe_shared)\
+    (__Pyx_fits_Py_ssize_t(i, type, is_signed) ?\
+    __Pyx_SetItemInt_Fast(o, (Py_ssize_t)i, v, is_list, wraparound, boundscheck, unsafe_shared) :\
+    (is_list ? (PyErr_SetString(PyExc_IndexError, "list assignment index out of range"), -1) :\
+               __Pyx_SetItemInt_Generic(o, to_py_func(i), v)))
+static int __Pyx_SetItemInt_Generic(PyObject *o, PyObject *j, PyObject *v);
+static CYTHON_INLINE int __Pyx_SetItemInt_Fast(PyObject *o, Py_ssize_t i, PyObject *v,
+                                               int is_list, int wraparound, int boundscheck, int unsafe_shared);
 
 /* HasAttr.proto (used by ImportImpl) */
 #if __PYX_LIMITED_VERSION_HEX >= 0x030d0000
@@ -2400,8 +2413,8 @@ typedef struct {
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_pop;
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_values;
   PyObject *__pyx_codeobj_tab[1];
-  PyObject *__pyx_string_tab[81];
-  PyObject *__pyx_number_tab[1];
+  PyObject *__pyx_string_tab[86];
+  PyObject *__pyx_number_tab[2];
 /* #### Code section: module_state_contents ### */
 /* CommonTypesMetaclass.module_state_decls */
 PyTypeObject *__pyx_CommonTypesMetaclassType;
@@ -2448,82 +2461,88 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_kp_u_Note_that_Cython_is_deliberately __pyx_string_tab[3]
 #define __pyx_kp_u_add_note __pyx_string_tab[4]
 #define __pyx_kp_u_point_smooth_cython_pyx __pyx_string_tab[5]
-#define __pyx_n_u_Pyx_PyDict_NextRef __pyx_string_tab[6]
-#define __pyx_n_u__2 __pyx_string_tab[7]
-#define __pyx_n_u_append __pyx_string_tab[8]
-#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[9]
-#define __pyx_n_u_cell __pyx_string_tab[10]
-#define __pyx_n_u_cell_size __pyx_string_tab[11]
-#define __pyx_n_u_clear __pyx_string_tab[12]
-#define __pyx_n_u_cline_in_traceback __pyx_string_tab[13]
-#define __pyx_n_u_count __pyx_string_tab[14]
-#define __pyx_n_u_count_plus_1 __pyx_string_tab[15]
-#define __pyx_n_u_distance_squared __pyx_string_tab[16]
-#define __pyx_n_u_dx __pyx_string_tab[17]
-#define __pyx_n_u_dx2 __pyx_string_tab[18]
-#define __pyx_n_u_dy __pyx_string_tab[19]
-#define __pyx_n_u_dy2 __pyx_string_tab[20]
-#define __pyx_n_u_dz __pyx_string_tab[21]
-#define __pyx_n_u_dz2 __pyx_string_tab[22]
-#define __pyx_n_u_func __pyx_string_tab[23]
-#define __pyx_n_u_grid __pyx_string_tab[24]
-#define __pyx_n_u_grid_depth __pyx_string_tab[25]
-#define __pyx_n_u_grid_height __pyx_string_tab[26]
-#define __pyx_n_u_grid_index __pyx_string_tab[27]
-#define __pyx_n_u_grid_size __pyx_string_tab[28]
-#define __pyx_n_u_grid_width __pyx_string_tab[29]
-#define __pyx_n_u_gx __pyx_string_tab[30]
-#define __pyx_n_u_gy __pyx_string_tab[31]
-#define __pyx_n_u_gz __pyx_string_tab[32]
-#define __pyx_n_u_i __pyx_string_tab[33]
-#define __pyx_n_u_i3 __pyx_string_tab[34]
-#define __pyx_n_u_inv_cell_size __pyx_string_tab[35]
-#define __pyx_n_u_is_coroutine __pyx_string_tab[36]
-#define __pyx_n_u_isinf __pyx_string_tab[37]
-#define __pyx_n_u_isnan __pyx_string_tab[38]
-#define __pyx_n_u_items __pyx_string_tab[39]
-#define __pyx_n_u_iter __pyx_string_tab[40]
-#define __pyx_n_u_iterations __pyx_string_tab[41]
-#define __pyx_n_u_j __pyx_string_tab[42]
-#define __pyx_n_u_j3 __pyx_string_tab[43]
-#define __pyx_n_u_jx __pyx_string_tab[44]
-#define __pyx_n_u_jy __pyx_string_tab[45]
-#define __pyx_n_u_jz __pyx_string_tab[46]
-#define __pyx_n_u_main __pyx_string_tab[47]
-#define __pyx_n_u_math __pyx_string_tab[48]
-#define __pyx_n_u_max_x __pyx_string_tab[49]
-#define __pyx_n_u_max_y __pyx_string_tab[50]
-#define __pyx_n_u_max_z __pyx_string_tab[51]
-#define __pyx_n_u_min_x __pyx_string_tab[52]
-#define __pyx_n_u_min_y __pyx_string_tab[53]
-#define __pyx_n_u_min_z __pyx_string_tab[54]
-#define __pyx_n_u_module __pyx_string_tab[55]
-#define __pyx_n_u_name __pyx_string_tab[56]
-#define __pyx_n_u_neighbor_x __pyx_string_tab[57]
-#define __pyx_n_u_neighbor_y __pyx_string_tab[58]
-#define __pyx_n_u_neighbor_z __pyx_string_tab[59]
-#define __pyx_n_u_point_cloud_smooth __pyx_string_tab[60]
-#define __pyx_n_u_point_count __pyx_string_tab[61]
-#define __pyx_n_u_point_smooth_cython __pyx_string_tab[62]
-#define __pyx_n_u_points __pyx_string_tab[63]
-#define __pyx_n_u_pop __pyx_string_tab[64]
-#define __pyx_n_u_qualname __pyx_string_tab[65]
-#define __pyx_n_u_radius_squared __pyx_string_tab[66]
-#define __pyx_n_u_set_name __pyx_string_tab[67]
-#define __pyx_n_u_setdefault __pyx_string_tab[68]
-#define __pyx_n_u_smoothed_points __pyx_string_tab[69]
-#define __pyx_n_u_smoothing_radius __pyx_string_tab[70]
-#define __pyx_n_u_sum_x __pyx_string_tab[71]
-#define __pyx_n_u_sum_y __pyx_string_tab[72]
-#define __pyx_n_u_sum_z __pyx_string_tab[73]
-#define __pyx_n_u_temp_points __pyx_string_tab[74]
-#define __pyx_n_u_test __pyx_string_tab[75]
-#define __pyx_n_u_values __pyx_string_tab[76]
-#define __pyx_n_u_x __pyx_string_tab[77]
-#define __pyx_n_u_y __pyx_string_tab[78]
-#define __pyx_n_u_z __pyx_string_tab[79]
-#define __pyx_kp_b_iso88591_3axs_3a_q_2S_F_S_F_1_j_5Qa_Q_j __pyx_string_tab[80]
+#define __pyx_n_u_CHUNK_SIZE __pyx_string_tab[6]
+#define __pyx_n_u_Pyx_PyDict_NextRef __pyx_string_tab[7]
+#define __pyx_n_u__2 __pyx_string_tab[8]
+#define __pyx_n_u_append __pyx_string_tab[9]
+#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[10]
+#define __pyx_n_u_cell __pyx_string_tab[11]
+#define __pyx_n_u_cell_size __pyx_string_tab[12]
+#define __pyx_n_u_chunk_end __pyx_string_tab[13]
+#define __pyx_n_u_chunk_end_calc __pyx_string_tab[14]
+#define __pyx_n_u_chunk_start __pyx_string_tab[15]
+#define __pyx_n_u_clear __pyx_string_tab[16]
+#define __pyx_n_u_cline_in_traceback __pyx_string_tab[17]
+#define __pyx_n_u_count __pyx_string_tab[18]
+#define __pyx_n_u_count_plus_1 __pyx_string_tab[19]
+#define __pyx_n_u_distance_squared __pyx_string_tab[20]
+#define __pyx_n_u_dx __pyx_string_tab[21]
+#define __pyx_n_u_dx2 __pyx_string_tab[22]
+#define __pyx_n_u_dy __pyx_string_tab[23]
+#define __pyx_n_u_dy2 __pyx_string_tab[24]
+#define __pyx_n_u_dz __pyx_string_tab[25]
+#define __pyx_n_u_dz2 __pyx_string_tab[26]
+#define __pyx_n_u_func __pyx_string_tab[27]
+#define __pyx_n_u_grid __pyx_string_tab[28]
+#define __pyx_n_u_grid_depth __pyx_string_tab[29]
+#define __pyx_n_u_grid_height __pyx_string_tab[30]
+#define __pyx_n_u_grid_index __pyx_string_tab[31]
+#define __pyx_n_u_grid_size __pyx_string_tab[32]
+#define __pyx_n_u_grid_width __pyx_string_tab[33]
+#define __pyx_n_u_grid_width_height __pyx_string_tab[34]
+#define __pyx_n_u_gx __pyx_string_tab[35]
+#define __pyx_n_u_gy __pyx_string_tab[36]
+#define __pyx_n_u_gz __pyx_string_tab[37]
+#define __pyx_n_u_i __pyx_string_tab[38]
+#define __pyx_n_u_i3 __pyx_string_tab[39]
+#define __pyx_n_u_inv_cell_size __pyx_string_tab[40]
+#define __pyx_n_u_is_coroutine __pyx_string_tab[41]
+#define __pyx_n_u_isinf __pyx_string_tab[42]
+#define __pyx_n_u_isnan __pyx_string_tab[43]
+#define __pyx_n_u_items __pyx_string_tab[44]
+#define __pyx_n_u_iter __pyx_string_tab[45]
+#define __pyx_n_u_iterations __pyx_string_tab[46]
+#define __pyx_n_u_j __pyx_string_tab[47]
+#define __pyx_n_u_j3 __pyx_string_tab[48]
+#define __pyx_n_u_jx __pyx_string_tab[49]
+#define __pyx_n_u_jy __pyx_string_tab[50]
+#define __pyx_n_u_jz __pyx_string_tab[51]
+#define __pyx_n_u_main __pyx_string_tab[52]
+#define __pyx_n_u_math __pyx_string_tab[53]
+#define __pyx_n_u_max_x __pyx_string_tab[54]
+#define __pyx_n_u_max_y __pyx_string_tab[55]
+#define __pyx_n_u_max_z __pyx_string_tab[56]
+#define __pyx_n_u_min_x __pyx_string_tab[57]
+#define __pyx_n_u_min_y __pyx_string_tab[58]
+#define __pyx_n_u_min_z __pyx_string_tab[59]
+#define __pyx_n_u_module __pyx_string_tab[60]
+#define __pyx_n_u_name __pyx_string_tab[61]
+#define __pyx_n_u_neighbor_x __pyx_string_tab[62]
+#define __pyx_n_u_neighbor_y __pyx_string_tab[63]
+#define __pyx_n_u_neighbor_z __pyx_string_tab[64]
+#define __pyx_n_u_point_cloud_smooth __pyx_string_tab[65]
+#define __pyx_n_u_point_count __pyx_string_tab[66]
+#define __pyx_n_u_point_smooth_cython __pyx_string_tab[67]
+#define __pyx_n_u_points __pyx_string_tab[68]
+#define __pyx_n_u_pop __pyx_string_tab[69]
+#define __pyx_n_u_qualname __pyx_string_tab[70]
+#define __pyx_n_u_radius_squared __pyx_string_tab[71]
+#define __pyx_n_u_set_name __pyx_string_tab[72]
+#define __pyx_n_u_setdefault __pyx_string_tab[73]
+#define __pyx_n_u_smoothed_points __pyx_string_tab[74]
+#define __pyx_n_u_smoothing_radius __pyx_string_tab[75]
+#define __pyx_n_u_sum_x __pyx_string_tab[76]
+#define __pyx_n_u_sum_y __pyx_string_tab[77]
+#define __pyx_n_u_sum_z __pyx_string_tab[78]
+#define __pyx_n_u_temp_points __pyx_string_tab[79]
+#define __pyx_n_u_test __pyx_string_tab[80]
+#define __pyx_n_u_values __pyx_string_tab[81]
+#define __pyx_n_u_x __pyx_string_tab[82]
+#define __pyx_n_u_y __pyx_string_tab[83]
+#define __pyx_n_u_z __pyx_string_tab[84]
+#define __pyx_kp_b_iso88591_3axs_3a_q_2S_F_S_F_1_j_5Qa_Q_j __pyx_string_tab[85]
 #define __pyx_float_0_0 __pyx_number_tab[0]
+#define __pyx_int_0 __pyx_number_tab[1]
 /* #### Code section: module_state_clear ### */
 #if CYTHON_USE_MODULE_STATE
 static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
@@ -2539,8 +2558,8 @@ static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
   __Pyx_State_RemoveModule(NULL);
   #endif
   for (int i=0; i<1; ++i) { Py_CLEAR(clear_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<81; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
-  for (int i=0; i<1; ++i) { Py_CLEAR(clear_module_state->__pyx_number_tab[i]); }
+  for (int i=0; i<86; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<2; ++i) { Py_CLEAR(clear_module_state->__pyx_number_tab[i]); }
 /* #### Code section: module_state_clear_contents ### */
 /* CommonTypesMetaclass.module_state_clear */
 Py_CLEAR(clear_module_state->__pyx_CommonTypesMetaclassType);
@@ -2564,8 +2583,8 @@ static CYTHON_SMALL_CODE int __pyx_m_traverse(PyObject *m, visitproc visit, void
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_empty_bytes);
   __Pyx_VISIT_CONST(traverse_module_state->__pyx_empty_unicode);
   for (int i=0; i<1; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<81; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
-  for (int i=0; i<1; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_number_tab[i]); }
+  for (int i=0; i<86; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<2; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_number_tab[i]); }
 /* #### Code section: module_state_traverse_contents ### */
 /* CommonTypesMetaclass.module_state_traverse */
 Py_VISIT(traverse_module_state->__pyx_CommonTypesMetaclassType);
@@ -2718,7 +2737,12 @@ static PyObject *__pyx_pf_19point_smooth_cython_point_cloud_smooth(CYTHON_UNUSED
   int __pyx_v_grid_height;
   int __pyx_v_grid_depth;
   int __pyx_v_grid_size;
+  int __pyx_v_grid_width_height;
   PyObject *__pyx_v_grid = 0;
+  int __pyx_v_CHUNK_SIZE;
+  int __pyx_v_chunk_start;
+  int __pyx_v_chunk_end;
+  int __pyx_v_chunk_end_calc;
   CYTHON_UNUSED int __pyx_v__iter;
   int __pyx_v_j;
   int __pyx_v_j3;
@@ -2732,7 +2756,7 @@ static PyObject *__pyx_pf_19point_smooth_cython_point_cloud_smooth(CYTHON_UNUSED
   float __pyx_v_sum_y;
   float __pyx_v_sum_z;
   int __pyx_v_count;
-  int __pyx_v_count_plus_1;
+  float __pyx_v_count_plus_1;
   int __pyx_v_gx;
   int __pyx_v_gy;
   int __pyx_v_gz;
@@ -2765,14 +2789,9 @@ static PyObject *__pyx_pf_19point_smooth_cython_point_cloud_smooth(CYTHON_UNUSED
   long __pyx_t_12;
   int __pyx_t_13;
   int __pyx_t_14;
-  int __pyx_t_15;
+  PyObject *(*__pyx_t_15)(PyObject *);
   int __pyx_t_16;
   int __pyx_t_17;
-  int __pyx_t_18;
-  int __pyx_t_19;
-  int __pyx_t_20;
-  int __pyx_t_21;
-  int __pyx_t_22;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -3448,88 +3467,98 @@ static PyObject *__pyx_pf_19point_smooth_cython_point_cloud_smooth(CYTHON_UNUSED
  *     cdef int grid_depth = <int>((max_z - min_z) * inv_cell_size) + 1
  *     cdef int grid_size = grid_width * grid_height * grid_depth             # <<<<<<<<<<<<<<
  * 
- *     # Pre-allocate grid (like Rust Vec::with_capacity(8))
+ *     # OPTIMIZATION: Pre-compute grid_width * grid_height to avoid repeated multiplication
 */
   __pyx_v_grid_size = ((__pyx_v_grid_width * __pyx_v_grid_height) * __pyx_v_grid_depth);
 
   /* "point_smooth_cython.pyx":76
  * 
- *     # Pre-allocate grid (like Rust Vec::with_capacity(8))
+ *     # OPTIMIZATION: Pre-compute grid_width * grid_height to avoid repeated multiplication
+ *     cdef int grid_width_height = grid_width * grid_height             # <<<<<<<<<<<<<<
+ * 
+ *     # Pre-allocate grid (simple nested lists - Python lists are optimized for append)
+*/
+  __pyx_v_grid_width_height = (__pyx_v_grid_width * __pyx_v_grid_height);
+
+  /* "point_smooth_cython.pyx":79
+ * 
+ *     # Pre-allocate grid (simple nested lists - Python lists are optimized for append)
  *     cdef list grid = [[] for _ in range(grid_size)]             # <<<<<<<<<<<<<<
  * 
- *     # Smoothing iterations (same as Rust BE)
+ *     # OPTIMIZATION: Chunked processing for better cache locality (like voxel downsampling)
 */
   { /* enter inner scope */
-    __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 76, __pyx_L1_error)
+    __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 79, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __pyx_t_11 = __pyx_v_grid_size;
     __pyx_t_13 = __pyx_t_11;
     for (__pyx_t_14 = 0; __pyx_t_14 < __pyx_t_13; __pyx_t_14+=1) {
       __pyx_7genexpr__pyx_v__ = __pyx_t_14;
-      __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 76, __pyx_L1_error)
+      __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 79, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_7);
-      if (unlikely(__Pyx_ListComp_Append(__pyx_t_3, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 76, __pyx_L1_error)
+      if (unlikely(__Pyx_ListComp_Append(__pyx_t_3, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 79, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     }
   } /* exit inner scope */
   __pyx_v_grid = ((PyObject*)__pyx_t_3);
   __pyx_t_3 = 0;
 
-  /* "point_smooth_cython.pyx":95
+  /* "point_smooth_cython.pyx":82
+ * 
+ *     # OPTIMIZATION: Chunked processing for better cache locality (like voxel downsampling)
+ *     cdef int CHUNK_SIZE = 1024             # <<<<<<<<<<<<<<
+ *     cdef int chunk_start, chunk_end, chunk_end_calc
+ * 
+*/
+  __pyx_v_CHUNK_SIZE = 0x400;
+
+  /* "point_smooth_cython.pyx":102
  *     cdef list cell
  * 
  *     for _iter in range(iterations):             # <<<<<<<<<<<<<<
- *         # Copy current state to temp buffer (fast element-by-element copy)
- *         for i in range(len(smoothed_points)):
+ *         # Copy current state to temp buffer (slice assignment is fastest in Cython!)
+ *         temp_points[:] = smoothed_points
 */
   __pyx_t_11 = __pyx_v_iterations;
   __pyx_t_13 = __pyx_t_11;
   for (__pyx_t_14 = 0; __pyx_t_14 < __pyx_t_13; __pyx_t_14+=1) {
     __pyx_v__iter = __pyx_t_14;
 
-    /* "point_smooth_cython.pyx":97
+    /* "point_smooth_cython.pyx":104
  *     for _iter in range(iterations):
- *         # Copy current state to temp buffer (fast element-by-element copy)
- *         for i in range(len(smoothed_points)):             # <<<<<<<<<<<<<<
- *             temp_points[i] = smoothed_points[i]
+ *         # Copy current state to temp buffer (slice assignment is fastest in Cython!)
+ *         temp_points[:] = smoothed_points             # <<<<<<<<<<<<<<
  * 
+ *         # Clear grid efficiently (reuse structure - optimized with while loop)
 */
-    __pyx_t_1 = __Pyx_PyList_GET_SIZE(__pyx_v_smoothed_points); if (unlikely(__pyx_t_1 == ((Py_ssize_t)-1))) __PYX_ERR(0, 97, __pyx_L1_error)
-    __pyx_t_10 = __pyx_t_1;
-    for (__pyx_t_15 = 0; __pyx_t_15 < __pyx_t_10; __pyx_t_15+=1) {
-      __pyx_v_i = __pyx_t_15;
+    if (__Pyx_PyObject_SetSlice(__pyx_v_temp_points, __pyx_v_smoothed_points, 0, 0, NULL, NULL, NULL, 0, 0, 0) < (0)) __PYX_ERR(0, 104, __pyx_L1_error)
 
-      /* "point_smooth_cython.pyx":98
- *         # Copy current state to temp buffer (fast element-by-element copy)
- *         for i in range(len(smoothed_points)):
- *             temp_points[i] = smoothed_points[i]             # <<<<<<<<<<<<<<
+    /* "point_smooth_cython.pyx":107
  * 
- *         # Clear grid efficiently (reuse structure - critical optimization)
-*/
-      __pyx_t_3 = __Pyx_PyList_GET_ITEM(__pyx_v_smoothed_points, __pyx_v_i);
-      __Pyx_INCREF(__pyx_t_3);
-      if (unlikely((__Pyx_SetItemInt(__pyx_v_temp_points, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyLong_From_int, 1, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 98, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    }
-
-    /* "point_smooth_cython.pyx":101
- * 
- *         # Clear grid efficiently (reuse structure - critical optimization)
- *         for i in range(grid_size):             # <<<<<<<<<<<<<<
+ *         # Clear grid efficiently (reuse structure - optimized with while loop)
+ *         i = 0             # <<<<<<<<<<<<<<
+ *         while i < grid_size:
  *             grid[i].clear()
- * 
 */
-    __pyx_t_15 = __pyx_v_grid_size;
-    __pyx_t_16 = __pyx_t_15;
-    for (__pyx_t_17 = 0; __pyx_t_17 < __pyx_t_16; __pyx_t_17+=1) {
-      __pyx_v_i = __pyx_t_17;
+    __pyx_v_i = 0;
 
-      /* "point_smooth_cython.pyx":102
- *         # Clear grid efficiently (reuse structure - critical optimization)
- *         for i in range(grid_size):
+    /* "point_smooth_cython.pyx":108
+ *         # Clear grid efficiently (reuse structure - optimized with while loop)
+ *         i = 0
+ *         while i < grid_size:             # <<<<<<<<<<<<<<
+ *             grid[i].clear()
+ *             i += 1
+*/
+    while (1) {
+      __pyx_t_2 = (__pyx_v_i < __pyx_v_grid_size);
+      if (!__pyx_t_2) break;
+
+      /* "point_smooth_cython.pyx":109
+ *         i = 0
+ *         while i < grid_size:
  *             grid[i].clear()             # <<<<<<<<<<<<<<
+ *             i += 1
  * 
- *         # Populate grid with PREVIOUS iteration's point positions (same as Rust BE)
 */
       __pyx_t_7 = __Pyx_PyList_GET_ITEM(__pyx_v_grid, __pyx_v_i);
       __Pyx_INCREF(__pyx_t_7);
@@ -3538,626 +3567,880 @@ static PyObject *__pyx_pf_19point_smooth_cython_point_cloud_smooth(CYTHON_UNUSED
         PyObject *__pyx_callargs[2] = {__pyx_t_7, NULL};
         __pyx_t_3 = __Pyx_PyObject_FastCallMethod((PyObject*)__pyx_mstate_global->__pyx_n_u_clear, __pyx_callargs+__pyx_t_8, (1-__pyx_t_8) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
         __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
-        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 102, __pyx_L1_error)
+        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 109, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_3);
       }
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+
+      /* "point_smooth_cython.pyx":110
+ *         while i < grid_size:
+ *             grid[i].clear()
+ *             i += 1             # <<<<<<<<<<<<<<
+ * 
+ *         # Populate grid with PREVIOUS iteration's point positions (chunked processing)
+*/
+      __pyx_v_i = (__pyx_v_i + 1);
     }
 
-    /* "point_smooth_cython.pyx":105
+    /* "point_smooth_cython.pyx":113
  * 
- *         # Populate grid with PREVIOUS iteration's point positions (same as Rust BE)
- *         for i in range(point_count):             # <<<<<<<<<<<<<<
- *             i3 = i * 3
- *             x = temp_points[i3]
+ *         # Populate grid with PREVIOUS iteration's point positions (chunked processing)
+ *         for chunk_start in range(0, point_count, CHUNK_SIZE):             # <<<<<<<<<<<<<<
+ *             chunk_end_calc = chunk_start + CHUNK_SIZE
+ *             chunk_end = chunk_end_calc if chunk_end_calc < point_count else point_count
 */
-    __pyx_t_15 = __pyx_v_point_count;
-    __pyx_t_16 = __pyx_t_15;
-    for (__pyx_t_17 = 0; __pyx_t_17 < __pyx_t_16; __pyx_t_17+=1) {
-      __pyx_v_i = __pyx_t_17;
-
-      /* "point_smooth_cython.pyx":106
- *         # Populate grid with PREVIOUS iteration's point positions (same as Rust BE)
- *         for i in range(point_count):
- *             i3 = i * 3             # <<<<<<<<<<<<<<
- *             x = temp_points[i3]
- *             y = temp_points[i3 + 1]
-*/
-      __pyx_v_i3 = (__pyx_v_i * 3);
-
-      /* "point_smooth_cython.pyx":107
- *         for i in range(point_count):
- *             i3 = i * 3
- *             x = temp_points[i3]             # <<<<<<<<<<<<<<
- *             y = temp_points[i3 + 1]
- *             z = temp_points[i3 + 2]
-*/
-      __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_v_i3)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 107, __pyx_L1_error)
-      __pyx_v_x = __pyx_t_9;
-
-      /* "point_smooth_cython.pyx":108
- *             i3 = i * 3
- *             x = temp_points[i3]
- *             y = temp_points[i3 + 1]             # <<<<<<<<<<<<<<
- *             z = temp_points[i3 + 2]
- * 
-*/
-      __pyx_t_12 = (__pyx_v_i3 + 1);
-      __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 108, __pyx_L1_error)
-      __pyx_v_y = __pyx_t_9;
-
-      /* "point_smooth_cython.pyx":109
- *             x = temp_points[i3]
- *             y = temp_points[i3 + 1]
- *             z = temp_points[i3 + 2]             # <<<<<<<<<<<<<<
- * 
- *             # Calculate grid index (same calculation as Rust BE)
-*/
-      __pyx_t_12 = (__pyx_v_i3 + 2);
-      __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 109, __pyx_L1_error)
-      __pyx_v_z = __pyx_t_9;
-
-      /* "point_smooth_cython.pyx":112
- * 
- *             # Calculate grid index (same calculation as Rust BE)
- *             gx = <int>((x - min_x) * inv_cell_size)             # <<<<<<<<<<<<<<
- *             gy = <int>((y - min_y) * inv_cell_size)
- *             gz = <int>((z - min_z) * inv_cell_size)
-*/
-      __pyx_v_gx = ((int)((__pyx_v_x - __pyx_v_min_x) * __pyx_v_inv_cell_size));
-
-      /* "point_smooth_cython.pyx":113
- *             # Calculate grid index (same calculation as Rust BE)
- *             gx = <int>((x - min_x) * inv_cell_size)
- *             gy = <int>((y - min_y) * inv_cell_size)             # <<<<<<<<<<<<<<
- *             gz = <int>((z - min_z) * inv_cell_size)
- *             grid_index = gx + gy * grid_width + gz * grid_width * grid_height
-*/
-      __pyx_v_gy = ((int)((__pyx_v_y - __pyx_v_min_y) * __pyx_v_inv_cell_size));
-
-      /* "point_smooth_cython.pyx":114
- *             gx = <int>((x - min_x) * inv_cell_size)
- *             gy = <int>((y - min_y) * inv_cell_size)
- *             gz = <int>((z - min_z) * inv_cell_size)             # <<<<<<<<<<<<<<
- *             grid_index = gx + gy * grid_width + gz * grid_width * grid_height
- * 
-*/
-      __pyx_v_gz = ((int)((__pyx_v_z - __pyx_v_min_z) * __pyx_v_inv_cell_size));
-
-      /* "point_smooth_cython.pyx":115
- *             gy = <int>((y - min_y) * inv_cell_size)
- *             gz = <int>((z - min_z) * inv_cell_size)
- *             grid_index = gx + gy * grid_width + gz * grid_width * grid_height             # <<<<<<<<<<<<<<
- * 
- *             if 0 <= grid_index < grid_size:
-*/
-      __pyx_v_grid_index = ((__pyx_v_gx + (__pyx_v_gy * __pyx_v_grid_width)) + ((__pyx_v_gz * __pyx_v_grid_width) * __pyx_v_grid_height));
-
-      /* "point_smooth_cython.pyx":117
- *             grid_index = gx + gy * grid_width + gz * grid_width * grid_height
- * 
- *             if 0 <= grid_index < grid_size:             # <<<<<<<<<<<<<<
- *                 grid[grid_index].append(i)
- * 
-*/
-      __pyx_t_2 = (0 <= __pyx_v_grid_index);
-      if (__pyx_t_2) {
-        __pyx_t_2 = (__pyx_v_grid_index < __pyx_v_grid_size);
-      }
-      if (__pyx_t_2) {
-
-        /* "point_smooth_cython.pyx":118
- * 
- *             if 0 <= grid_index < grid_size:
- *                 grid[grid_index].append(i)             # <<<<<<<<<<<<<<
- * 
- *         # Process each point using spatial hash (same as Rust BE)
-*/
-        __pyx_t_3 = __Pyx_PyLong_From_int(__pyx_v_i); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 118, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_3);
-        __pyx_t_18 = __Pyx_PyObject_Append(__Pyx_PyList_GET_ITEM(__pyx_v_grid, __pyx_v_grid_index), __pyx_t_3); if (unlikely(__pyx_t_18 == ((int)-1))) __PYX_ERR(0, 118, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-
-        /* "point_smooth_cython.pyx":117
- *             grid_index = gx + gy * grid_width + gz * grid_width * grid_height
- * 
- *             if 0 <= grid_index < grid_size:             # <<<<<<<<<<<<<<
- *                 grid[grid_index].append(i)
- * 
-*/
-      }
+    __pyx_t_7 = NULL;
+    __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_point_count); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 113, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_5 = __Pyx_PyLong_From_int(__pyx_v_CHUNK_SIZE); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 113, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_5);
+    __pyx_t_8 = 1;
+    {
+      PyObject *__pyx_callargs[4] = {__pyx_t_7, __pyx_mstate_global->__pyx_int_0, __pyx_t_6, __pyx_t_5};
+      __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(&PyRange_Type), __pyx_callargs+__pyx_t_8, (4-__pyx_t_8) | (__pyx_t_8*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 113, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
     }
-
-    /* "point_smooth_cython.pyx":121
- * 
- *         # Process each point using spatial hash (same as Rust BE)
- *         for i in range(point_count):             # <<<<<<<<<<<<<<
- *             i3 = i * 3
- *             x = temp_points[i3]
-*/
-    __pyx_t_15 = __pyx_v_point_count;
-    __pyx_t_16 = __pyx_t_15;
-    for (__pyx_t_17 = 0; __pyx_t_17 < __pyx_t_16; __pyx_t_17+=1) {
-      __pyx_v_i = __pyx_t_17;
-
-      /* "point_smooth_cython.pyx":122
- *         # Process each point using spatial hash (same as Rust BE)
- *         for i in range(point_count):
- *             i3 = i * 3             # <<<<<<<<<<<<<<
- *             x = temp_points[i3]
- *             y = temp_points[i3 + 1]
-*/
-      __pyx_v_i3 = (__pyx_v_i * 3);
-
-      /* "point_smooth_cython.pyx":123
- *         for i in range(point_count):
- *             i3 = i * 3
- *             x = temp_points[i3]             # <<<<<<<<<<<<<<
- *             y = temp_points[i3 + 1]
- *             z = temp_points[i3 + 2]
-*/
-      __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_v_i3)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 123, __pyx_L1_error)
-      __pyx_v_x = __pyx_t_9;
-
-      /* "point_smooth_cython.pyx":124
- *             i3 = i * 3
- *             x = temp_points[i3]
- *             y = temp_points[i3 + 1]             # <<<<<<<<<<<<<<
- *             z = temp_points[i3 + 2]
- * 
-*/
-      __pyx_t_12 = (__pyx_v_i3 + 1);
-      __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 124, __pyx_L1_error)
-      __pyx_v_y = __pyx_t_9;
-
-      /* "point_smooth_cython.pyx":125
- *             x = temp_points[i3]
- *             y = temp_points[i3 + 1]
- *             z = temp_points[i3 + 2]             # <<<<<<<<<<<<<<
- * 
- *             sum_x = 0.0
-*/
-      __pyx_t_12 = (__pyx_v_i3 + 2);
-      __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 125, __pyx_L1_error)
-      __pyx_v_z = __pyx_t_9;
-
-      /* "point_smooth_cython.pyx":127
- *             z = temp_points[i3 + 2]
- * 
- *             sum_x = 0.0             # <<<<<<<<<<<<<<
- *             sum_y = 0.0
- *             sum_z = 0.0
-*/
-      __pyx_v_sum_x = 0.0;
-
-      /* "point_smooth_cython.pyx":128
- * 
- *             sum_x = 0.0
- *             sum_y = 0.0             # <<<<<<<<<<<<<<
- *             sum_z = 0.0
- *             count = 0
-*/
-      __pyx_v_sum_y = 0.0;
-
-      /* "point_smooth_cython.pyx":129
- *             sum_x = 0.0
- *             sum_y = 0.0
- *             sum_z = 0.0             # <<<<<<<<<<<<<<
- *             count = 0
- * 
-*/
-      __pyx_v_sum_z = 0.0;
-
-      /* "point_smooth_cython.pyx":130
- *             sum_y = 0.0
- *             sum_z = 0.0
- *             count = 0             # <<<<<<<<<<<<<<
- * 
- *             # Check neighboring grid cells (3x3x3 = 27 cells) - same as Rust BE
-*/
-      __pyx_v_count = 0;
-
-      /* "point_smooth_cython.pyx":133
- * 
- *             # Check neighboring grid cells (3x3x3 = 27 cells) - same as Rust BE
- *             for dx in range(-1, 2):             # <<<<<<<<<<<<<<
- *                 for dy in range(-1, 2):
- *                     for dz in range(-1, 2):
-*/
-      for (__pyx_t_19 = -1; __pyx_t_19 < 2; __pyx_t_19+=1) {
-        __pyx_v_dx = __pyx_t_19;
-
-        /* "point_smooth_cython.pyx":134
- *             # Check neighboring grid cells (3x3x3 = 27 cells) - same as Rust BE
- *             for dx in range(-1, 2):
- *                 for dy in range(-1, 2):             # <<<<<<<<<<<<<<
- *                     for dz in range(-1, 2):
- *                         # Calculate grid index for neighbor (same as Rust)
-*/
-        for (__pyx_t_20 = -1; __pyx_t_20 < 2; __pyx_t_20+=1) {
-          __pyx_v_dy = __pyx_t_20;
-
-          /* "point_smooth_cython.pyx":135
- *             for dx in range(-1, 2):
- *                 for dy in range(-1, 2):
- *                     for dz in range(-1, 2):             # <<<<<<<<<<<<<<
- *                         # Calculate grid index for neighbor (same as Rust)
- *                         neighbor_x = x + <float>dx * cell_size
-*/
-          for (__pyx_t_21 = -1; __pyx_t_21 < 2; __pyx_t_21+=1) {
-            __pyx_v_dz = __pyx_t_21;
-
-            /* "point_smooth_cython.pyx":137
- *                     for dz in range(-1, 2):
- *                         # Calculate grid index for neighbor (same as Rust)
- *                         neighbor_x = x + <float>dx * cell_size             # <<<<<<<<<<<<<<
- *                         neighbor_y = y + <float>dy * cell_size
- *                         neighbor_z = z + <float>dz * cell_size
-*/
-            __pyx_v_neighbor_x = (__pyx_v_x + (((float)__pyx_v_dx) * __pyx_v_cell_size));
-
-            /* "point_smooth_cython.pyx":138
- *                         # Calculate grid index for neighbor (same as Rust)
- *                         neighbor_x = x + <float>dx * cell_size
- *                         neighbor_y = y + <float>dy * cell_size             # <<<<<<<<<<<<<<
- *                         neighbor_z = z + <float>dz * cell_size
- *                         gx = <int>((neighbor_x - min_x) * inv_cell_size)
-*/
-            __pyx_v_neighbor_y = (__pyx_v_y + (((float)__pyx_v_dy) * __pyx_v_cell_size));
-
-            /* "point_smooth_cython.pyx":139
- *                         neighbor_x = x + <float>dx * cell_size
- *                         neighbor_y = y + <float>dy * cell_size
- *                         neighbor_z = z + <float>dz * cell_size             # <<<<<<<<<<<<<<
- *                         gx = <int>((neighbor_x - min_x) * inv_cell_size)
- *                         gy = <int>((neighbor_y - min_y) * inv_cell_size)
-*/
-            __pyx_v_neighbor_z = (__pyx_v_z + (((float)__pyx_v_dz) * __pyx_v_cell_size));
-
-            /* "point_smooth_cython.pyx":140
- *                         neighbor_y = y + <float>dy * cell_size
- *                         neighbor_z = z + <float>dz * cell_size
- *                         gx = <int>((neighbor_x - min_x) * inv_cell_size)             # <<<<<<<<<<<<<<
- *                         gy = <int>((neighbor_y - min_y) * inv_cell_size)
- *                         gz = <int>((neighbor_z - min_z) * inv_cell_size)
-*/
-            __pyx_v_gx = ((int)((__pyx_v_neighbor_x - __pyx_v_min_x) * __pyx_v_inv_cell_size));
-
-            /* "point_smooth_cython.pyx":141
- *                         neighbor_z = z + <float>dz * cell_size
- *                         gx = <int>((neighbor_x - min_x) * inv_cell_size)
- *                         gy = <int>((neighbor_y - min_y) * inv_cell_size)             # <<<<<<<<<<<<<<
- *                         gz = <int>((neighbor_z - min_z) * inv_cell_size)
- *                         grid_index = gx + gy * grid_width + gz * grid_width * grid_height
-*/
-            __pyx_v_gy = ((int)((__pyx_v_neighbor_y - __pyx_v_min_y) * __pyx_v_inv_cell_size));
-
-            /* "point_smooth_cython.pyx":142
- *                         gx = <int>((neighbor_x - min_x) * inv_cell_size)
- *                         gy = <int>((neighbor_y - min_y) * inv_cell_size)
- *                         gz = <int>((neighbor_z - min_z) * inv_cell_size)             # <<<<<<<<<<<<<<
- *                         grid_index = gx + gy * grid_width + gz * grid_width * grid_height
- * 
-*/
-            __pyx_v_gz = ((int)((__pyx_v_neighbor_z - __pyx_v_min_z) * __pyx_v_inv_cell_size));
-
-            /* "point_smooth_cython.pyx":143
- *                         gy = <int>((neighbor_y - min_y) * inv_cell_size)
- *                         gz = <int>((neighbor_z - min_z) * inv_cell_size)
- *                         grid_index = gx + gy * grid_width + gz * grid_width * grid_height             # <<<<<<<<<<<<<<
- * 
- *                         if 0 <= grid_index < grid_size:
-*/
-            __pyx_v_grid_index = ((__pyx_v_gx + (__pyx_v_gy * __pyx_v_grid_width)) + ((__pyx_v_gz * __pyx_v_grid_width) * __pyx_v_grid_height));
-
-            /* "point_smooth_cython.pyx":145
- *                         grid_index = gx + gy * grid_width + gz * grid_width * grid_height
- * 
- *                         if 0 <= grid_index < grid_size:             # <<<<<<<<<<<<<<
- *                             cell = grid[grid_index]
- *                             # Direct iteration (like Rust's &grid[grid_index])
-*/
-            __pyx_t_2 = (0 <= __pyx_v_grid_index);
-            if (__pyx_t_2) {
-              __pyx_t_2 = (__pyx_v_grid_index < __pyx_v_grid_size);
-            }
-            if (__pyx_t_2) {
-
-              /* "point_smooth_cython.pyx":146
- * 
- *                         if 0 <= grid_index < grid_size:
- *                             cell = grid[grid_index]             # <<<<<<<<<<<<<<
- *                             # Direct iteration (like Rust's &grid[grid_index])
- *                             for j in cell:
-*/
-              __pyx_t_3 = __Pyx_PyList_GET_ITEM(__pyx_v_grid, __pyx_v_grid_index);
-              __Pyx_INCREF(__pyx_t_3);
-              if (!(likely(PyList_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_3))) __PYX_ERR(0, 146, __pyx_L1_error)
-              __Pyx_XDECREF_SET(__pyx_v_cell, ((PyObject*)__pyx_t_3));
-              __pyx_t_3 = 0;
-
-              /* "point_smooth_cython.pyx":148
- *                             cell = grid[grid_index]
- *                             # Direct iteration (like Rust's &grid[grid_index])
- *                             for j in cell:             # <<<<<<<<<<<<<<
- *                                 if i == j:
- *                                     continue
-*/
-              if (unlikely(__pyx_v_cell == Py_None)) {
-                PyErr_SetString(PyExc_TypeError, "'NoneType' object is not iterable");
-                __PYX_ERR(0, 148, __pyx_L1_error)
-              }
-              __pyx_t_3 = __pyx_v_cell; __Pyx_INCREF(__pyx_t_3);
-              __pyx_t_1 = 0;
-              for (;;) {
-                {
-                  Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_3);
-                  #if !CYTHON_ASSUME_SAFE_SIZE
-                  if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 148, __pyx_L1_error)
-                  #endif
-                  if (__pyx_t_1 >= __pyx_temp) break;
-                }
-                __pyx_t_7 = __Pyx_PyList_GetItemRefFast(__pyx_t_3, __pyx_t_1, __Pyx_ReferenceSharing_OwnStrongReference);
-                ++__pyx_t_1;
-                if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 148, __pyx_L1_error)
-                __Pyx_GOTREF(__pyx_t_7);
-                __pyx_t_22 = __Pyx_PyLong_As_int(__pyx_t_7); if (unlikely((__pyx_t_22 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 148, __pyx_L1_error)
-                __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-                __pyx_v_j = __pyx_t_22;
-
-                /* "point_smooth_cython.pyx":149
- *                             # Direct iteration (like Rust's &grid[grid_index])
- *                             for j in cell:
- *                                 if i == j:             # <<<<<<<<<<<<<<
- *                                     continue
- * 
-*/
-                __pyx_t_2 = (__pyx_v_i == __pyx_v_j);
-                if (__pyx_t_2) {
-
-                  /* "point_smooth_cython.pyx":150
- *                             for j in cell:
- *                                 if i == j:
- *                                     continue             # <<<<<<<<<<<<<<
- * 
- *                                 j3 = j * 3
-*/
-                  goto __pyx_L37_continue;
-
-                  /* "point_smooth_cython.pyx":149
- *                             # Direct iteration (like Rust's &grid[grid_index])
- *                             for j in cell:
- *                                 if i == j:             # <<<<<<<<<<<<<<
- *                                     continue
- * 
-*/
-                }
-
-                /* "point_smooth_cython.pyx":152
- *                                     continue
- * 
- *                                 j3 = j * 3             # <<<<<<<<<<<<<<
- *                                 jx = temp_points[j3]
- *                                 jy = temp_points[j3 + 1]
-*/
-                __pyx_v_j3 = (__pyx_v_j * 3);
-
-                /* "point_smooth_cython.pyx":153
- * 
- *                                 j3 = j * 3
- *                                 jx = temp_points[j3]             # <<<<<<<<<<<<<<
- *                                 jy = temp_points[j3 + 1]
- *                                 jz = temp_points[j3 + 2]
-*/
-                __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_v_j3)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 153, __pyx_L1_error)
-                __pyx_v_jx = __pyx_t_9;
-
-                /* "point_smooth_cython.pyx":154
- *                                 j3 = j * 3
- *                                 jx = temp_points[j3]
- *                                 jy = temp_points[j3 + 1]             # <<<<<<<<<<<<<<
- *                                 jz = temp_points[j3 + 2]
- * 
-*/
-                __pyx_t_12 = (__pyx_v_j3 + 1);
-                __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 154, __pyx_L1_error)
-                __pyx_v_jy = __pyx_t_9;
-
-                /* "point_smooth_cython.pyx":155
- *                                 jx = temp_points[j3]
- *                                 jy = temp_points[j3 + 1]
- *                                 jz = temp_points[j3 + 2]             # <<<<<<<<<<<<<<
- * 
- *                                 dx2 = jx - x
-*/
-                __pyx_t_12 = (__pyx_v_j3 + 2);
-                __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 155, __pyx_L1_error)
-                __pyx_v_jz = __pyx_t_9;
-
-                /* "point_smooth_cython.pyx":157
- *                                 jz = temp_points[j3 + 2]
- * 
- *                                 dx2 = jx - x             # <<<<<<<<<<<<<<
- *                                 dy2 = jy - y
- *                                 dz2 = jz - z
-*/
-                __pyx_v_dx2 = (__pyx_v_jx - __pyx_v_x);
-
-                /* "point_smooth_cython.pyx":158
- * 
- *                                 dx2 = jx - x
- *                                 dy2 = jy - y             # <<<<<<<<<<<<<<
- *                                 dz2 = jz - z
- *                                 distance_squared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2
-*/
-                __pyx_v_dy2 = (__pyx_v_jy - __pyx_v_y);
-
-                /* "point_smooth_cython.pyx":159
- *                                 dx2 = jx - x
- *                                 dy2 = jy - y
- *                                 dz2 = jz - z             # <<<<<<<<<<<<<<
- *                                 distance_squared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2
- * 
-*/
-                __pyx_v_dz2 = (__pyx_v_jz - __pyx_v_z);
-
-                /* "point_smooth_cython.pyx":160
- *                                 dy2 = jy - y
- *                                 dz2 = jz - z
- *                                 distance_squared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2             # <<<<<<<<<<<<<<
- * 
- *                                 if distance_squared <= radius_squared:
-*/
-                __pyx_v_distance_squared = (((__pyx_v_dx2 * __pyx_v_dx2) + (__pyx_v_dy2 * __pyx_v_dy2)) + (__pyx_v_dz2 * __pyx_v_dz2));
-
-                /* "point_smooth_cython.pyx":162
- *                                 distance_squared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2
- * 
- *                                 if distance_squared <= radius_squared:             # <<<<<<<<<<<<<<
- *                                     sum_x += jx
- *                                     sum_y += jy
-*/
-                __pyx_t_2 = (__pyx_v_distance_squared <= __pyx_v_radius_squared);
-                if (__pyx_t_2) {
-
-                  /* "point_smooth_cython.pyx":163
- * 
- *                                 if distance_squared <= radius_squared:
- *                                     sum_x += jx             # <<<<<<<<<<<<<<
- *                                     sum_y += jy
- *                                     sum_z += jz
-*/
-                  __pyx_v_sum_x = (__pyx_v_sum_x + __pyx_v_jx);
-
-                  /* "point_smooth_cython.pyx":164
- *                                 if distance_squared <= radius_squared:
- *                                     sum_x += jx
- *                                     sum_y += jy             # <<<<<<<<<<<<<<
- *                                     sum_z += jz
- *                                     count += 1
-*/
-                  __pyx_v_sum_y = (__pyx_v_sum_y + __pyx_v_jy);
-
-                  /* "point_smooth_cython.pyx":165
- *                                     sum_x += jx
- *                                     sum_y += jy
- *                                     sum_z += jz             # <<<<<<<<<<<<<<
- *                                     count += 1
- * 
-*/
-                  __pyx_v_sum_z = (__pyx_v_sum_z + __pyx_v_jz);
-
-                  /* "point_smooth_cython.pyx":166
- *                                     sum_y += jy
- *                                     sum_z += jz
- *                                     count += 1             # <<<<<<<<<<<<<<
- * 
- *             # Apply smoothing if neighbors found (same as Rust BE)
-*/
-                  __pyx_v_count = (__pyx_v_count + 1);
-
-                  /* "point_smooth_cython.pyx":162
- *                                 distance_squared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2
- * 
- *                                 if distance_squared <= radius_squared:             # <<<<<<<<<<<<<<
- *                                     sum_x += jx
- *                                     sum_y += jy
-*/
-                }
-
-                /* "point_smooth_cython.pyx":148
- *                             cell = grid[grid_index]
- *                             # Direct iteration (like Rust's &grid[grid_index])
- *                             for j in cell:             # <<<<<<<<<<<<<<
- *                                 if i == j:
- *                                     continue
-*/
-                __pyx_L37_continue:;
-              }
-              __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-
-              /* "point_smooth_cython.pyx":145
- *                         grid_index = gx + gy * grid_width + gz * grid_width * grid_height
- * 
- *                         if 0 <= grid_index < grid_size:             # <<<<<<<<<<<<<<
- *                             cell = grid[grid_index]
- *                             # Direct iteration (like Rust's &grid[grid_index])
-*/
-            }
+    __pyx_t_5 = PyObject_GetIter(__pyx_t_3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 113, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_5);
+    __pyx_t_15 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_5); if (unlikely(!__pyx_t_15)) __PYX_ERR(0, 113, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    for (;;) {
+      {
+        __pyx_t_3 = __pyx_t_15(__pyx_t_5);
+        if (unlikely(!__pyx_t_3)) {
+          PyObject* exc_type = PyErr_Occurred();
+          if (exc_type) {
+            if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 113, __pyx_L1_error)
+            PyErr_Clear();
           }
+          break;
         }
       }
+      __Pyx_GOTREF(__pyx_t_3);
+      __pyx_t_16 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_16 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 113, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __pyx_v_chunk_start = __pyx_t_16;
 
-      /* "point_smooth_cython.pyx":169
+      /* "point_smooth_cython.pyx":114
+ *         # Populate grid with PREVIOUS iteration's point positions (chunked processing)
+ *         for chunk_start in range(0, point_count, CHUNK_SIZE):
+ *             chunk_end_calc = chunk_start + CHUNK_SIZE             # <<<<<<<<<<<<<<
+ *             chunk_end = chunk_end_calc if chunk_end_calc < point_count else point_count
  * 
- *             # Apply smoothing if neighbors found (same as Rust BE)
- *             if count > 0:             # <<<<<<<<<<<<<<
- *                 count_plus_1 = count + 1
- *                 smoothed_points[i3] = (x + sum_x) / <float>count_plus_1
 */
-      __pyx_t_2 = (__pyx_v_count > 0);
+      __pyx_v_chunk_end_calc = (__pyx_v_chunk_start + __pyx_v_CHUNK_SIZE);
+
+      /* "point_smooth_cython.pyx":115
+ *         for chunk_start in range(0, point_count, CHUNK_SIZE):
+ *             chunk_end_calc = chunk_start + CHUNK_SIZE
+ *             chunk_end = chunk_end_calc if chunk_end_calc < point_count else point_count             # <<<<<<<<<<<<<<
+ * 
+ *             # OPTIMIZATION: Use while loop instead of range for better C code generation
+*/
+      __pyx_t_2 = (__pyx_v_chunk_end_calc < __pyx_v_point_count);
       if (__pyx_t_2) {
+        __pyx_t_16 = __pyx_v_chunk_end_calc;
+      } else {
+        __pyx_t_16 = __pyx_v_point_count;
+      }
+      __pyx_v_chunk_end = __pyx_t_16;
 
-        /* "point_smooth_cython.pyx":170
- *             # Apply smoothing if neighbors found (same as Rust BE)
- *             if count > 0:
- *                 count_plus_1 = count + 1             # <<<<<<<<<<<<<<
- *                 smoothed_points[i3] = (x + sum_x) / <float>count_plus_1
- *                 smoothed_points[i3 + 1] = (y + sum_y) / <float>count_plus_1
+      /* "point_smooth_cython.pyx":118
+ * 
+ *             # OPTIMIZATION: Use while loop instead of range for better C code generation
+ *             i = chunk_start             # <<<<<<<<<<<<<<
+ *             while i < chunk_end:
+ *                 i3 = i * 3
 */
-        __pyx_v_count_plus_1 = (__pyx_v_count + 1);
+      __pyx_v_i = __pyx_v_chunk_start;
 
-        /* "point_smooth_cython.pyx":171
- *             if count > 0:
- *                 count_plus_1 = count + 1
- *                 smoothed_points[i3] = (x + sum_x) / <float>count_plus_1             # <<<<<<<<<<<<<<
- *                 smoothed_points[i3 + 1] = (y + sum_y) / <float>count_plus_1
- *                 smoothed_points[i3 + 2] = (z + sum_z) / <float>count_plus_1
+      /* "point_smooth_cython.pyx":119
+ *             # OPTIMIZATION: Use while loop instead of range for better C code generation
+ *             i = chunk_start
+ *             while i < chunk_end:             # <<<<<<<<<<<<<<
+ *                 i3 = i * 3
+ *                 x = <float>temp_points[i3]
 */
-        __pyx_t_3 = PyFloat_FromDouble(((__pyx_v_x + __pyx_v_sum_x) / ((float)__pyx_v_count_plus_1))); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 171, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_3);
-        if (unlikely((__Pyx_SetItemInt(__pyx_v_smoothed_points, __pyx_v_i3, __pyx_t_3, int, 1, __Pyx_PyLong_From_int, 1, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 171, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      while (1) {
+        __pyx_t_2 = (__pyx_v_i < __pyx_v_chunk_end);
+        if (!__pyx_t_2) break;
 
-        /* "point_smooth_cython.pyx":172
- *                 count_plus_1 = count + 1
- *                 smoothed_points[i3] = (x + sum_x) / <float>count_plus_1
- *                 smoothed_points[i3 + 1] = (y + sum_y) / <float>count_plus_1             # <<<<<<<<<<<<<<
- *                 smoothed_points[i3 + 2] = (z + sum_z) / <float>count_plus_1
+        /* "point_smooth_cython.pyx":120
+ *             i = chunk_start
+ *             while i < chunk_end:
+ *                 i3 = i * 3             # <<<<<<<<<<<<<<
+ *                 x = <float>temp_points[i3]
+ *                 y = <float>temp_points[i3 + 1]
+*/
+        __pyx_v_i3 = (__pyx_v_i * 3);
+
+        /* "point_smooth_cython.pyx":121
+ *             while i < chunk_end:
+ *                 i3 = i * 3
+ *                 x = <float>temp_points[i3]             # <<<<<<<<<<<<<<
+ *                 y = <float>temp_points[i3 + 1]
+ *                 z = <float>temp_points[i3 + 2]
+*/
+        __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_v_i3)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 121, __pyx_L1_error)
+        __pyx_v_x = ((float)__pyx_t_9);
+
+        /* "point_smooth_cython.pyx":122
+ *                 i3 = i * 3
+ *                 x = <float>temp_points[i3]
+ *                 y = <float>temp_points[i3 + 1]             # <<<<<<<<<<<<<<
+ *                 z = <float>temp_points[i3 + 2]
  * 
 */
-        __pyx_t_3 = PyFloat_FromDouble(((__pyx_v_y + __pyx_v_sum_y) / ((float)__pyx_v_count_plus_1))); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 172, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_3);
         __pyx_t_12 = (__pyx_v_i3 + 1);
-        if (unlikely((__Pyx_SetItemInt(__pyx_v_smoothed_points, __pyx_t_12, __pyx_t_3, long, 1, __Pyx_PyLong_From_long, 1, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 172, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+        __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 122, __pyx_L1_error)
+        __pyx_v_y = ((float)__pyx_t_9);
 
-        /* "point_smooth_cython.pyx":173
- *                 smoothed_points[i3] = (x + sum_x) / <float>count_plus_1
- *                 smoothed_points[i3 + 1] = (y + sum_y) / <float>count_plus_1
- *                 smoothed_points[i3 + 2] = (z + sum_z) / <float>count_plus_1             # <<<<<<<<<<<<<<
+        /* "point_smooth_cython.pyx":123
+ *                 x = <float>temp_points[i3]
+ *                 y = <float>temp_points[i3 + 1]
+ *                 z = <float>temp_points[i3 + 2]             # <<<<<<<<<<<<<<
+ * 
+ *                 # Calculate grid index (pre-computed grid_width_height to avoid repeated multiplication)
+*/
+        __pyx_t_12 = (__pyx_v_i3 + 2);
+        __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 123, __pyx_L1_error)
+        __pyx_v_z = ((float)__pyx_t_9);
+
+        /* "point_smooth_cython.pyx":126
+ * 
+ *                 # Calculate grid index (pre-computed grid_width_height to avoid repeated multiplication)
+ *                 gx = <int>((x - min_x) * inv_cell_size)             # <<<<<<<<<<<<<<
+ *                 gy = <int>((y - min_y) * inv_cell_size)
+ *                 gz = <int>((z - min_z) * inv_cell_size)
+*/
+        __pyx_v_gx = ((int)((__pyx_v_x - __pyx_v_min_x) * __pyx_v_inv_cell_size));
+
+        /* "point_smooth_cython.pyx":127
+ *                 # Calculate grid index (pre-computed grid_width_height to avoid repeated multiplication)
+ *                 gx = <int>((x - min_x) * inv_cell_size)
+ *                 gy = <int>((y - min_y) * inv_cell_size)             # <<<<<<<<<<<<<<
+ *                 gz = <int>((z - min_z) * inv_cell_size)
+ *                 grid_index = gx + gy * grid_width + gz * grid_width_height
+*/
+        __pyx_v_gy = ((int)((__pyx_v_y - __pyx_v_min_y) * __pyx_v_inv_cell_size));
+
+        /* "point_smooth_cython.pyx":128
+ *                 gx = <int>((x - min_x) * inv_cell_size)
+ *                 gy = <int>((y - min_y) * inv_cell_size)
+ *                 gz = <int>((z - min_z) * inv_cell_size)             # <<<<<<<<<<<<<<
+ *                 grid_index = gx + gy * grid_width + gz * grid_width_height
+ * 
+*/
+        __pyx_v_gz = ((int)((__pyx_v_z - __pyx_v_min_z) * __pyx_v_inv_cell_size));
+
+        /* "point_smooth_cython.pyx":129
+ *                 gy = <int>((y - min_y) * inv_cell_size)
+ *                 gz = <int>((z - min_z) * inv_cell_size)
+ *                 grid_index = gx + gy * grid_width + gz * grid_width_height             # <<<<<<<<<<<<<<
+ * 
+ *                 if 0 <= grid_index < grid_size:
+*/
+        __pyx_v_grid_index = ((__pyx_v_gx + (__pyx_v_gy * __pyx_v_grid_width)) + (__pyx_v_gz * __pyx_v_grid_width_height));
+
+        /* "point_smooth_cython.pyx":131
+ *                 grid_index = gx + gy * grid_width + gz * grid_width_height
+ * 
+ *                 if 0 <= grid_index < grid_size:             # <<<<<<<<<<<<<<
+ *                     grid[grid_index].append(i)
+ *                 i += 1
+*/
+        __pyx_t_2 = (0 <= __pyx_v_grid_index);
+        if (__pyx_t_2) {
+          __pyx_t_2 = (__pyx_v_grid_index < __pyx_v_grid_size);
+        }
+        if (__pyx_t_2) {
+
+          /* "point_smooth_cython.pyx":132
+ * 
+ *                 if 0 <= grid_index < grid_size:
+ *                     grid[grid_index].append(i)             # <<<<<<<<<<<<<<
+ *                 i += 1
+ * 
+*/
+          __pyx_t_3 = __Pyx_PyLong_From_int(__pyx_v_i); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 132, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_3);
+          __pyx_t_17 = __Pyx_PyObject_Append(__Pyx_PyList_GET_ITEM(__pyx_v_grid, __pyx_v_grid_index), __pyx_t_3); if (unlikely(__pyx_t_17 == ((int)-1))) __PYX_ERR(0, 132, __pyx_L1_error)
+          __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+
+          /* "point_smooth_cython.pyx":131
+ *                 grid_index = gx + gy * grid_width + gz * grid_width_height
+ * 
+ *                 if 0 <= grid_index < grid_size:             # <<<<<<<<<<<<<<
+ *                     grid[grid_index].append(i)
+ *                 i += 1
+*/
+        }
+
+        /* "point_smooth_cython.pyx":133
+ *                 if 0 <= grid_index < grid_size:
+ *                     grid[grid_index].append(i)
+ *                 i += 1             # <<<<<<<<<<<<<<
+ * 
+ *         # Process each point using spatial hash (chunked processing for cache locality)
+*/
+        __pyx_v_i = (__pyx_v_i + 1);
+      }
+
+      /* "point_smooth_cython.pyx":113
+ * 
+ *         # Populate grid with PREVIOUS iteration's point positions (chunked processing)
+ *         for chunk_start in range(0, point_count, CHUNK_SIZE):             # <<<<<<<<<<<<<<
+ *             chunk_end_calc = chunk_start + CHUNK_SIZE
+ *             chunk_end = chunk_end_calc if chunk_end_calc < point_count else point_count
+*/
+    }
+    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+
+    /* "point_smooth_cython.pyx":136
+ * 
+ *         # Process each point using spatial hash (chunked processing for cache locality)
+ *         for chunk_start in range(0, point_count, CHUNK_SIZE):             # <<<<<<<<<<<<<<
+ *             chunk_end_calc = chunk_start + CHUNK_SIZE
+ *             chunk_end = chunk_end_calc if chunk_end_calc < point_count else point_count
+*/
+    __pyx_t_3 = NULL;
+    __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_point_count); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 136, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_7 = __Pyx_PyLong_From_int(__pyx_v_CHUNK_SIZE); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 136, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_t_8 = 1;
+    {
+      PyObject *__pyx_callargs[4] = {__pyx_t_3, __pyx_mstate_global->__pyx_int_0, __pyx_t_6, __pyx_t_7};
+      __pyx_t_5 = __Pyx_PyObject_FastCall((PyObject*)(&PyRange_Type), __pyx_callargs+__pyx_t_8, (4-__pyx_t_8) | (__pyx_t_8*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+      __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 136, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_5);
+    }
+    __pyx_t_7 = PyObject_GetIter(__pyx_t_5); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 136, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_t_15 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_7); if (unlikely(!__pyx_t_15)) __PYX_ERR(0, 136, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    for (;;) {
+      {
+        __pyx_t_5 = __pyx_t_15(__pyx_t_7);
+        if (unlikely(!__pyx_t_5)) {
+          PyObject* exc_type = PyErr_Occurred();
+          if (exc_type) {
+            if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 136, __pyx_L1_error)
+            PyErr_Clear();
+          }
+          break;
+        }
+      }
+      __Pyx_GOTREF(__pyx_t_5);
+      __pyx_t_16 = __Pyx_PyLong_As_int(__pyx_t_5); if (unlikely((__pyx_t_16 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 136, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+      __pyx_v_chunk_start = __pyx_t_16;
+
+      /* "point_smooth_cython.pyx":137
+ *         # Process each point using spatial hash (chunked processing for cache locality)
+ *         for chunk_start in range(0, point_count, CHUNK_SIZE):
+ *             chunk_end_calc = chunk_start + CHUNK_SIZE             # <<<<<<<<<<<<<<
+ *             chunk_end = chunk_end_calc if chunk_end_calc < point_count else point_count
+ * 
+*/
+      __pyx_v_chunk_end_calc = (__pyx_v_chunk_start + __pyx_v_CHUNK_SIZE);
+
+      /* "point_smooth_cython.pyx":138
+ *         for chunk_start in range(0, point_count, CHUNK_SIZE):
+ *             chunk_end_calc = chunk_start + CHUNK_SIZE
+ *             chunk_end = chunk_end_calc if chunk_end_calc < point_count else point_count             # <<<<<<<<<<<<<<
+ * 
+ *             # OPTIMIZATION: Use while loop instead of range for better C code generation
+*/
+      __pyx_t_2 = (__pyx_v_chunk_end_calc < __pyx_v_point_count);
+      if (__pyx_t_2) {
+        __pyx_t_16 = __pyx_v_chunk_end_calc;
+      } else {
+        __pyx_t_16 = __pyx_v_point_count;
+      }
+      __pyx_v_chunk_end = __pyx_t_16;
+
+      /* "point_smooth_cython.pyx":141
+ * 
+ *             # OPTIMIZATION: Use while loop instead of range for better C code generation
+ *             i = chunk_start             # <<<<<<<<<<<<<<
+ *             while i < chunk_end:
+ *                 i3 = i * 3
+*/
+      __pyx_v_i = __pyx_v_chunk_start;
+
+      /* "point_smooth_cython.pyx":142
+ *             # OPTIMIZATION: Use while loop instead of range for better C code generation
+ *             i = chunk_start
+ *             while i < chunk_end:             # <<<<<<<<<<<<<<
+ *                 i3 = i * 3
+ *                 x = <float>temp_points[i3]
+*/
+      while (1) {
+        __pyx_t_2 = (__pyx_v_i < __pyx_v_chunk_end);
+        if (!__pyx_t_2) break;
+
+        /* "point_smooth_cython.pyx":143
+ *             i = chunk_start
+ *             while i < chunk_end:
+ *                 i3 = i * 3             # <<<<<<<<<<<<<<
+ *                 x = <float>temp_points[i3]
+ *                 y = <float>temp_points[i3 + 1]
+*/
+        __pyx_v_i3 = (__pyx_v_i * 3);
+
+        /* "point_smooth_cython.pyx":144
+ *             while i < chunk_end:
+ *                 i3 = i * 3
+ *                 x = <float>temp_points[i3]             # <<<<<<<<<<<<<<
+ *                 y = <float>temp_points[i3 + 1]
+ *                 z = <float>temp_points[i3 + 2]
+*/
+        __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_v_i3)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 144, __pyx_L1_error)
+        __pyx_v_x = ((float)__pyx_t_9);
+
+        /* "point_smooth_cython.pyx":145
+ *                 i3 = i * 3
+ *                 x = <float>temp_points[i3]
+ *                 y = <float>temp_points[i3 + 1]             # <<<<<<<<<<<<<<
+ *                 z = <float>temp_points[i3 + 2]
+ * 
+*/
+        __pyx_t_12 = (__pyx_v_i3 + 1);
+        __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 145, __pyx_L1_error)
+        __pyx_v_y = ((float)__pyx_t_9);
+
+        /* "point_smooth_cython.pyx":146
+ *                 x = <float>temp_points[i3]
+ *                 y = <float>temp_points[i3 + 1]
+ *                 z = <float>temp_points[i3 + 2]             # <<<<<<<<<<<<<<
+ * 
+ *                 sum_x = 0.0
+*/
+        __pyx_t_12 = (__pyx_v_i3 + 2);
+        __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 146, __pyx_L1_error)
+        __pyx_v_z = ((float)__pyx_t_9);
+
+        /* "point_smooth_cython.pyx":148
+ *                 z = <float>temp_points[i3 + 2]
+ * 
+ *                 sum_x = 0.0             # <<<<<<<<<<<<<<
+ *                 sum_y = 0.0
+ *                 sum_z = 0.0
+*/
+        __pyx_v_sum_x = 0.0;
+
+        /* "point_smooth_cython.pyx":149
+ * 
+ *                 sum_x = 0.0
+ *                 sum_y = 0.0             # <<<<<<<<<<<<<<
+ *                 sum_z = 0.0
+ *                 count = 0
+*/
+        __pyx_v_sum_y = 0.0;
+
+        /* "point_smooth_cython.pyx":150
+ *                 sum_x = 0.0
+ *                 sum_y = 0.0
+ *                 sum_z = 0.0             # <<<<<<<<<<<<<<
+ *                 count = 0
+ * 
+*/
+        __pyx_v_sum_z = 0.0;
+
+        /* "point_smooth_cython.pyx":151
+ *                 sum_y = 0.0
+ *                 sum_z = 0.0
+ *                 count = 0             # <<<<<<<<<<<<<<
+ * 
+ *                 # Check neighboring grid cells (3x3x3 = 27 cells) - optimized with while loops
+*/
+        __pyx_v_count = 0;
+
+        /* "point_smooth_cython.pyx":154
+ * 
+ *                 # Check neighboring grid cells (3x3x3 = 27 cells) - optimized with while loops
+ *                 dx = -1             # <<<<<<<<<<<<<<
+ *                 while dx <= 1:
+ *                     dy = -1
+*/
+        __pyx_v_dx = -1;
+
+        /* "point_smooth_cython.pyx":155
+ *                 # Check neighboring grid cells (3x3x3 = 27 cells) - optimized with while loops
+ *                 dx = -1
+ *                 while dx <= 1:             # <<<<<<<<<<<<<<
+ *                     dy = -1
+ *                     while dy <= 1:
+*/
+        while (1) {
+          __pyx_t_2 = (__pyx_v_dx <= 1);
+          if (!__pyx_t_2) break;
+
+          /* "point_smooth_cython.pyx":156
+ *                 dx = -1
+ *                 while dx <= 1:
+ *                     dy = -1             # <<<<<<<<<<<<<<
+ *                     while dy <= 1:
+ *                         dz = -1
+*/
+          __pyx_v_dy = -1;
+
+          /* "point_smooth_cython.pyx":157
+ *                 while dx <= 1:
+ *                     dy = -1
+ *                     while dy <= 1:             # <<<<<<<<<<<<<<
+ *                         dz = -1
+ *                         while dz <= 1:
+*/
+          while (1) {
+            __pyx_t_2 = (__pyx_v_dy <= 1);
+            if (!__pyx_t_2) break;
+
+            /* "point_smooth_cython.pyx":158
+ *                     dy = -1
+ *                     while dy <= 1:
+ *                         dz = -1             # <<<<<<<<<<<<<<
+ *                         while dz <= 1:
+ *                             # Calculate grid index for neighbor (pre-computed grid_width_height)
+*/
+            __pyx_v_dz = -1;
+
+            /* "point_smooth_cython.pyx":159
+ *                     while dy <= 1:
+ *                         dz = -1
+ *                         while dz <= 1:             # <<<<<<<<<<<<<<
+ *                             # Calculate grid index for neighbor (pre-computed grid_width_height)
+ *                             neighbor_x = x + <float>dx * cell_size
+*/
+            while (1) {
+              __pyx_t_2 = (__pyx_v_dz <= 1);
+              if (!__pyx_t_2) break;
+
+              /* "point_smooth_cython.pyx":161
+ *                         while dz <= 1:
+ *                             # Calculate grid index for neighbor (pre-computed grid_width_height)
+ *                             neighbor_x = x + <float>dx * cell_size             # <<<<<<<<<<<<<<
+ *                             neighbor_y = y + <float>dy * cell_size
+ *                             neighbor_z = z + <float>dz * cell_size
+*/
+              __pyx_v_neighbor_x = (__pyx_v_x + (((float)__pyx_v_dx) * __pyx_v_cell_size));
+
+              /* "point_smooth_cython.pyx":162
+ *                             # Calculate grid index for neighbor (pre-computed grid_width_height)
+ *                             neighbor_x = x + <float>dx * cell_size
+ *                             neighbor_y = y + <float>dy * cell_size             # <<<<<<<<<<<<<<
+ *                             neighbor_z = z + <float>dz * cell_size
+ *                             gx = <int>((neighbor_x - min_x) * inv_cell_size)
+*/
+              __pyx_v_neighbor_y = (__pyx_v_y + (((float)__pyx_v_dy) * __pyx_v_cell_size));
+
+              /* "point_smooth_cython.pyx":163
+ *                             neighbor_x = x + <float>dx * cell_size
+ *                             neighbor_y = y + <float>dy * cell_size
+ *                             neighbor_z = z + <float>dz * cell_size             # <<<<<<<<<<<<<<
+ *                             gx = <int>((neighbor_x - min_x) * inv_cell_size)
+ *                             gy = <int>((neighbor_y - min_y) * inv_cell_size)
+*/
+              __pyx_v_neighbor_z = (__pyx_v_z + (((float)__pyx_v_dz) * __pyx_v_cell_size));
+
+              /* "point_smooth_cython.pyx":164
+ *                             neighbor_y = y + <float>dy * cell_size
+ *                             neighbor_z = z + <float>dz * cell_size
+ *                             gx = <int>((neighbor_x - min_x) * inv_cell_size)             # <<<<<<<<<<<<<<
+ *                             gy = <int>((neighbor_y - min_y) * inv_cell_size)
+ *                             gz = <int>((neighbor_z - min_z) * inv_cell_size)
+*/
+              __pyx_v_gx = ((int)((__pyx_v_neighbor_x - __pyx_v_min_x) * __pyx_v_inv_cell_size));
+
+              /* "point_smooth_cython.pyx":165
+ *                             neighbor_z = z + <float>dz * cell_size
+ *                             gx = <int>((neighbor_x - min_x) * inv_cell_size)
+ *                             gy = <int>((neighbor_y - min_y) * inv_cell_size)             # <<<<<<<<<<<<<<
+ *                             gz = <int>((neighbor_z - min_z) * inv_cell_size)
+ *                             grid_index = gx + gy * grid_width + gz * grid_width_height
+*/
+              __pyx_v_gy = ((int)((__pyx_v_neighbor_y - __pyx_v_min_y) * __pyx_v_inv_cell_size));
+
+              /* "point_smooth_cython.pyx":166
+ *                             gx = <int>((neighbor_x - min_x) * inv_cell_size)
+ *                             gy = <int>((neighbor_y - min_y) * inv_cell_size)
+ *                             gz = <int>((neighbor_z - min_z) * inv_cell_size)             # <<<<<<<<<<<<<<
+ *                             grid_index = gx + gy * grid_width + gz * grid_width_height
+ * 
+*/
+              __pyx_v_gz = ((int)((__pyx_v_neighbor_z - __pyx_v_min_z) * __pyx_v_inv_cell_size));
+
+              /* "point_smooth_cython.pyx":167
+ *                             gy = <int>((neighbor_y - min_y) * inv_cell_size)
+ *                             gz = <int>((neighbor_z - min_z) * inv_cell_size)
+ *                             grid_index = gx + gy * grid_width + gz * grid_width_height             # <<<<<<<<<<<<<<
+ * 
+ *                             if 0 <= grid_index < grid_size:
+*/
+              __pyx_v_grid_index = ((__pyx_v_gx + (__pyx_v_gy * __pyx_v_grid_width)) + (__pyx_v_gz * __pyx_v_grid_width_height));
+
+              /* "point_smooth_cython.pyx":169
+ *                             grid_index = gx + gy * grid_width + gz * grid_width_height
+ * 
+ *                             if 0 <= grid_index < grid_size:             # <<<<<<<<<<<<<<
+ *                                 # OPTIMIZATION: Cache grid cell reference to avoid repeated indexing
+ *                                 cell = grid[grid_index]
+*/
+              __pyx_t_2 = (0 <= __pyx_v_grid_index);
+              if (__pyx_t_2) {
+                __pyx_t_2 = (__pyx_v_grid_index < __pyx_v_grid_size);
+              }
+              if (__pyx_t_2) {
+
+                /* "point_smooth_cython.pyx":171
+ *                             if 0 <= grid_index < grid_size:
+ *                                 # OPTIMIZATION: Cache grid cell reference to avoid repeated indexing
+ *                                 cell = grid[grid_index]             # <<<<<<<<<<<<<<
+ *                                 # Direct iteration (Cython optimizes this better than indexed access)
+ *                                 for j in cell:
+*/
+                __pyx_t_5 = __Pyx_PyList_GET_ITEM(__pyx_v_grid, __pyx_v_grid_index);
+                __Pyx_INCREF(__pyx_t_5);
+                if (!(likely(PyList_CheckExact(__pyx_t_5))||((__pyx_t_5) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_5))) __PYX_ERR(0, 171, __pyx_L1_error)
+                __Pyx_XDECREF_SET(__pyx_v_cell, ((PyObject*)__pyx_t_5));
+                __pyx_t_5 = 0;
+
+                /* "point_smooth_cython.pyx":173
+ *                                 cell = grid[grid_index]
+ *                                 # Direct iteration (Cython optimizes this better than indexed access)
+ *                                 for j in cell:             # <<<<<<<<<<<<<<
+ *                                     if i == j:
+ *                                         continue
+*/
+                if (unlikely(__pyx_v_cell == Py_None)) {
+                  PyErr_SetString(PyExc_TypeError, "'NoneType' object is not iterable");
+                  __PYX_ERR(0, 173, __pyx_L1_error)
+                }
+                __pyx_t_5 = __pyx_v_cell; __Pyx_INCREF(__pyx_t_5);
+                __pyx_t_1 = 0;
+                for (;;) {
+                  {
+                    Py_ssize_t __pyx_temp = __Pyx_PyList_GET_SIZE(__pyx_t_5);
+                    #if !CYTHON_ASSUME_SAFE_SIZE
+                    if (unlikely((__pyx_temp < 0))) __PYX_ERR(0, 173, __pyx_L1_error)
+                    #endif
+                    if (__pyx_t_1 >= __pyx_temp) break;
+                  }
+                  __pyx_t_6 = __Pyx_PyList_GetItemRefFast(__pyx_t_5, __pyx_t_1, __Pyx_ReferenceSharing_OwnStrongReference);
+                  ++__pyx_t_1;
+                  if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 173, __pyx_L1_error)
+                  __Pyx_GOTREF(__pyx_t_6);
+                  __pyx_t_16 = __Pyx_PyLong_As_int(__pyx_t_6); if (unlikely((__pyx_t_16 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 173, __pyx_L1_error)
+                  __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+                  __pyx_v_j = __pyx_t_16;
+
+                  /* "point_smooth_cython.pyx":174
+ *                                 # Direct iteration (Cython optimizes this better than indexed access)
+ *                                 for j in cell:
+ *                                     if i == j:             # <<<<<<<<<<<<<<
+ *                                         continue
+ * 
+*/
+                  __pyx_t_2 = (__pyx_v_i == __pyx_v_j);
+                  if (__pyx_t_2) {
+
+                    /* "point_smooth_cython.pyx":175
+ *                                 for j in cell:
+ *                                     if i == j:
+ *                                         continue             # <<<<<<<<<<<<<<
+ * 
+ *                                     j3 = j * 3
+*/
+                    goto __pyx_L40_continue;
+
+                    /* "point_smooth_cython.pyx":174
+ *                                 # Direct iteration (Cython optimizes this better than indexed access)
+ *                                 for j in cell:
+ *                                     if i == j:             # <<<<<<<<<<<<<<
+ *                                         continue
+ * 
+*/
+                  }
+
+                  /* "point_smooth_cython.pyx":177
+ *                                         continue
+ * 
+ *                                     j3 = j * 3             # <<<<<<<<<<<<<<
+ *                                     # OPTIMIZATION: Direct type casts for all accesses
+ *                                     jx = <float>temp_points[j3]
+*/
+                  __pyx_v_j3 = (__pyx_v_j * 3);
+
+                  /* "point_smooth_cython.pyx":179
+ *                                     j3 = j * 3
+ *                                     # OPTIMIZATION: Direct type casts for all accesses
+ *                                     jx = <float>temp_points[j3]             # <<<<<<<<<<<<<<
+ *                                     jy = <float>temp_points[j3 + 1]
+ *                                     jz = <float>temp_points[j3 + 2]
+*/
+                  __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_v_j3)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 179, __pyx_L1_error)
+                  __pyx_v_jx = ((float)__pyx_t_9);
+
+                  /* "point_smooth_cython.pyx":180
+ *                                     # OPTIMIZATION: Direct type casts for all accesses
+ *                                     jx = <float>temp_points[j3]
+ *                                     jy = <float>temp_points[j3 + 1]             # <<<<<<<<<<<<<<
+ *                                     jz = <float>temp_points[j3 + 2]
+ * 
+*/
+                  __pyx_t_12 = (__pyx_v_j3 + 1);
+                  __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 180, __pyx_L1_error)
+                  __pyx_v_jy = ((float)__pyx_t_9);
+
+                  /* "point_smooth_cython.pyx":181
+ *                                     jx = <float>temp_points[j3]
+ *                                     jy = <float>temp_points[j3 + 1]
+ *                                     jz = <float>temp_points[j3 + 2]             # <<<<<<<<<<<<<<
+ * 
+ *                                     # OPTIMIZATION: Pre-compute differences (avoid repeated subtractions)
+*/
+                  __pyx_t_12 = (__pyx_v_j3 + 2);
+                  __pyx_t_9 = __Pyx_PyFloat_AsFloat(__Pyx_PyList_GET_ITEM(__pyx_v_temp_points, __pyx_t_12)); if (unlikely((__pyx_t_9 == (float)-1) && PyErr_Occurred())) __PYX_ERR(0, 181, __pyx_L1_error)
+                  __pyx_v_jz = ((float)__pyx_t_9);
+
+                  /* "point_smooth_cython.pyx":184
+ * 
+ *                                     # OPTIMIZATION: Pre-compute differences (avoid repeated subtractions)
+ *                                     dx2 = jx - x             # <<<<<<<<<<<<<<
+ *                                     dy2 = jy - y
+ *                                     dz2 = jz - z
+*/
+                  __pyx_v_dx2 = (__pyx_v_jx - __pyx_v_x);
+
+                  /* "point_smooth_cython.pyx":185
+ *                                     # OPTIMIZATION: Pre-compute differences (avoid repeated subtractions)
+ *                                     dx2 = jx - x
+ *                                     dy2 = jy - y             # <<<<<<<<<<<<<<
+ *                                     dz2 = jz - z
+ *                                     distance_squared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2
+*/
+                  __pyx_v_dy2 = (__pyx_v_jy - __pyx_v_y);
+
+                  /* "point_smooth_cython.pyx":186
+ *                                     dx2 = jx - x
+ *                                     dy2 = jy - y
+ *                                     dz2 = jz - z             # <<<<<<<<<<<<<<
+ *                                     distance_squared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2
+ * 
+*/
+                  __pyx_v_dz2 = (__pyx_v_jz - __pyx_v_z);
+
+                  /* "point_smooth_cython.pyx":187
+ *                                     dy2 = jy - y
+ *                                     dz2 = jz - z
+ *                                     distance_squared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2             # <<<<<<<<<<<<<<
+ * 
+ *                                     if distance_squared <= radius_squared:
+*/
+                  __pyx_v_distance_squared = (((__pyx_v_dx2 * __pyx_v_dx2) + (__pyx_v_dy2 * __pyx_v_dy2)) + (__pyx_v_dz2 * __pyx_v_dz2));
+
+                  /* "point_smooth_cython.pyx":189
+ *                                     distance_squared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2
+ * 
+ *                                     if distance_squared <= radius_squared:             # <<<<<<<<<<<<<<
+ *                                         sum_x += jx
+ *                                         sum_y += jy
+*/
+                  __pyx_t_2 = (__pyx_v_distance_squared <= __pyx_v_radius_squared);
+                  if (__pyx_t_2) {
+
+                    /* "point_smooth_cython.pyx":190
+ * 
+ *                                     if distance_squared <= radius_squared:
+ *                                         sum_x += jx             # <<<<<<<<<<<<<<
+ *                                         sum_y += jy
+ *                                         sum_z += jz
+*/
+                    __pyx_v_sum_x = (__pyx_v_sum_x + __pyx_v_jx);
+
+                    /* "point_smooth_cython.pyx":191
+ *                                     if distance_squared <= radius_squared:
+ *                                         sum_x += jx
+ *                                         sum_y += jy             # <<<<<<<<<<<<<<
+ *                                         sum_z += jz
+ *                                         count += 1
+*/
+                    __pyx_v_sum_y = (__pyx_v_sum_y + __pyx_v_jy);
+
+                    /* "point_smooth_cython.pyx":192
+ *                                         sum_x += jx
+ *                                         sum_y += jy
+ *                                         sum_z += jz             # <<<<<<<<<<<<<<
+ *                                         count += 1
+ *                             dz += 1
+*/
+                    __pyx_v_sum_z = (__pyx_v_sum_z + __pyx_v_jz);
+
+                    /* "point_smooth_cython.pyx":193
+ *                                         sum_y += jy
+ *                                         sum_z += jz
+ *                                         count += 1             # <<<<<<<<<<<<<<
+ *                             dz += 1
+ *                         dy += 1
+*/
+                    __pyx_v_count = (__pyx_v_count + 1);
+
+                    /* "point_smooth_cython.pyx":189
+ *                                     distance_squared = dx2 * dx2 + dy2 * dy2 + dz2 * dz2
+ * 
+ *                                     if distance_squared <= radius_squared:             # <<<<<<<<<<<<<<
+ *                                         sum_x += jx
+ *                                         sum_y += jy
+*/
+                  }
+
+                  /* "point_smooth_cython.pyx":173
+ *                                 cell = grid[grid_index]
+ *                                 # Direct iteration (Cython optimizes this better than indexed access)
+ *                                 for j in cell:             # <<<<<<<<<<<<<<
+ *                                     if i == j:
+ *                                         continue
+*/
+                  __pyx_L40_continue:;
+                }
+                __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+
+                /* "point_smooth_cython.pyx":169
+ *                             grid_index = gx + gy * grid_width + gz * grid_width_height
+ * 
+ *                             if 0 <= grid_index < grid_size:             # <<<<<<<<<<<<<<
+ *                                 # OPTIMIZATION: Cache grid cell reference to avoid repeated indexing
+ *                                 cell = grid[grid_index]
+*/
+              }
+
+              /* "point_smooth_cython.pyx":194
+ *                                         sum_z += jz
+ *                                         count += 1
+ *                             dz += 1             # <<<<<<<<<<<<<<
+ *                         dy += 1
+ *                     dx += 1
+*/
+              __pyx_v_dz = (__pyx_v_dz + 1);
+            }
+
+            /* "point_smooth_cython.pyx":195
+ *                                         count += 1
+ *                             dz += 1
+ *                         dy += 1             # <<<<<<<<<<<<<<
+ *                     dx += 1
+ * 
+*/
+            __pyx_v_dy = (__pyx_v_dy + 1);
+          }
+
+          /* "point_smooth_cython.pyx":196
+ *                             dz += 1
+ *                         dy += 1
+ *                     dx += 1             # <<<<<<<<<<<<<<
+ * 
+ *                 # Apply smoothing if neighbors found (pre-compute division)
+*/
+          __pyx_v_dx = (__pyx_v_dx + 1);
+        }
+
+        /* "point_smooth_cython.pyx":199
+ * 
+ *                 # Apply smoothing if neighbors found (pre-compute division)
+ *                 if count > 0:             # <<<<<<<<<<<<<<
+ *                     count_plus_1 = <float>(count + 1)
+ *                     smoothed_points[i3] = (x + sum_x) / count_plus_1
+*/
+        __pyx_t_2 = (__pyx_v_count > 0);
+        if (__pyx_t_2) {
+
+          /* "point_smooth_cython.pyx":200
+ *                 # Apply smoothing if neighbors found (pre-compute division)
+ *                 if count > 0:
+ *                     count_plus_1 = <float>(count + 1)             # <<<<<<<<<<<<<<
+ *                     smoothed_points[i3] = (x + sum_x) / count_plus_1
+ *                     smoothed_points[i3 + 1] = (y + sum_y) / count_plus_1
+*/
+          __pyx_v_count_plus_1 = ((float)(__pyx_v_count + 1));
+
+          /* "point_smooth_cython.pyx":201
+ *                 if count > 0:
+ *                     count_plus_1 = <float>(count + 1)
+ *                     smoothed_points[i3] = (x + sum_x) / count_plus_1             # <<<<<<<<<<<<<<
+ *                     smoothed_points[i3 + 1] = (y + sum_y) / count_plus_1
+ *                     smoothed_points[i3 + 2] = (z + sum_z) / count_plus_1
+*/
+          __pyx_t_5 = PyFloat_FromDouble(((__pyx_v_x + __pyx_v_sum_x) / __pyx_v_count_plus_1)); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 201, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_5);
+          if (unlikely((__Pyx_SetItemInt(__pyx_v_smoothed_points, __pyx_v_i3, __pyx_t_5, int, 1, __Pyx_PyLong_From_int, 1, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 201, __pyx_L1_error)
+          __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+
+          /* "point_smooth_cython.pyx":202
+ *                     count_plus_1 = <float>(count + 1)
+ *                     smoothed_points[i3] = (x + sum_x) / count_plus_1
+ *                     smoothed_points[i3 + 1] = (y + sum_y) / count_plus_1             # <<<<<<<<<<<<<<
+ *                     smoothed_points[i3 + 2] = (z + sum_z) / count_plus_1
+ *                 i += 1
+*/
+          __pyx_t_5 = PyFloat_FromDouble(((__pyx_v_y + __pyx_v_sum_y) / __pyx_v_count_plus_1)); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 202, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_5);
+          __pyx_t_12 = (__pyx_v_i3 + 1);
+          if (unlikely((__Pyx_SetItemInt(__pyx_v_smoothed_points, __pyx_t_12, __pyx_t_5, long, 1, __Pyx_PyLong_From_long, 1, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 202, __pyx_L1_error)
+          __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+
+          /* "point_smooth_cython.pyx":203
+ *                     smoothed_points[i3] = (x + sum_x) / count_plus_1
+ *                     smoothed_points[i3 + 1] = (y + sum_y) / count_plus_1
+ *                     smoothed_points[i3 + 2] = (z + sum_z) / count_plus_1             # <<<<<<<<<<<<<<
+ *                 i += 1
+ * 
+*/
+          __pyx_t_5 = PyFloat_FromDouble(((__pyx_v_z + __pyx_v_sum_z) / __pyx_v_count_plus_1)); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 203, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_5);
+          __pyx_t_12 = (__pyx_v_i3 + 2);
+          if (unlikely((__Pyx_SetItemInt(__pyx_v_smoothed_points, __pyx_t_12, __pyx_t_5, long, 1, __Pyx_PyLong_From_long, 1, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 203, __pyx_L1_error)
+          __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+
+          /* "point_smooth_cython.pyx":199
+ * 
+ *                 # Apply smoothing if neighbors found (pre-compute division)
+ *                 if count > 0:             # <<<<<<<<<<<<<<
+ *                     count_plus_1 = <float>(count + 1)
+ *                     smoothed_points[i3] = (x + sum_x) / count_plus_1
+*/
+        }
+
+        /* "point_smooth_cython.pyx":204
+ *                     smoothed_points[i3 + 1] = (y + sum_y) / count_plus_1
+ *                     smoothed_points[i3 + 2] = (z + sum_z) / count_plus_1
+ *                 i += 1             # <<<<<<<<<<<<<<
  * 
  *     return smoothed_points
 */
-        __pyx_t_3 = PyFloat_FromDouble(((__pyx_v_z + __pyx_v_sum_z) / ((float)__pyx_v_count_plus_1))); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 173, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_3);
-        __pyx_t_12 = (__pyx_v_i3 + 2);
-        if (unlikely((__Pyx_SetItemInt(__pyx_v_smoothed_points, __pyx_t_12, __pyx_t_3, long, 1, __Pyx_PyLong_From_long, 1, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 173, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-
-        /* "point_smooth_cython.pyx":169
- * 
- *             # Apply smoothing if neighbors found (same as Rust BE)
- *             if count > 0:             # <<<<<<<<<<<<<<
- *                 count_plus_1 = count + 1
- *                 smoothed_points[i3] = (x + sum_x) / <float>count_plus_1
-*/
+        __pyx_v_i = (__pyx_v_i + 1);
       }
+
+      /* "point_smooth_cython.pyx":136
+ * 
+ *         # Process each point using spatial hash (chunked processing for cache locality)
+ *         for chunk_start in range(0, point_count, CHUNK_SIZE):             # <<<<<<<<<<<<<<
+ *             chunk_end_calc = chunk_start + CHUNK_SIZE
+ *             chunk_end = chunk_end_calc if chunk_end_calc < point_count else point_count
+*/
     }
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   }
 
-  /* "point_smooth_cython.pyx":175
- *                 smoothed_points[i3 + 2] = (z + sum_z) / <float>count_plus_1
+  /* "point_smooth_cython.pyx":206
+ *                 i += 1
  * 
  *     return smoothed_points             # <<<<<<<<<<<<<<
  * 
@@ -4639,31 +4922,31 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
 static int __Pyx_InitConstants(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
   {
-    const struct { const unsigned int length: 11; } index[] = {{1},{20},{26},{179},{8},{23},{20},{1},{6},{18},{4},{9},{5},{18},{5},{12},{16},{2},{3},{2},{3},{2},{3},{8},{4},{10},{11},{10},{9},{10},{2},{2},{2},{1},{2},{13},{13},{5},{5},{5},{5},{10},{1},{2},{2},{2},{2},{8},{4},{5},{5},{5},{5},{5},{5},{10},{8},{10},{10},{10},{18},{11},{19},{6},{3},{12},{14},{12},{10},{15},{16},{5},{5},{5},{11},{8},{6},{1},{1},{1},{1188}};
-    #if (CYTHON_COMPRESS_STRINGS) == 2 /* compression: bz2 (1248 bytes) */
-const char* const cstring = "BZh91AY&SY\232\216\200%\000\000\367\177\377\377\357\377\376\377\253\277\332\277\253\177\210\277\377\377\374@@@@@@@@@@@@@\000@\000P\004>\035*\342\215P\270\020d\222\206\203 4\3043L\215!\243#\020\3101\003C@\006\201\240h4\3204\031\036\240\320D\323Sh&M\030\224\375 \215\003@\003@\000\001\240\000\000\000\001\223@\2024\246O*xQ\351\017SM4\365\032\000h4\000\000\001\240\000\000\000i\246\203@p\000\r\000\003@d\000\000\r\000\001\246\200\000\000\000\r\000\022H\010\025\036\246\323Sz\246\312i\215M\006F\200\000\000\001\240\014\200\000\000\323M\030\222\2431\313l\311h~u\026\231\251\250\311\355\373h&\036\177\026\254$@5\215v\004\3627\000\377N\033\t\026?c\030\211a*\205[+kLWE\341X)\315!\231!\363X\352\267\254\021\026\335\3113\005\002\271%v\353\236\322\212x>!\022\351\261)J%9U\010h\342\315\027h%\210\210+\021R\305\273b\031\251\310\314\306+\254\213_k\227j\252Q\2145\"\2025\001\t\020u\255\024\250d\351\205\r\016\372Yg\341\360q\322eL\303\345\347\022\205F^<\022\341J\334\274\223-`\220Ie\020\206<W:\272\035}\024\273 \031a\351n^\237\366t\212\032\277]\001m\270-\346\3367\331\365\213e\265\213=m-r-\304Z\332\331W\311%@\022*\n\277Zs\032s~z\365\226\374\020\000\255n\334B\013\237\264\306\333SuI\003\023R\004\022\224\205C\346\000gY\"U\300\235)N\252U1\322h\251c\277\322\3162a@\250\233\323'+\216d\314f\301D\014@\305\356\343\023\024\270\351\230\020\003H\030\354\220\311I\002(\267\250\305dG\364SIk\233M\t/\320\212\000\334f\325&\233\0224]\301\231\215`\255\007\023\233\000l\235w\372\352\252\250\252\265\246\266\242\023(\034?z<\251\237=u'\241\343\025B\234\023M\004\025\251e!U\306A\023jk,\243{!S\242\341P\326\252\233\230\313D)p\267\026\272\316\"\010*\005Ny6\007\0202\310\211\210\315\323d\014Td\3354)\235-\227s,\312K\221C]`/\2670\311\022gU\241\204\325\027\232H\250\224m\224\244\335\024a\3462\23025\265\205\027\336\373\362}p\214\027\231\\\003\347\226\3479\213s@\333\021\206\230 \221\331\364\306\200\301lH\005\225\2774\233\"7\260d\263\010\254\213\333\226\"\257C\004\373vX\332\242a:R\316zIm\272bjA\203\255#\254\"\022!\332\304\255\273F\025""\003\034!\031X\252\333\202\244\225\256\261\3143.\335\311\316\312)jh1\247\\\240)\026\306\305\002\226\030`\310\030\302]%DT\206\031\206\002]\002\254C@\340\nz\232YC\037\014\016\024c\233\025\014\224\353\275\035\344 a\302\257\206k\223\321\300\203\263\236\355\304j\274\266u\247\255\225\366/Gt(\314\246\224JE1M6\234\257\222\204\024\346\014m\212\334\256\030j\0162y\207\261\252\326 \250\221\357k\211\331\326\266<t\242\267d\351C\014\223\032*Et\025\310S\334\3011\031\345\331\250}\004\225R\030RF&\222v+\2145\266\344\301\260O\t\036|\320iiDT\270\302\tJ\013}\200\246e\342\025\tI2f\322p\013C\347w\010\343\2160\343\256\360\237k\003\356\276L\016LE\005,:\265\036n\260\325<iwV\207g\310h\235\343I\205\364\023\215\036\027MX\336h\232\254\032\354<\330\371;\312\217\230!=\2658h\004\024+\367\221\256>@\337\356\361\316;\205\0055\210\214\020\252zI]\000\346D\342\023\020\017\002\236UW\311\005K\205\300B'U\264\250\211H0\200B+\202\3010\230\3639L\260\013,\3260\200\236\007\242\301\253\020\303\345k7h\264\201e\004D\353\022>\253\3304d\264\320TOf\261[Y\0130\313(\323\360\024\021\002\037\242\314\032\332\266\260\202\246\005\035\3100B\024\271\200\271@dJ\224\037\026\302Q\241\352_#\301\002\315\217\342\354\344\027s\210\247\261\237\035A\341\245\035\340\301\212\004\265hd\206\225\372\364\014\374qXEp\354\273\027\327\207fS\251\277\321\205\323\367\371\020C\2275\336\214\347Y\217[\215\244\342^\036\023p\304\334\35219\356dos\330\302\3246ra\355\027\274\211\325\036<zq\024>\022|\024c1\206bD\344\2478\246%)D\301\311|\251\241\322sM\320t`\177\305\334\221N\024$&\243\240\t@";
-    PyObject *data = __Pyx_DecompressString(cstring, 1248, 2);
+    const struct { const unsigned int length: 11; } index[] = {{1},{20},{26},{179},{8},{23},{10},{20},{1},{6},{18},{4},{9},{9},{14},{11},{5},{18},{5},{12},{16},{2},{3},{2},{3},{2},{3},{8},{4},{10},{11},{10},{9},{10},{17},{2},{2},{2},{1},{2},{13},{13},{5},{5},{5},{5},{10},{1},{2},{2},{2},{2},{8},{4},{5},{5},{5},{5},{5},{5},{10},{8},{10},{10},{10},{18},{11},{19},{6},{3},{12},{14},{12},{10},{15},{16},{5},{5},{5},{11},{8},{6},{1},{1},{1},{1318}};
+    #if (CYTHON_COMPRESS_STRINGS) == 2 /* compression: bz2 (1355 bytes) */
+const char* const cstring = "BZh91AY&SY\312\250DO\000\001\034\377\377\377\357\377\377\377\373\277\332\277\357\377\224\277\377\377\374@@@@@@@@@@@@@\000@\000P\004\233\306\232v\264\333m\255\235\310\256\r\0245#&\233P\030\214\301A\240\365\000i\246\201\2204\000\014\203 \000i\240\310b\030\203I\221256\246\230#*~\251\345\006\236\210\000h24\000\000\000\000\000\000\032\006\2004\320\215%6\224\364G\241\244\364M\r\001\240\000i\243@\000\000\000\000\000\001\3516\221\352\007\000\000\000\000\000\000\000\003@\000\000\000\000\000\000\000\002I\002L\232OQ\351\246\211\2325#A2z\232\032\000d`\203!\246M\006LC@\323\312\032\006\232yG\244\351\263P.\024A\332\374\336\321\004~\230*_w\276\372S\224\244%=<\003\372@H\rh!\301\302\001\303i$\371\204`\313\2011\202k\005\254\265\226\001)\215\225T\202\210\2413\006\211+\207V)\211\306(U\275\207V\364\366\204a!\317D\205\021EH\276\231V\023\024\201\265\204S\n\\.\0258\344\371\311\307\326\207\247\242\314+!\203\21580\360 :A\033\200a\340\260\267t\010\315\010t\344@&\324\256\3617thF\330\024$zQ\216\244\352J9|\033\202\007\222\254OteF\276\255\221e\261_\250\214t0\341JQ\r\263\212m\311MxO2\276\344\310\347\362\"x\257\204\347I\323\273\217:\"\375pe\314cl\237\247\367]v\325\334\352\215\223\231\273\305G\026\200\267u.\320\333H\312P($\263\301\203c\227$\025Q\005\022\230W\264h)\335\353M\214x\305%\206\027Rnkng4\223\n]~\303\2376\266*Lm\027\016\"\322\312:\241IE\344\225\271\240\260\004\014\272\274Q\225\002v'\t\307{z=\326\360\367I/\327\213\033\017\003\236a\260\024\356E*\024\242g\250\010\200E\201[\254\212\"\254z\027\005\3213I$(\027\245\003\356\277k{\215\263\233\344\275\265\333\027\3239\346\272\363\337\370\316t\203\337\026B\265\024\315\322e\326\245l\342H\375\004`TM\216)B\230'N\036\242\"!\242\"\2659\006IF\001\307\370\234eD\331\251\271\277\2022Y,+\242\252\244\342\327\253\356\344\212\367!\340\307!q\035UG\257\211Y\307\222\242|\226cv\372&:\241k[p\303\206ArcJ\004\200\305dX+e\345D\014\312\010u\250,Ao\251\354\2117M$\034\rc\367y\231\212\272]u\226\344)\235\252Z\216\335\032\215\352o\336\373P\230\024\305\270\245&cf\026\221\326\024""\264%Sd:Oy\215\233\206)`\245\304\021f\305\305\210w\270\2506\210C\202!\306\302\236\337\336\307\014\227\374aE\266Qu9\323O\002\334\265\226\245\275\261%\222\372*\345C3(\211d\331KW\031\276\3133\205\342\204\341B\223\251$X3#5X\263\251\233\025\226\001\\\262\271.3K\014%Bx\353Z\220JsmDWJ\215IA\217\026&\341'\010q'ZHI\206\0304\226\216\317\207\032U\220f '\336\262\024\336\324\212\254qZ\010OM\023\032\365\302\231\227*\252\245\231\313X\3046\031K4 B;\226\351\312\364d\204\374J\023\263^D\306\206HOH\024\234\260\345\236\236*)\327q^\242\021\314\370\350\230\257\0313)\330\236\021|`\343a-UJP\221\227\221:\261\020\025|\231\326\034\242\214\\\226v\213\266Z\212\226n\207\031\226\221NR \216b:'\013'\270A\363-\032\240\306YF,\373\337\302x95\263A\205\226\202iR\345\003\023\025\364\306\010\3067\324/\021\342\311\225\240%\372\240\335\0259\316\rV\034`\364-\027I\221\3625+Rv\231Y\311X\330\337\022G1\024\242\336\226S%q\213\317pIKu\2433\240 \n\246:\253MBs7D\300\276\375\357\300a\217u\356]\037\354\374\234\340\206\377\276sX\357\314\206\363\006Gc\316\317\356\014\340f;\227|\202\374\315\326\033Cg3\241\203w\301\276G\310'\352\377\327hZCW\354\355\257\3650\312\344'\203h\222`\n\001\252A\200\364\333%\326\014\363\207\005|0[\246\370\250\351\245=fW\351\023P\242h%\262\331s\340\tmoh#<\237(2D\204\000\243RE\030\204\271w\326\020\000L\314\003({\244'S\027F2\032\312$\214\276!\006YI#i6\030#\001q\370\374\240\203\270~B\240v\006nvcsOk\245\230\310|\t\203'\232\233\233b\365<<\220\363\375-;\001\262@\304\271\373X\213jF?\225X\261\025\n\304T**\317z,\215Xv?.[\213TG\205S\\h\t\227\265\352\2101\242\250d\026\320#`p\216\341\010wYO\235\002\004\2020\n \t\206\006H\260\357\013(\014\2572\n\023#\010\252\223\207gb\027\375\234\362\205\243\030\207**.\323W\377\213\271\"\234(HeT\"'\200";
+    PyObject *data = __Pyx_DecompressString(cstring, 1355, 2);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (1116 bytes) */
-const char* const cstring = "x\332\265S\317O\033G\024\216\301\004PH\203\r\rN\241\312\030\002\250\252Bd\343&U\253*24DQ\324\010;M{\3400\032\357\016x\334\365\256\2753Kv\235\036r\364q\216s\334\343\036\367\350\243\217>r\334\243\377\004\376\204\276Y\023\032\322\264\251*\325\222\237\277y\363~|\357{\343\307\317\354Sb1\0231A]\"\230c\363\357\320;\037o;\216h2\373\004\273\304d\036\334\274p\004E\242I\004\332\017D\323\261\021\343\310\244\026k\350dj\005\210\013\227\031PJ\007\331\350\360\311\341\375\312\267\025Dl\023\271\264E\r\301\021\367\032\206E8\247\0349\307\250\3411K0\033\211\240C\371\016zv\214\002\307C6\245&\022\016\352@\334\373\t\242Im\304\251\320\000m\023\333vD\312\031C:\320\334F&s\241\t;\245:\373\200X\234\356\020\323\304\020G;\016\263\005\236\214\204\215\224\375N'\3601>\004s\030\374\010\264\361\013\352\213:=\306\244\323\241\266Ix`\033\314\3311\034\327\361\200$\345\006\265,\375\305\234\365\250aQ\342\032\026\3701\003\006.1h\203\030\277\031\216g\213\324\340\216\345q\\2\031\027\3046(\346]\217\270\3244}\323/\233\201\031\224\315\236\331+c|\354\331\006\306'.3\365\027\233\264#\232)jRv\322\024)d\266I\375\024\351\326)x\315L\210\363O\202\223\036c\273\314>\305\227\3240\343\370\2225\343\314>f\334&6\354\270\315\261\336\364\237\333n\265v[~+h\3650n\023\230\003\254h\266\211\217}m\002mzm\360\373\332\004\332\350H\307\364,\212\341c\2236\374\332\232h\303q\261\177\211\202K\324\233(oX\216g^\350\177\341\321\"}d-\251\213w\234\016\306\240\2305i1y\201\3574\304\030^\301Es@&=&\236%&U\340vR\341\303\347\313\2756\366\265\t\264\351\201\030\235\213H\214\005\345\002cx\366\036\345~\320{\2339/\\\233YS\273\212(?\344Q1\311\316\276\375]\356J\222\314\335\352w\317\257_\233\231;\233-\250iUV/\303lx\020\025\317\276\376a\360r\230\035\036\214\212\243R2\367Y\277\2452gw\276\211k1\321\311o\344\206\254]\272\037D\3358\243\253\024!\271\032\326\222\354\232\252\252_\303\375\260\033e\222,:C\2458\037\227\222\354\252\002sW\211\260\034\326t|A\236\252\232\202\212+\377\036\234\317]\233\231\357\317\364_\311\"L`\250\234\372*\004\2067\372\017e\016X\325e7YX\226""\007\252\250>\341]\227{\220\236\007\307\305MY\325U\367\377\273\325\003\257\252\355\360v\350F+\361T\374`\230\037\246\232<\n\267\242\251h\033$z<\\\037V\223\354\027\177\215\272\243V\303\275\320\212\327\343\252\256s[\326\240\303\262z\025nj\215\317\267\264&\363\362sIdw<\267\320\177\222B\236\216\273\260\"\273jF\341\250\032i\321\347o^\334\202\"\2132#\363\362\241\312}\340\317\201\267\014\013\206\200\033\252\244\252\357\300\276r\303\334\225\003$\336\314\313\0255\245\326\325S\275V\235\374O\307;jI\355)#\314\207\337G\215x:.\307G\303\251aq\274p\253\357\312%\371\023\324_\\\226Uy\024\316\246\223\375Wbc\220\276\232\\5\232lN^\2274}\347\031\335\350@mB\364RXM\226\013\352\272\242@\362e\224\031\0276\303z\272\000M\260\226|\342\370%\274\365\347\221\033\257\014\246\006\305O\0357\241\301T\264\021\325\2437\203\365\301\376\300\035\256\216\366Fd\\XMY\335\214j\311\332FX\321\303\217\327P8\003\242\241\215\t\255\344\336\346\030Mz\347\022\000Gq&\276\004K\361\036\3747\337?\214\321VhD\371\250\224|\004\354\306\225\330\035,\017\352\0031,\017\177\036\345G\225\221{V\253\217\321\306\331F%\336\217\273\311\275\373\300\345\252\321\n.\366O\323\377\323\342]u\n\\R\320\205m\271P\370\021<\320\247\203\322\3045\r\254\177\211\3120\351\353\2701\230\035t\377\306=\316\336\350\227\376\000\353\307\020\314";
-    PyObject *data = __Pyx_DecompressString(cstring, 1116, 1);
+    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (1215 bytes) */
+const char* const cstring = "x\332\275T\317S\333F\024\216\211i\310@Zl\034p\002idC\352\220L\311\330\344\3274\323\311\030\032\322L\3334\206Rf:\235\331YK\013^G\226l\355\212HN\0179\372\250\343\036\367\250\243\216:\372\310\321G\035\375'\360'\364\255\r\244%\231\246\227\3263z\376\366\355\333\367\336\367\355\223\236\276\260\016\261I\r\215r\342`Nm\213}\243\235\372X\313\266y\203Z\007\310\301\006ua\347\245\315\211\306\033\230k\233>o\330\226F\231f\020\223\326\325ab\372\032\343\016\325!\225\n\262\264W\317^}}\377\361}\r[\206\346\220&\3219\323\230[\327M\314\030a\232\275\257\325]jrji\334o\023\266\246\275\330\327|\333\325,B\014\215\333Z\033\342\376z\2007\210\2451\302\025\320J\330\262l>\352\031\301qh\263\244\031\324\201\"\364\220\250\323[\330dd\r\033\006\2028\322\266\251\305\321\230\022\322G\335\257\265}o\363\373\335\227?\240\235\027\277=C\350\225\357\301\363\035\020@/\211\307\267\311>\302\3556\261\014\314|K\247\366\232n;\266\013\355\022\246\023\323T\017b\264K\364\206k\275F\020w\006\220\216M}\274b\034;\\7\tvt\023N\"\n\335:X'u\254\277\326m\327\342#\203\332\246\313P\331\240\020n\351\004\261\216\213\035b\030\236\341U\014\337\360+F\327\350V\020\332w-\035\241\003\207\032\352A\006i\363\306\0105\010=h\360\021\244\226A\274\021R\315\215\300\033j\234\304\215\320i\264w\340\037t)]\247\326!:c\203(CgD)\243\326>e\026\266`@Z\014\2511y?*\315\346z\323k\372\315.B-\014\304\300\362F\013{\310S\306W\246\333\002\277\247\214\257\214\212\264\r\327$\010~\026n\301\277\245z\251\333\016\362\316\220\177\206\272\343k\323M\3335N.\357\304\243T\373\310\235\216\\\254m\267\021\002\t\315q\211\361\370\236\212\212\020\214\320Iq@\006\331\307\256\311\307Y`w\234\341\374\3543\267\205<e|e\272 F\373$\022!N\030G\010\336\031\2270\317\357\276K\035\347/L.\211u\201\205'YXH\322\227\336\375\021\254\0078\231\372\242\3279\376\354\302\344\324\340R^\\\024\025\261#\323r+,\014\356~\033\357\364\323\375\255\243\302Q9\231\372\274\327\024\251\301\265\007Q-\302\352\360\333`9\250\235\271\357\205\235(\245\262\024\340pU\326\222\364\222\250\212=\271);a*Ik\003\255\034e\243r\222^""\024`n\n.+\262\246\342\363\301\241\250\t\310\270\360\357\301\361\324\205\311\313\275\311\336nP\000\006\272\310\210U\t\035N\367\036\006\031\350j;\350$3\271`K\024\304'\274\305`\003\216g\301q\262S\021\333\242\363\337\355*\302\213\242$\347\245\023.D\023\321\275~\266?\322\344\221\374*\234\010K \321\323~\261_M\322\327?\214\272&\026\345\2064\243bTUy\212r1\334\010\261\202\363A\r\212\345\304\256\274\245\344\036W)\034\337V*]\016\256\0068\350\014\247\346\202\207\"\003[\227\257\364\252\352\332\352\301DPHff\203T\220U[\311L&8\331\377Y<\220)9'\177\212\300{C\374\036fC\340\221\037\344\357\204\367\342\354\340\311\217G\252\203+\231 \225\314dGTq2{\025\024v \315l.x.\236H,;\357!\013\213a\365\334\0222d\346\203=\261!\352\362\0220\315\250\024\377\264\274\001\2039!\227\345\266|\013\032lFN\234\031\316\316\005\225`G\\\201\201\313\345E\n\024z\036\226U\251\253A\355\177\3442\234\205\342\311\337\215\342\267\240\222\315\303\335\314\211j\222\273.\n\312,\003\217T\222\377\022\006\032\214\016\275U\207K\253\320W%\334\033\323J>\261,\310\205p:\252D{\361F\214?\265\\\r\347`Nt\030\255'q\275\177\261_\351\327\206K7\2053\326d\250\225$W\222\r\265\025\371\014d^)\201\332s\300\360\366\352pe\\\267\246\300B4\035\227\343jr\0067c\247\2379\267\004\316\267\356\206\313\341v\330IV\356|\000\036E<\256\304\277\3008\337\357;G\271\243\355#>\330\331\035\354\376:\\)\rJ\217\343\213q9\271]\206\213:g\226\212\2620\026Li\250\204\315\301\304\252\227+\267,\037\207\017G_\026\200e\270\375\n\224z\023\325\343\324\330\261\tl\346C\007\"\036\305Eh\377\243N5-\303\364t\257\374'\003\354Zn";
+    PyObject *data = __Pyx_DecompressString(cstring, 1215, 1);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #else /* compression: none (1979 bytes) */
-const char* const bytes = "?Invalid iterations: Invalid smoothing_radius: Note that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types. If you need to pass subclasses then set the 'annotation_typing' directive to False.add_notepoint_smooth_cython.pyx__Pyx_PyDict_NextRef_appendasyncio.coroutinescellcell_sizeclearcline_in_tracebackcountcount_plus_1distance_squareddxdx2dydy2dzdz2__func__gridgrid_depthgrid_heightgrid_indexgrid_sizegrid_widthgxgygzii3inv_cell_size_is_coroutineisinfisnanitems_iteriterationsjj3jxjyjz__main__mathmax_xmax_ymax_zmin_xmin_ymin_z__module____name__neighbor_xneighbor_yneighbor_zpoint_cloud_smoothpoint_countpoint_smooth_cythonpointspop__qualname__radius_squared__set_name__setdefaultsmoothed_pointssmoothing_radiussum_xsum_ysum_ztemp_points__test__valuesxyz\200\001\360\030\000\005\034\2303\230a\230x\240s\250!\330\004\007\200|\2203\220a\330\010\017\210q\360\006\000\005\010\320\007\030\230\003\2302\230S\240\004\240F\250!\320+=\270S\300\004\300F\310!\3101\330\010\016\210j\230\001\320\0315\260Q\260a\330\004\007\200{\220#\220Q\330\010\016\210j\230\001\320\031/\250q\260\001\360\006\000\005!\240\004\240A\240Q\330\004\034\230A\230W\240C\240q\250\001\330\004 \320 1\260\022\2601\330\004\033\2301\330\004\037\230t\2402\240Q\360\006\000\005\030\220v\230Q\230a\330\004\027\220v\230Q\230a\330\004\027\220v\230Q\230a\330\004\027\220v\230Q\230a\330\004\027\220v\230Q\230a\330\004\027\220v\230Q\230a\360\010\000\005\t\210\005\210U\220!\2203\220c\230\021\230)\2401\330\010\013\2106\220\021\220#\220R\220q\330\014\024\220F\230!\2301\330\010\013\2106\220\021\220#\220R\220q\330\014\024\220F\230!\2301\330\010\013\2106\220\021\220\"\220B\220c\230\022\2301\330\014\024\220F\230!\2302\230R\230q\330\010\013\2106\220\021\220\"\220B\220c\230\022\2301\330\014\024\220F\230!\2302\230R\230q\330\010\013\2106\220\021\220\"\220B\220c\230\022\2301\330\014\024\220F\230!\2302\230R\230q\330\010\013\2106\220\021\220\"\220B\220c\230\022\2301\330\014\024\220F\230!\2302\230R\230q\360\006\000""\005\033\230'\240\026\240r\250\027\260\002\260/\300\022\3001\330\004\033\2307\240&\250\002\250'\260\022\260?\300\"\300A\330\004\032\230'\240\026\240r\250\027\260\002\260/\300\022\3001\330\004\031\230\033\240B\240l\260\"\260A\360\006\000\005\026\220Q\220c\230\024\230U\240%\240q\250\001\360&\000\005\t\210\t\220\025\220a\220q\340\010\014\210E\220\025\220a\220s\230!\2301\330\014\027\220q\230\005\230_\250A\250Q\360\006\000\t\r\210E\220\025\220a\220q\330\014\020\220\001\220\022\2206\230\021\360\006\000\t\r\210E\220\025\220a\220q\330\014\021\220\022\2202\220Q\330\014\020\220\013\2301\230A\330\014\020\220\013\2301\230C\230r\240\021\330\014\020\220\013\2301\230C\230r\240\021\360\006\000\r\022\220\027\230\002\230\"\230G\2402\240Q\330\014\021\220\027\230\002\230\"\230G\2402\240Q\330\014\021\220\027\230\002\230\"\230G\2402\240Q\330\014\031\230\023\230B\230c\240\022\240;\250b\260\003\2602\260[\300\002\300!\340\014\017\210r\220\023\220M\240\021\330\020\024\220A\220[\240\007\240q\250\001\360\006\000\t\r\210E\220\025\220a\220q\330\014\021\220\022\2202\220Q\330\014\020\220\013\2301\230A\330\014\020\220\013\2301\230C\230r\240\021\330\014\020\220\013\2301\230C\230r\240\021\340\014\024\220A\330\014\024\220A\330\014\024\220A\330\014\024\220A\360\006\000\r\021\220\006\220e\2302\230S\240\001\330\020\024\220F\230%\230r\240\023\240A\330\024\030\230\006\230e\2402\240S\250\001\340\030%\240R\240r\250\027\260\003\2602\260Q\330\030%\240R\240r\250\027\260\003\2602\260Q\330\030%\240R\240r\250\027\260\003\2602\260Q\330\030\035\230W\240K\250r\260\027\270\002\270!\330\030\035\230W\240K\250r\260\027\270\002\270!\330\030\035\230W\240K\250r\260\027\270\002\270!\330\030%\240S\250\002\250#\250R\250{\270\"\270C\270r\300\033\310B\310a\340\030\033\2302\230S\240\r\250Q\330\034#\2404\240q\250\001\340\034 \240\005\240Q\330 #\2402\240S\250\001\330$%\340 %\240R\240r\250\021\330 %\240[\260\001\260\021\330 %\240[\260\001\260\023\260B\260a\330 %\240[\260\001\260\023\260B\260a\340 &\240c\250\022\2501\330 &\240c\250""\022\2501\330 &\240c\250\022\2501\330 3\2604\260r\270\024\270R\270t\3002\300T\310\022\3104\310r\320QR\340 #\320#4\260C\260q\330$-\250Q\330$-\250Q\330$-\250Q\330$-\250Q\360\006\000\r\020\210v\220R\220q\330\020\037\230v\240R\240q\330\020\037\230q\240\007\240r\250\022\2507\260\"\260G\2701\330\020\037\230q\240\003\2402\240V\2502\250R\250w\260b\270\007\270q\330\020\037\230q\240\003\2402\240V\2502\250R\250w\260b\270\007\270q\340\004\013\2101";
+    #else /* compression: none (2170 bytes) */
+const char* const bytes = "?Invalid iterations: Invalid smoothing_radius: Note that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types. If you need to pass subclasses then set the 'annotation_typing' directive to False.add_notepoint_smooth_cython.pyxCHUNK_SIZE__Pyx_PyDict_NextRef_appendasyncio.coroutinescellcell_sizechunk_endchunk_end_calcchunk_startclearcline_in_tracebackcountcount_plus_1distance_squareddxdx2dydy2dzdz2__func__gridgrid_depthgrid_heightgrid_indexgrid_sizegrid_widthgrid_width_heightgxgygzii3inv_cell_size_is_coroutineisinfisnanitems_iteriterationsjj3jxjyjz__main__mathmax_xmax_ymax_zmin_xmin_ymin_z__module____name__neighbor_xneighbor_yneighbor_zpoint_cloud_smoothpoint_countpoint_smooth_cythonpointspop__qualname__radius_squared__set_name__setdefaultsmoothed_pointssmoothing_radiussum_xsum_ysum_ztemp_points__test__valuesxyz\200\001\360\030\000\005\034\2303\230a\230x\240s\250!\330\004\007\200|\2203\220a\330\010\017\210q\360\006\000\005\010\320\007\030\230\003\2302\230S\240\004\240F\250!\320+=\270S\300\004\300F\310!\3101\330\010\016\210j\230\001\320\0315\260Q\260a\330\004\007\200{\220#\220Q\330\010\016\210j\230\001\320\031/\250q\260\001\360\006\000\005!\240\004\240A\240Q\330\004\034\230A\230W\240C\240q\250\001\330\004 \320 1\260\022\2601\330\004\033\2301\330\004\037\230t\2402\240Q\360\006\000\005\030\220v\230Q\230a\330\004\027\220v\230Q\230a\330\004\027\220v\230Q\230a\330\004\027\220v\230Q\230a\330\004\027\220v\230Q\230a\330\004\027\220v\230Q\230a\360\010\000\005\t\210\005\210U\220!\2203\220c\230\021\230)\2401\330\010\013\2106\220\021\220#\220R\220q\330\014\024\220F\230!\2301\330\010\013\2106\220\021\220#\220R\220q\330\014\024\220F\230!\2301\330\010\013\2106\220\021\220\"\220B\220c\230\022\2301\330\014\024\220F\230!\2302\230R\230q\330\010\013\2106\220\021\220\"\220B\220c\230\022\2301\330\014\024\220F\230!\2302\230R\230q\330\010\013\2106\220\021\220\"\220B\220c\230\022\2301\330\014\024\220F\230!\2302\230R\230q\330\010\013\2106\220\021\220\"\220B\220c""\230\022\2301\330\014\024\220F\230!\2302\230R\230q\360\006\000\005\033\230'\240\026\240r\250\027\260\002\260/\300\022\3001\330\004\033\2307\240&\250\002\250'\260\022\260?\300\"\300A\330\004\032\230'\240\026\240r\250\027\260\002\260/\300\022\3001\330\004\031\230\033\240B\240l\260\"\260A\360\006\000\005\"\240\033\250B\250a\360\006\000\005\026\220Q\220c\230\024\230U\240%\240q\250\001\360\006\000\005\033\230!\360(\000\005\t\210\t\220\025\220a\220q\340\010\023\2206\230\021\360\006\000\t\r\210A\330\010\016\210b\220\002\220!\330\014\020\220\001\220\022\2206\230\021\330\014\021\220\021\360\006\000\t\r\210O\2305\240\001\240\023\240M\260\021\330\014\035\230\\\250\022\2501\330\014\030\320\030*\250/\270\022\320;L\310A\360\006\000\r\021\220\001\330\014\022\220\"\220B\220a\330\020\025\220R\220r\230\021\330\020\024\220G\230;\240a\240q\330\020\024\220G\230;\240a\240s\250\"\250A\330\020\024\220G\230;\240a\240s\250\"\250A\360\006\000\021\026\220W\230B\230b\240\007\240r\250\021\330\020\025\220W\230B\230b\240\007\240r\250\021\330\020\025\220W\230B\230b\240\007\240r\250\021\330\020\035\230S\240\002\240#\240R\240{\260\"\260C\260r\270\021\340\020\023\2202\220S\230\r\240Q\330\024\030\230\001\230\033\240G\2501\250A\330\020\025\220Q\360\006\000\t\r\210O\2305\240\001\240\023\240M\260\021\330\014\035\230\\\250\022\2501\330\014\030\320\030*\250/\270\022\320;L\310A\360\006\000\r\021\220\001\330\014\022\220\"\220B\220a\330\020\025\220R\220r\230\021\330\020\024\220G\230;\240a\240q\330\020\024\220G\230;\240a\240s\250\"\250A\330\020\024\220G\230;\240a\240s\250\"\250A\340\020\030\230\001\330\020\030\230\001\330\020\030\230\001\330\020\030\230\001\360\006\000\021\027\220a\330\020\026\220c\230\023\230A\330\024\032\230!\330\024\032\230#\230S\240\001\330\030\036\230a\330\030\036\230c\240\023\240A\340\034)\250\022\2502\250W\260C\260r\270\021\330\034)\250\022\2502\250W\260C\260r\270\021\330\034)\250\022\2502\250W\260C\260r\270\021\330\034!\240\027\250\013\2602\260W\270B\270a\330\034!\240\027\250\013\2602""\260W\270B\270a\330\034!\240\027\250\013\2602\260W\270B\270a\330\034)\250\023\250B\250c\260\022\260;\270b\300\003\3002\300Q\340\034\037\230r\240\023\240M\260\021\340 '\240t\2501\250A\340 $\240E\250\021\330$'\240r\250\023\250A\330()\340$)\250\022\2502\250Q\340$)\250\027\260\013\2701\270A\330$)\250\027\260\013\2701\270C\270r\300\021\330$)\250\027\260\013\2701\270C\270r\300\021\360\006\000%+\250#\250R\250q\330$*\250#\250R\250q\330$*\250#\250R\250q\330$7\260t\2702\270T\300\022\3004\300r\310\024\310R\310t\320SU\320UV\340$'\320'8\270\003\2701\330(1\260\021\330(1\260\021\330(1\260\021\330(1\260\021\330\034\"\240!\330\030\036\230a\330\024\032\230!\360\006\000\021\024\2206\230\022\2301\330\024#\2408\2506\260\022\2601\330\024#\2401\240G\2502\250R\250w\260b\270\001\330\024#\2401\240C\240r\250\026\250r\260\022\2607\270\"\270A\330\024#\2401\240C\240r\250\026\250r\260\022\2607\270\"\270A\330\020\025\220Q\340\004\013\2101";
     PyObject *data = NULL;
     CYTHON_UNUSED_VAR(__Pyx_DecompressString);
     #endif
     PyObject **stringtab = __pyx_mstate->__pyx_string_tab;
     Py_ssize_t pos = 0;
-    for (int i = 0; i < 80; i++) {
+    for (int i = 0; i < 85; i++) {
       Py_ssize_t bytes_length = index[i].length;
       PyObject *string = PyUnicode_DecodeUTF8(bytes + pos, bytes_length, NULL);
       if (likely(string) && i >= 6) PyUnicode_InternInPlace(&string);
@@ -4674,7 +4957,7 @@ const char* const bytes = "?Invalid iterations: Invalid smoothing_radius: Note t
       stringtab[i] = string;
       pos += bytes_length;
     }
-    for (int i = 80; i < 81; i++) {
+    for (int i = 85; i < 86; i++) {
       Py_ssize_t bytes_length = index[i].length;
       PyObject *string = PyBytes_FromStringAndSize(bytes + pos, bytes_length);
       stringtab[i] = string;
@@ -4685,14 +4968,14 @@ const char* const bytes = "?Invalid iterations: Invalid smoothing_radius: Note t
       }
     }
     Py_XDECREF(data);
-    for (Py_ssize_t i = 0; i < 81; i++) {
+    for (Py_ssize_t i = 0; i < 86; i++) {
       if (unlikely(PyObject_Hash(stringtab[i]) == -1)) {
         __PYX_ERR(0, 1, __pyx_L1_error)
       }
     }
     #if CYTHON_IMMORTAL_CONSTANTS
     {
-      PyObject **table = stringtab + 80;
+      PyObject **table = stringtab + 85;
       for (Py_ssize_t i=0; i<1; ++i) {
         #if CYTHON_COMPILING_IN_CPYTHON_FREETHREADING
         Py_SET_REFCNT(table[i], _Py_IMMORTAL_REFCNT_LOCAL);
@@ -4711,10 +4994,18 @@ const char* const bytes = "?Invalid iterations: Invalid smoothing_radius: Note t
       if (unlikely(!numbertab[i])) __PYX_ERR(0, 1, __pyx_L1_error)
     }
   }
+  {
+    PyObject **numbertab = __pyx_mstate->__pyx_number_tab + 1;
+    int8_t const cint_constants_1[] = {0};
+    for (int i = 0; i < 1; i++) {
+      numbertab[i] = PyLong_FromLong(cint_constants_1[i - 0]);
+      if (unlikely(!numbertab[i])) __PYX_ERR(0, 1, __pyx_L1_error)
+    }
+  }
   #if CYTHON_IMMORTAL_CONSTANTS
   {
     PyObject **table = __pyx_mstate->__pyx_number_tab;
-    for (Py_ssize_t i=0; i<1; ++i) {
+    for (Py_ssize_t i=0; i<2; ++i) {
       #if CYTHON_COMPILING_IN_CPYTHON_FREETHREADING
       Py_SET_REFCNT(table[i], _Py_IMMORTAL_REFCNT_LOCAL);
       #else
@@ -4751,8 +5042,8 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
   PyObject* tuple_dedup_map = PyDict_New();
   if (unlikely(!tuple_dedup_map)) return -1;
   {
-    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 52, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 16};
-    PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_points, __pyx_mstate->__pyx_n_u_smoothing_radius, __pyx_mstate->__pyx_n_u_iterations, __pyx_mstate->__pyx_n_u_point_count, __pyx_mstate->__pyx_n_u_smoothed_points, __pyx_mstate->__pyx_n_u_temp_points, __pyx_mstate->__pyx_n_u_radius_squared, __pyx_mstate->__pyx_n_u_cell_size, __pyx_mstate->__pyx_n_u_inv_cell_size, __pyx_mstate->__pyx_n_u_min_x, __pyx_mstate->__pyx_n_u_max_x, __pyx_mstate->__pyx_n_u_min_y, __pyx_mstate->__pyx_n_u_max_y, __pyx_mstate->__pyx_n_u_min_z, __pyx_mstate->__pyx_n_u_max_z, __pyx_mstate->__pyx_n_u_i, __pyx_mstate->__pyx_n_u_i3, __pyx_mstate->__pyx_n_u_grid_width, __pyx_mstate->__pyx_n_u_grid_height, __pyx_mstate->__pyx_n_u_grid_depth, __pyx_mstate->__pyx_n_u_grid_size, __pyx_mstate->__pyx_n_u_grid, __pyx_mstate->__pyx_n_u_iter, __pyx_mstate->__pyx_n_u_j, __pyx_mstate->__pyx_n_u_j3, __pyx_mstate->__pyx_n_u_x, __pyx_mstate->__pyx_n_u_y, __pyx_mstate->__pyx_n_u_z, __pyx_mstate->__pyx_n_u_jx, __pyx_mstate->__pyx_n_u_jy, __pyx_mstate->__pyx_n_u_jz, __pyx_mstate->__pyx_n_u_sum_x, __pyx_mstate->__pyx_n_u_sum_y, __pyx_mstate->__pyx_n_u_sum_z, __pyx_mstate->__pyx_n_u_count, __pyx_mstate->__pyx_n_u_count_plus_1, __pyx_mstate->__pyx_n_u_gx, __pyx_mstate->__pyx_n_u_gy, __pyx_mstate->__pyx_n_u_gz, __pyx_mstate->__pyx_n_u_grid_index, __pyx_mstate->__pyx_n_u_neighbor_x, __pyx_mstate->__pyx_n_u_neighbor_y, __pyx_mstate->__pyx_n_u_neighbor_z, __pyx_mstate->__pyx_n_u_dx2, __pyx_mstate->__pyx_n_u_dy2, __pyx_mstate->__pyx_n_u_dz2, __pyx_mstate->__pyx_n_u_distance_squared, __pyx_mstate->__pyx_n_u_dx, __pyx_mstate->__pyx_n_u_dy, __pyx_mstate->__pyx_n_u_dz, __pyx_mstate->__pyx_n_u_cell, __pyx_mstate->__pyx_n_u__2};
+    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 57, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 16};
+    PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_points, __pyx_mstate->__pyx_n_u_smoothing_radius, __pyx_mstate->__pyx_n_u_iterations, __pyx_mstate->__pyx_n_u_point_count, __pyx_mstate->__pyx_n_u_smoothed_points, __pyx_mstate->__pyx_n_u_temp_points, __pyx_mstate->__pyx_n_u_radius_squared, __pyx_mstate->__pyx_n_u_cell_size, __pyx_mstate->__pyx_n_u_inv_cell_size, __pyx_mstate->__pyx_n_u_min_x, __pyx_mstate->__pyx_n_u_max_x, __pyx_mstate->__pyx_n_u_min_y, __pyx_mstate->__pyx_n_u_max_y, __pyx_mstate->__pyx_n_u_min_z, __pyx_mstate->__pyx_n_u_max_z, __pyx_mstate->__pyx_n_u_i, __pyx_mstate->__pyx_n_u_i3, __pyx_mstate->__pyx_n_u_grid_width, __pyx_mstate->__pyx_n_u_grid_height, __pyx_mstate->__pyx_n_u_grid_depth, __pyx_mstate->__pyx_n_u_grid_size, __pyx_mstate->__pyx_n_u_grid_width_height, __pyx_mstate->__pyx_n_u_grid, __pyx_mstate->__pyx_n_u_CHUNK_SIZE, __pyx_mstate->__pyx_n_u_chunk_start, __pyx_mstate->__pyx_n_u_chunk_end, __pyx_mstate->__pyx_n_u_chunk_end_calc, __pyx_mstate->__pyx_n_u_iter, __pyx_mstate->__pyx_n_u_j, __pyx_mstate->__pyx_n_u_j3, __pyx_mstate->__pyx_n_u_x, __pyx_mstate->__pyx_n_u_y, __pyx_mstate->__pyx_n_u_z, __pyx_mstate->__pyx_n_u_jx, __pyx_mstate->__pyx_n_u_jy, __pyx_mstate->__pyx_n_u_jz, __pyx_mstate->__pyx_n_u_sum_x, __pyx_mstate->__pyx_n_u_sum_y, __pyx_mstate->__pyx_n_u_sum_z, __pyx_mstate->__pyx_n_u_count, __pyx_mstate->__pyx_n_u_count_plus_1, __pyx_mstate->__pyx_n_u_gx, __pyx_mstate->__pyx_n_u_gy, __pyx_mstate->__pyx_n_u_gz, __pyx_mstate->__pyx_n_u_grid_index, __pyx_mstate->__pyx_n_u_neighbor_x, __pyx_mstate->__pyx_n_u_neighbor_y, __pyx_mstate->__pyx_n_u_neighbor_z, __pyx_mstate->__pyx_n_u_dx2, __pyx_mstate->__pyx_n_u_dy2, __pyx_mstate->__pyx_n_u_dz2, __pyx_mstate->__pyx_n_u_distance_squared, __pyx_mstate->__pyx_n_u_dx, __pyx_mstate->__pyx_n_u_dy, __pyx_mstate->__pyx_n_u_dz, __pyx_mstate->__pyx_n_u_cell, __pyx_mstate->__pyx_n_u__2};
     __pyx_mstate_global->__pyx_codeobj_tab[0] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_point_smooth_cython_pyx, __pyx_mstate->__pyx_n_u_point_cloud_smooth, __pyx_mstate->__pyx_kp_b_iso88591_3axs_3a_q_2S_F_S_F_1_j_5Qa_Q_j, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[0])) goto bad;
   }
   Py_DECREF(tuple_dedup_map);
@@ -6472,67 +6763,67 @@ static CYTHON_INLINE PyObject* __Pyx____Pyx_PyUnicode_From_int(int value, Py_ssi
     return __Pyx_PyUnicode_BuildFromAscii(ulength, dpos, (int) length, prepend_sign, padding_char);
 }
 
-/* SetItemInt */
-static int __Pyx_SetItemInt_Generic(PyObject *o, PyObject *j, PyObject *v) {
-    int r;
-    if (unlikely(!j)) return -1;
-    r = PyObject_SetItem(o, j, v);
-    Py_DECREF(j);
-    return r;
-}
-static CYTHON_INLINE int __Pyx_SetItemInt_Fast(PyObject *o, Py_ssize_t i, PyObject *v, int is_list,
-                                               int wraparound, int boundscheck, int unsafe_shared) {
-    CYTHON_MAYBE_UNUSED_VAR(unsafe_shared);
-#if CYTHON_ASSUME_SAFE_MACROS && CYTHON_ASSUME_SAFE_SIZE && !CYTHON_AVOID_BORROWED_REFS
-    if (is_list || PyList_CheckExact(o)) {
-        Py_ssize_t n = (!wraparound) ? i : ((likely(i >= 0)) ? i : i + PyList_GET_SIZE(o));
-        if ((CYTHON_AVOID_THREAD_UNSAFE_BORROWED_REFS && !__Pyx_IS_UNIQUELY_REFERENCED(o, unsafe_shared))) {
-            Py_INCREF(v);
-            return PyList_SetItem(o, n, v);
-        } else if ((!boundscheck) || likely(__Pyx_is_valid_index(n, PyList_GET_SIZE(o)))) {
-            PyObject* old;
-            Py_INCREF(v);
-            old = PyList_GET_ITEM(o, n);
-            PyList_SET_ITEM(o, n, v);
-            Py_DECREF(old);
-            return 0;
-        }
-    } else
+/* SliceObject */
+static CYTHON_INLINE int __Pyx_PyObject_SetSlice(PyObject* obj, PyObject* value,
+        Py_ssize_t cstart, Py_ssize_t cstop,
+        PyObject** _py_start, PyObject** _py_stop, PyObject** _py_slice,
+        int has_cstart, int has_cstop, CYTHON_UNUSED int wraparound) {
+    __Pyx_TypeName obj_type_name;
+#if CYTHON_USE_TYPE_SLOTS
+    PyMappingMethods* mp = Py_TYPE(obj)->tp_as_mapping;
+    if (likely(mp && mp->mp_ass_subscript))
 #endif
-#if CYTHON_USE_TYPE_SLOTS && !CYTHON_COMPILING_IN_PYPY
     {
-        PyMappingMethods *mm = Py_TYPE(o)->tp_as_mapping;
-        PySequenceMethods *sm = Py_TYPE(o)->tp_as_sequence;
-        if (!is_list && mm && mm->mp_ass_subscript) {
-            int r;
-            PyObject *key = PyLong_FromSsize_t(i);
-            if (unlikely(!key)) return -1;
-            r = mm->mp_ass_subscript(o, key, v);
-            Py_DECREF(key);
-            return r;
-        }
-        if (is_list || likely(sm && sm->sq_ass_item)) {
-            if (wraparound && unlikely(i < 0) && likely(sm->sq_length)) {
-                Py_ssize_t l = sm->sq_length(o);
-                if (likely(l >= 0)) {
-                    i += l;
-                } else {
-                    if (!PyErr_ExceptionMatches(PyExc_OverflowError))
-                        return -1;
-                    PyErr_Clear();
-                }
+        int result;
+        PyObject *py_slice, *py_start, *py_stop;
+        if (_py_slice) {
+            py_slice = *_py_slice;
+        } else {
+            PyObject* owned_start = NULL;
+            PyObject* owned_stop = NULL;
+            if (_py_start) {
+                py_start = *_py_start;
+            } else {
+                if (has_cstart) {
+                    owned_start = py_start = PyLong_FromSsize_t(cstart);
+                    if (unlikely(!py_start)) goto bad;
+                } else
+                    py_start = Py_None;
             }
-            return sm->sq_ass_item(o, i, v);
+            if (_py_stop) {
+                py_stop = *_py_stop;
+            } else {
+                if (has_cstop) {
+                    owned_stop = py_stop = PyLong_FromSsize_t(cstop);
+                    if (unlikely(!py_stop)) {
+                        Py_XDECREF(owned_start);
+                        goto bad;
+                    }
+                } else
+                    py_stop = Py_None;
+            }
+            py_slice = PySlice_New(py_start, py_stop, Py_None);
+            Py_XDECREF(owned_start);
+            Py_XDECREF(owned_stop);
+            if (unlikely(!py_slice)) goto bad;
         }
-    }
+#if CYTHON_USE_TYPE_SLOTS
+        result = mp->mp_ass_subscript(obj, py_slice, value);
 #else
-    if (is_list || !PyMapping_Check(o)) {
-        return PySequence_SetItem(o, i, v);
-    }
+        result = value ? PyObject_SetItem(obj, py_slice, value) : PyObject_DelItem(obj, py_slice);
 #endif
-    (void)wraparound;
-    (void)boundscheck;
-    return __Pyx_SetItemInt_Generic(o, PyLong_FromSsize_t(i), v);
+        if (!_py_slice) {
+            Py_DECREF(py_slice);
+        }
+        return result;
+    }
+    obj_type_name = __Pyx_PyType_GetFullyQualifiedName(Py_TYPE(obj));
+    PyErr_Format(PyExc_TypeError,
+        "'" __Pyx_FMT_TYPENAME "' object does not support slice %.10s",
+        obj_type_name, value ? "assignment" : "deletion");
+    __Pyx_DECREF_TypeName(obj_type_name);
+bad:
+    return -1;
 }
 
 /* PyObjectFastCallMethod */
@@ -6695,6 +6986,69 @@ __Pyx_RaiseUnexpectedTypeError(const char *expected, PyObject *obj)
                  expected, obj_type_name);
     __Pyx_DECREF_TypeName(obj_type_name);
     return 0;
+}
+
+/* SetItemInt */
+static int __Pyx_SetItemInt_Generic(PyObject *o, PyObject *j, PyObject *v) {
+    int r;
+    if (unlikely(!j)) return -1;
+    r = PyObject_SetItem(o, j, v);
+    Py_DECREF(j);
+    return r;
+}
+static CYTHON_INLINE int __Pyx_SetItemInt_Fast(PyObject *o, Py_ssize_t i, PyObject *v, int is_list,
+                                               int wraparound, int boundscheck, int unsafe_shared) {
+    CYTHON_MAYBE_UNUSED_VAR(unsafe_shared);
+#if CYTHON_ASSUME_SAFE_MACROS && CYTHON_ASSUME_SAFE_SIZE && !CYTHON_AVOID_BORROWED_REFS
+    if (is_list || PyList_CheckExact(o)) {
+        Py_ssize_t n = (!wraparound) ? i : ((likely(i >= 0)) ? i : i + PyList_GET_SIZE(o));
+        if ((CYTHON_AVOID_THREAD_UNSAFE_BORROWED_REFS && !__Pyx_IS_UNIQUELY_REFERENCED(o, unsafe_shared))) {
+            Py_INCREF(v);
+            return PyList_SetItem(o, n, v);
+        } else if ((!boundscheck) || likely(__Pyx_is_valid_index(n, PyList_GET_SIZE(o)))) {
+            PyObject* old;
+            Py_INCREF(v);
+            old = PyList_GET_ITEM(o, n);
+            PyList_SET_ITEM(o, n, v);
+            Py_DECREF(old);
+            return 0;
+        }
+    } else
+#endif
+#if CYTHON_USE_TYPE_SLOTS && !CYTHON_COMPILING_IN_PYPY
+    {
+        PyMappingMethods *mm = Py_TYPE(o)->tp_as_mapping;
+        PySequenceMethods *sm = Py_TYPE(o)->tp_as_sequence;
+        if (!is_list && mm && mm->mp_ass_subscript) {
+            int r;
+            PyObject *key = PyLong_FromSsize_t(i);
+            if (unlikely(!key)) return -1;
+            r = mm->mp_ass_subscript(o, key, v);
+            Py_DECREF(key);
+            return r;
+        }
+        if (is_list || likely(sm && sm->sq_ass_item)) {
+            if (wraparound && unlikely(i < 0) && likely(sm->sq_length)) {
+                Py_ssize_t l = sm->sq_length(o);
+                if (likely(l >= 0)) {
+                    i += l;
+                } else {
+                    if (!PyErr_ExceptionMatches(PyExc_OverflowError))
+                        return -1;
+                    PyErr_Clear();
+                }
+            }
+            return sm->sq_ass_item(o, i, v);
+        }
+    }
+#else
+    if (is_list || !PyMapping_Check(o)) {
+        return PySequence_SetItem(o, i, v);
+    }
+#endif
+    (void)wraparound;
+    (void)boundscheck;
+    return __Pyx_SetItemInt_Generic(o, PyLong_FromSsize_t(i), v);
 }
 
 /* HasAttr (used by ImportImpl) */
