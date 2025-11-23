@@ -46,55 +46,63 @@ export class VoxelDownsamplingTS extends BaseService {
         sumZ: number;
       }>();
       
-      // Process each point
-      for (let i = 0; i < pointCount; i++) {
-        const x = params.pointCloudData[i * 3];
-        const y = params.pointCloudData[i * 3 + 1];
-        const z = params.pointCloudData[i * 3 + 2];
+      // OPTIMIZATION: Pre-calculate inverse voxel size (outside loop)
+      const invVoxelSize = 1.0 / params.voxelSize;
+      
+      // OPTIMIZATION: Chunked processing for better cache locality (matching C++/Rust)
+      const CHUNK_SIZE = 1024;
+      for (let chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
+        const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, pointCount);
         
-        // Calculate voxel coordinates - use multiplication for consistency with other implementations
-        const invVoxelSize = 1.0 / params.voxelSize;
-        const voxelX = Math.floor((x - params.globalBounds.minX) * invVoxelSize);
-        const voxelY = Math.floor((y - params.globalBounds.minY) * invVoxelSize);
-        const voxelZ = Math.floor((z - params.globalBounds.minZ) * invVoxelSize);
-        
-        const voxelKey = `${voxelX},${voxelY},${voxelZ}`;
-        
-        if (voxelMap.has(voxelKey)) {
-          const voxel = voxelMap.get(voxelKey)!;
-          voxel.count++;
-          voxel.sumX += x;
-          voxel.sumY += y;
-          voxel.sumZ += z;
-        } else {
-          voxelMap.set(voxelKey, {
-            count: 1,
-            sumX: x,
-            sumY: y,
-            sumZ: z
-          });
+        for (let i = chunkStart; i < chunkEnd; i++) {
+          const i3 = i * 3;
+          const x = params.pointCloudData[i3];
+          const y = params.pointCloudData[i3 + 1];
+          const z = params.pointCloudData[i3 + 2];
+          
+          // Calculate voxel coordinates - use multiplication for consistency with other implementations
+          const voxelX = Math.floor((x - params.globalBounds.minX) * invVoxelSize);
+          const voxelY = Math.floor((y - params.globalBounds.minY) * invVoxelSize);
+          const voxelZ = Math.floor((z - params.globalBounds.minZ) * invVoxelSize);
+          
+          const voxelKey = `${voxelX},${voxelY},${voxelZ}`;
+          
+          if (voxelMap.has(voxelKey)) {
+            const voxel = voxelMap.get(voxelKey)!;
+            voxel.count++;
+            voxel.sumX += x;
+            voxel.sumY += y;
+            voxel.sumZ += z;
+          } else {
+            voxelMap.set(voxelKey, {
+              count: 1,
+              sumX: x,
+              sumY: y,
+              sumZ: z
+            });
+          }
         }
       }
       
-      // Create downsampled points
-      const downsampledPoints: number[] = [];
+      // OPTIMIZATION: Pre-allocate result array (matching C++/Rust)
+      const voxelCount = voxelMap.size;
+      const downsampledPoints = new Float32Array(voxelCount * 3);
+      let outputIndex = 0;
       for (const [_, voxel] of voxelMap) {
-        downsampledPoints.push(
-          voxel.sumX / voxel.count,
-          voxel.sumY / voxel.count,
-          voxel.sumZ / voxel.count
-        );
+        downsampledPoints[outputIndex++] = voxel.sumX / voxel.count;
+        downsampledPoints[outputIndex++] = voxel.sumY / voxel.count;
+        downsampledPoints[outputIndex++] = voxel.sumZ / voxel.count;
       }
       
       const processingTime = performance.now() - startTime;
 
       return {
         success: true,
-        downsampledPoints: new Float32Array(downsampledPoints),
+        downsampledPoints,
         originalCount: pointCount,
-        downsampledCount: downsampledPoints.length / 3,
+        downsampledCount: voxelCount,
         processingTime,
-        voxelCount: voxelMap.size
+        voxelCount
       };
     } catch (error) {
       Log.Error('VoxelDownsamplingTS', 'Voxel downsampling failed', error);
