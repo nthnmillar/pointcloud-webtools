@@ -1,13 +1,17 @@
 # Benchmarking
 
-This project provides comprehensive benchmarks comparing point cloud processing tools across multiple languages (TypeScript, C++, Rust, Python) and execution environments (browser WASM, backend servers). Benchmarking is the main purpose - comparing performance across languages and execution environments to inform technology choices.
+This project provides comprehensive benchmarks comparing point cloud processing tools across multiple languages (TypeScript, C++, Rust, Python) and execution environments (browser WASM, backend servers). The goal is to provide fair, accurate performance comparisons to inform technology choices for point cloud processing applications.
+
+## Purpose
+
+These benchmarks compare **identical algorithms** implemented across different languages and execution environments, ensuring fair comparisons. All implementations use the same core logic with platform-specific optimizations, allowing us to measure true performance differences between languages and execution models.
 
 ## 🛠️ Tools
 
 All tools are implemented across the same execution environments:
 
 - **Voxel Downsampling** - Reduces point cloud density by averaging points within voxel grid cells
-- **Voxel Debug Visualization** - Generates and visualizes voxel grid centers for debugging
+- **Voxel Debug Visualization** - Generates wireframe cubes representing each voxel grid cell for debugging
 - **Point Cloud Smoothing** - Applies Gaussian filtering to smooth point cloud data
 
 **Implementations per tool:**
@@ -25,7 +29,7 @@ All tools are implemented across the same execution environments:
 Detailed benchmark results for each tool:
 
 - **[Voxel Downsampling](benchmark-voxel-downsampling.md)** - Reduce point density using voxel grids
-- **[Voxel Debug](benchmark-voxel-debug.md)** - Visualize voxel grid centers
+- **[Voxel Debug](benchmark-voxel-debug.md)** - Visualize voxel grid as wireframe cubes
 - **[Point Cloud Smoothing](benchmark-point-smoothing.md)** - Gaussian-based point cloud smoothing
 
 ## Benchmark Methodology
@@ -34,45 +38,51 @@ Detailed benchmark results for each tool:
 
 All implementations use **identical algorithms** to ensure fair comparison:
 
-- **Voxel Calculation**: `Math.floor()` / `std::floor()` for consistent coordinate calculation - all use `floor()` to convert world coordinates to voxel grid coordinates, ensuring consistent rounding
-- **Bounds**: Uses pre-calculated `globalBounds` passed as a parameter (not calculated inside the algorithm) - ensures all implementations use identical bounds values and coordinate space
-- **Hashing**: Creates unique keys for each voxel coordinate to group points efficiently in a hash map
-  - **C++/Rust/Python**: Integer-based hashing with bit shifting (`(voxelX << 32) | (voxelY << 16) | voxelZ`) - packs three coordinates into one 64-bit integer key
-    - How it works: Shifts `voxelX` left by 32 bits (upper 32 bits), `voxelY` left by 16 bits (middle 16 bits), and keeps `voxelZ` in the lower 16 bits, then combines them with bitwise OR (`|`)
-    - Example: If voxelX=100, voxelY=50, voxelZ=25, this creates a single integer key like `4294967296025`
-    - Why faster: Integer keys use less memory (8 bytes vs ~15 bytes), faster to create (bit operations vs string concatenation), and faster to hash (direct integer hash vs scanning characters)
-  - **TypeScript**: String-based keys (`"${voxelX},${voxelY},${voxelZ}"`) due to JavaScript's 32-bit integer limitations for bitwise operations - strings work correctly but are slower than integer keys
+- **Coordinate Calculation**: All use `floor()` for consistent coordinate conversion (e.g., `Math.floor()` in TypeScript, `std::floor()` in C++, `.floor()` in Rust)
+- **Bounds**: Pre-calculated `globalBounds` passed as parameters (not computed inside algorithms) - ensures identical coordinate space across all implementations
+- **Hashing Strategy**: 
+  - **C++/Rust/Python**: Integer-based hashing with bit shifting `(voxelX << 32) | (voxelY << 16) | voxelZ` - packs three coordinates into one 64-bit integer key for maximum performance
+  - **TypeScript**: String-based keys (`"${voxelX},${voxelY},${voxelZ}"`) due to JavaScript's 32-bit integer limitations - works correctly but slower than integer keys
+- **Result Verification**: All implementations produce identical outputs (same point counts, positions within floating-point precision)
 
-### Common Optimizations
+### Common Optimizations Applied
 
-- **Pre-calculated inverse voxel size**: Calculates `1.0 / voxelSize` once, then multiplies instead of dividing for each point (multiplication is faster)
-- **Chunked processing for cache locality**: Processes points in small groups (1024 points per chunk) rather than all at once, keeping related data in CPU cache for faster access (cache is much faster than RAM)
-- **Direct memory access**: Avoids copying data to reduce overhead
+All implementations use production-level optimizations:
+
+- **Pre-calculated inverses**: `1.0 / value` calculated once, then multiplication used instead of division (multiplication is faster)
+- **Chunked processing**: Processes data in chunks (typically 1024 items) for better CPU cache locality
+- **Direct memory access**: Minimizes data copying overhead
+- **Binary protocol**: Backend implementations use WebSocket with binary I/O instead of JSON (eliminates serialization overhead)
+- **Compiler optimizations**: 
+  - C++/Rust: `-O3 -march=native -ffast-math -flto` (maximum optimization, CPU-specific, link-time optimization)
+  - Python (Cython): Compiled to C with same optimization flags
 
 ### Implementation Structure
 
-All tools follow the same implementation structure:
+All tools are implemented across the same execution environments:
 
-- **TypeScript (TS)**: Reference implementation, suitable for small datasets
-- **C++ WASM & Rust WASM**: Both provide Main Thread and Worker implementations
-  - **Main Thread**: Browser-based processing (may block UI for large datasets)
-  - **Worker**: Background processing via Web Workers (doesn't block UI)
-- **C++ Backend & Rust Backend**: Server-side processing for large datasets
-  - **C++**: Uses RapidJSON for JSON parsing
-  - **Rust**: Uses serde_json for efficient serialization
-- **Python Backend**: Server-side processing (readable, maintainable)
+- **TypeScript (TS)**: Pure JavaScript implementation, suitable for small datasets and reference
+- **C++ WASM & Rust WASM**: Browser-based WebAssembly implementations
+  - **Main Thread**: Direct execution (may block UI for large datasets)
+  - **Worker**: Background processing via Web Workers (non-blocking, recommended for large datasets)
+- **C++ Backend & Rust Backend**: Server-side native executables
+  - **C++**: Compiled with clang++ using maximum optimizations
+  - **Rust**: Compiled with rustc using maximum optimizations
+  - Both use binary protocol (WebSocket + binary I/O) for zero-copy data transfer
+- **Python Backend (Cython)**: Server-side compiled Python
+  - Cython compiles Python code to C, then to native binary
+  - Uses type annotations (`cdef`) for C-level performance
+  - Same binary protocol as C++/Rust backends
 
-### Optimization Level
+### Timing Methodology
 
-Each implementation uses production-level optimizations:
-- **C++/Rust**: Compiled with maximum optimization settings (`-O3 -march=native -ffast-math -flto`)
-- **Platform-specific libraries**: RapidJSON for C++ (fast JSON parsing), serde_json for Rust (efficient serialization)
+All implementations measure **end-to-end processing time** including:
+- Data preparation and copying
+- Algorithm execution
+- Result formatting and transfer
+- Network I/O (for backend implementations)
 
-### Timing
-
-All implementations measure **end-to-end** timing from button press to visual result displayed, including data copying, JSON parsing, network I/O, algorithm execution, and visualization. This provides a realistic comparison of actual user experience.
-
-All implementations produce identical results (same voxel counts and point positions).
+This provides realistic performance comparisons reflecting actual user experience, not just algorithm execution time.
 
 ## 🧪 Testing
 
