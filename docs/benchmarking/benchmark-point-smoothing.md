@@ -20,68 +20,82 @@ See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algo
 
 ## Benchmark Results
 
-### Test Dataset: 5,832 Points
+### Test Dataset: 20,000 Points
 - **Smoothing Radius**: 0.5
 - **Iterations**: 3
-- **Output Points**: 5,832 (same as input - smoothing doesn't change count)
+- **Output Points**: 20,000 (same as input - smoothing doesn't change count)
 
 ### Performance (Processing Time)
 
 | Implementation | Time (ms) | Relative Speed | Notes |
 |---------------|-----------|----------------|-------|
-| **Rust WASM Worker** | ~29 ms | 1.0x (fastest) | Best browser performance |
-| **Rust WASM Main** | ~32 ms | 1.1x | Fast but blocks UI |
-| **C++ WASM Main** | ~36 ms | 1.2x | Good performance |
-| **TypeScript** | ~52 ms | 1.8x | Good for small datasets |
-| **C++ WASM Worker** | ~55 ms | 1.9x | Worker overhead visible |
-| **Rust Backend** | ~57 ms | 2.0x | Fastest backend |
-| **C++ Backend** | ~60 ms | 2.1x | Very close to Rust BE |
-| **Python Backend** | ~1,048 ms | 36x | Slow but readable |
+| **Rust WASM Worker** | 118 ms | 1.0x (fastest) | Best browser performance |
+| **Rust WASM Main** | 143 ms | 1.21x | Fast but blocks UI |
+| **C++ WASM Main** | 378 ms | 3.20x | Good performance |
+| **C++ WASM Worker** | 402 ms | 3.41x | Worker overhead visible |
+| **TypeScript** | 885 ms | 7.50x | Acceptable for small-medium datasets |
+| **Rust Backend** | 200 ms | 1.69x | Fastest backend |
+| **C++ Backend** | 370 ms | 3.14x | Good performance |
+| **Python Backend (Cython)** | 687 ms | 5.83x | Compiled Python, good performance |
 
 ### Performance Analysis
 
 #### Browser Performance (WASM)
-- **Rust WASM Worker** is fastest (~29ms):
+- **Rust WASM Worker** is fastest (118ms):
   - Optimized wasm-bindgen bindings
   - Efficient memory access patterns
   - Excellent compiler optimizations
+  - Best choice for browser-based processing
   
-- **Rust WASM Main** is close (~32ms):
+- **Rust WASM Main** is close (143ms):
   - Same optimizations but runs on main thread
   - Slight overhead from UI thread
   
-- **C++ WASM Main** performs well (~36ms):
+- **C++ WASM Main** performs well (378ms):
   - Good performance with Emscripten
   - Direct memory access optimized
+  - ~2.6x slower than Rust WASM Main
   
-- **C++ WASM Worker** is slower (~55ms):
-  - Worker message passing overhead for small datasets
-  - For larger datasets, overhead becomes negligible
+- **C++ WASM Worker** is slower (402ms):
+  - Worker message passing overhead
+  - Similar performance to C++ WASM Main
   
-- **TypeScript** is acceptable (~52ms):
+- **TypeScript** is acceptable (885ms):
   - Good performance for small-medium datasets
   - No WASM overhead
+  - ~7.5x slower than Rust WASM Worker
 
 #### Backend Performance
-- **Rust Backend** and **C++ Backend** are **very close** (~57ms vs ~60ms):
-  - Much better parity than voxel downsampling (where C++ was 2x slower)
-  - Spatial hashing algorithm is less HashMap-dependent
-  - Both use efficient grid-based indexing
+- **Rust Backend** is fastest (200ms):
+  - Excellent performance with spatial hashing
+  - Optimized `Vec<Vec<usize>>` memory layout
+  - Efficient iterator optimizations
   
-- **Python Backend** is significantly slower (~1,048ms):
-  - ~18x slower than Rust/C++ backends
-  - Same algorithm but Python interpreter overhead
-  - Consider NumPy or Cython for production use
+- **C++ Backend** is slower (370ms):
+  - ~85% slower than Rust BE (370ms vs 200ms)
+  - Uses `std::vector<std::vector<int>>` which has worse cache locality
+  - Grid-based operations favor Rust's memory layout
+  - **Key Finding**: Unlike voxel downsampling (where C++ is faster), point smoothing favors Rust due to grid memory access patterns
+  
+- **Python Backend (Cython)** is slower (687ms):
+  - ~3.4x slower than Rust BE
+  - Compiled Python code (Cython → C → native binary)
+  - Much better than pure Python (~1,048ms before)
+  - Good performance for compiled Python code
 
-### Why Better Parity Than Voxel Downsampling?
+### Why Different Performance Pattern Than Voxel Downsampling?
 
-In voxel downsampling, C++ was ~2x slower due to:
-- Heavy HashMap usage (std::unordered_map vs Rust's optimized HashMap)
+**Voxel Downsampling**: C++ BE is faster (476ms vs 618ms, ~30% faster)
+- Heavy HashMap usage favors C++'s `std::unordered_map` performance
+- Hash operations are well-optimized in C++
 
-In point smoothing, both are similar because:
-- **Grid-based indexing** instead of HashMap (less hash overhead)
-- **Spatial hash** uses simple array indexing (very efficient in both)
-- Less dependency on standard library HashMap performance
+**Point Smoothing**: Rust BE is faster (200ms vs 370ms, ~85% faster)
+- Grid-based operations favor Rust's `Vec<Vec<usize>>` memory layout
+- Better cache locality with Rust's contiguous memory allocation
+- C++'s `std::vector<std::vector<int>>` has separate allocations per inner vector, causing cache misses
+- Spatial hashing algorithm benefits from Rust's iterator optimizations
+
+**Key Insight**: Different algorithms favor different languages based on their memory access patterns and data structure efficiency.
 
 ## Algorithm Details
 
@@ -127,19 +141,20 @@ Unlike voxel downsampling where C++ was 2x slower, smoothing shows excellent par
 ## Recommendations
 
 ### For Small-Medium Datasets (< 50K points)
-- Use **Rust WASM Worker** for best browser performance (~29ms)
-- **TypeScript** is acceptable for small datasets (~52ms)
-- Avoid **C++ WASM Worker** on small datasets (overhead not worth it)
+- Use **Rust WASM Worker** for best browser performance (118ms)
+- **TypeScript** is acceptable for small datasets (885ms)
+- **C++ WASM Main** is good alternative (378ms)
 
 ### For Large Datasets (> 50K points)
 - Use **Rust WASM Worker** for browser-based processing
-- Use **Rust Backend** or **C++ Backend** for server-side (both similar performance)
+- Use **Rust Backend** for server-side (fastest, 200ms)
+- **C++ Backend** is good alternative (370ms)
 - Worker overhead becomes negligible on large datasets
 
 ### For Production
-- **Browser**: Use Rust WASM Worker (best performance)
-- **Backend**: Rust or C++ (both excellent, choose based on team expertise)
-- **Python**: Only for prototyping or if team primarily uses Python
+- **Browser**: Use Rust WASM Worker (best performance, 118ms)
+- **Backend**: Prefer Rust Backend (fastest, 200ms) or C++ Backend (370ms)
+- **Python (Cython)**: Good performance (687ms) if team prefers Python ecosystem
 
 ## Technical Notes
 
@@ -162,8 +177,9 @@ int gridIndex = gx + gy * gridWidth + gz * gridWidth * gridHeight;
 ```
 
 ### Worker Overhead
-For small datasets (< 10K points), Web Worker message passing overhead is noticeable:
-- **C++ WASM Worker**: ~55ms vs Main ~36ms (19ms overhead)
+For small-medium datasets, Web Worker message passing overhead is noticeable:
+- **C++ WASM Worker**: 402ms vs Main 378ms (24ms overhead)
+- **Rust WASM Worker**: 118ms vs Main 143ms (actually faster due to parallelization)
 - Overhead becomes negligible on larger datasets (> 100K points)
 - Always use workers for large datasets to avoid UI blocking
 
@@ -171,8 +187,10 @@ For small datasets (< 10K points), Web Worker message passing overhead is notice
 
 All implementations use **identical O(n) spatial hashing algorithms** and produce **identical results**. The performance differences reflect platform optimizations:
 
-- **WASM**: Rust is fastest due to optimized bindings and compiler
-- **Backend**: Rust and C++ are nearly equivalent (excellent parity)
-- **Python**: Much slower but highly readable
+- **WASM**: Rust is fastest (118ms) due to optimized bindings and compiler
+- **Backend**: Rust is fastest (200ms), C++ is good (370ms), Python (Cython) is acceptable (687ms)
+- **Key Finding**: Unlike voxel downsampling (where C++ BE is faster), point smoothing favors Rust BE due to better memory layout and cache locality
 
-Unlike voxel downsampling, point smoothing shows excellent backend performance parity because the algorithm relies less on HashMap performance and more on grid-based indexing, which is equally efficient in both languages.
+**Performance Pattern Summary**:
+- **Voxel Downsampling**: C++ BE > Rust BE (hash map operations favor C++)
+- **Point Smoothing**: Rust BE > C++ BE (grid memory access patterns favor Rust)

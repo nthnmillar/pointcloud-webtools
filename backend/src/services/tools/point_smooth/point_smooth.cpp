@@ -50,9 +50,10 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
     int gridWidth = static_cast<int>((maxX - minX) * invCellSize) + 1;
     int gridHeight = static_cast<int>((maxY - minY) * invCellSize) + 1;
     int gridDepth = static_cast<int>((maxZ - minZ) * invCellSize) + 1;
+    int gridSize = gridWidth * gridHeight * gridDepth; // Pre-compute (same as Rust)
     
     // Create spatial hash grid with pre-allocated capacity
-    std::vector<std::vector<int>> grid(gridWidth * gridHeight * gridDepth);
+    std::vector<std::vector<int>> grid(gridSize);
     for (auto& cell : grid) {
         cell.reserve(8); // Pre-allocate capacity for better performance
     }
@@ -67,10 +68,8 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
     
     // Smoothing iterations using spatial hashing (same as C++ WASM)
     for (int iter = 0; iter < iterations; iter++) {
-        // Copy current state to temp buffer (same as C++ WASM)
-        for (int i = 0; i < length; i++) {
-            tempBuffer[i] = outputData[i];
-        }
+        // Copy current state to temp buffer (optimized with memcpy, same as Rust's clone)
+        std::memcpy(tempBuffer, outputData, length * sizeof(float));
         
         // Clear grid efficiently
         for (auto& cell : grid) {
@@ -84,7 +83,7 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
             float y = tempBuffer[i3 + 1];
             float z = tempBuffer[i3 + 2];
             int gridIndex = getGridIndex(x, y, z);
-            if (gridIndex >= 0 && gridIndex < static_cast<int>(grid.size())) {
+            if (gridIndex >= 0 && gridIndex < gridSize) {
                 grid[gridIndex].push_back(i);
             }
         }
@@ -109,8 +108,12 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
                             z + dz * cellSize
                         );
                         
-                        if (gridIndex >= 0 && gridIndex < static_cast<int>(grid.size())) {
-                            for (int neighborIndex : grid[gridIndex]) {
+                        if (gridIndex >= 0 && gridIndex < gridSize) {
+                            // Store reference to avoid repeated indexing (optimization)
+                            const std::vector<int>& cell = grid[gridIndex];
+                            for (int neighborIndex : cell) {
+                                if (i == neighborIndex) continue; // Skip self (same as Rust)
+                                
                                 int n3 = neighborIndex * 3;
                                 float nx = tempBuffer[n3];
                                 float ny = tempBuffer[n3 + 1];
@@ -147,6 +150,10 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
 }
 
 int main() {
+    // OPTIMIZATION: Disable synchronization with stdio for faster I/O (critical for performance!)
+    std::ios_base::sync_with_stdio(false);
+    std::cin.tie(nullptr);
+    
     // OPTIMIZATION: Read binary input instead of JSON (much faster!)
     // Binary format: [uint32_t pointCount][float smoothingRadius][float iterations][float* pointData]
     

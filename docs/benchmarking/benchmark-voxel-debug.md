@@ -29,26 +29,26 @@ See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algo
 
 | Implementation | Time (ms) | Relative Speed | Notes |
 |---------------|-----------|----------------|-------|
-| **C++ WASM Main** | 157 ms | 1.0x | Fastest WASM implementation |
-| **Rust WASM Main** | 160 ms | 1.02x | Very close to C++ WASM |
-| **C++ WASM Worker** | 163 ms | 1.04x | Minimal worker overhead |
-| **Rust WASM Worker** | 185 ms | 1.18x | Slightly more worker overhead |
-| **TypeScript** | 205 ms | 1.31x | Good performance, pure JS |
-| **C++ Backend** | 403 ms | 2.57x | Fastest backend (after binary optimization) |
-| **Rust Backend** | 663 ms | 4.22x | Good performance |
-| **Python Backend (Cython)** | 699 ms | 4.45x | Very close to Rust BE |
+| **C++ WASM Main** | 136 ms | 1.0x | Fastest WASM implementation |
+| **Rust WASM Main** | 154 ms | 1.13x | Very close to C++ WASM |
+| **C++ WASM Worker** | 164 ms | 1.21x | Minimal worker overhead |
+| **Rust WASM Worker** | 178 ms | 1.31x | Slightly more worker overhead |
+| **TypeScript** | 208 ms | 1.53x | Good performance, pure JS |
+| **C++ Backend** | 419 ms | 3.08x | Fastest backend (after binary optimization) |
+| **Rust Backend** | 673 ms | 4.95x | Good performance |
+| **Python Backend (Cython)** | 670 ms | 4.93x | Very close to Rust BE |
 
 ### Performance Analysis
 
 #### Browser Performance (WASM) - C++ and Rust are Very Close
-- **C++ WASM Main** (157ms) is **slightly faster** than **Rust WASM Main** (160ms) - only 2% difference
+- **C++ WASM Main** (136ms) is **slightly faster** than **Rust WASM Main** (154ms) - 13% difference
 - Both use **LLVM-based compilers** (Emscripten for C++, native LLVM for Rust)
 - Both use integer keys for HashSet operations
 - Worker overhead is minimal for both implementations
 
 #### Backend Performance - C++ BE is Fastest After Binary Optimization
 
-**Key Finding**: After implementing **binary protocol optimization**, **C++ Backend** (403ms) is now **fastest**, followed by Rust BE (663ms) and Python BE (699ms).
+**Key Finding**: After implementing **binary protocol optimization**, **C++ Backend** (419ms) is now **fastest**, followed by Python BE (670ms) and Rust BE (673ms).
 
 **Why C++ BE is Fastest:**
 1. **Binary Protocol**: All backends now use WebSocket with binary protocol instead of HTTP/JSON, eliminating serialization overhead
@@ -57,8 +57,8 @@ See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algo
 4. **Hash Set Performance**: Uses `std::unordered_map` with integer keys, well-optimized by compiler
 
 **Why Rust BE and Python BE are Close:**
-- **Rust BE** (663ms): Uses `FxHashSet` with integer keys, highly optimized
-- **Python BE** (699ms): Cython compiles to C, uses integer keys, nearly matches Rust performance
+- **Rust BE** (673ms): Uses `FxHashSet` with integer keys, highly optimized
+- **Python BE** (670ms): Cython compiles to C, uses integer keys, slightly faster than Rust BE
 - Both benefit from binary protocol optimization
 
 **Binary Protocol Impact:**
@@ -124,15 +124,15 @@ This optimization was critical - it significantly improved all backend performan
 ## Recommendations
 
 ### For Browser (WASM)
-- **Use C++ WASM Main** (157ms) for fastest performance if UI blocking is acceptable
-- **Use Rust WASM Main** (160ms) for very close performance with Rust's safety guarantees
-- **Use C++ WASM Worker** (163ms) for non-blocking processing with minimal overhead
-- **Use TypeScript** (205ms) for simpler code and good performance
+- **Use C++ WASM Main** (136ms) for fastest performance if UI blocking is acceptable
+- **Use Rust WASM Main** (154ms) for very close performance with Rust's safety guarantees
+- **Use C++ WASM Worker** (164ms) for non-blocking processing with minimal overhead
+- **Use TypeScript** (208ms) for simpler code and good performance
 
 ### For Backend
-- **Use C++ Backend** (403ms) - fastest backend implementation
-- **Use Rust Backend** (663ms) - good performance, excellent safety guarantees
-- **Use Python Backend (Cython)** (699ms) - very close to Rust, excellent if you prefer Python ecosystem
+- **Use C++ Backend** (419ms) - fastest backend implementation
+- **Use Python Backend (Cython)** (670ms) - very close to Rust, excellent if you prefer Python ecosystem
+- **Use Rust Backend** (673ms) - good performance, excellent safety guarantees
 
 All backends are now well-optimized with binary protocol, making them suitable for production use.
 

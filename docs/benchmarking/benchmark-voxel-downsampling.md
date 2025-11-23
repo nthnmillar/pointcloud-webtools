@@ -24,19 +24,19 @@ See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algo
 
 | Implementation | Time (ms) | Relative Speed | Notes |
 |---------------|-----------|----------------|-------|
-| **TypeScript** | 217 ms | 1.51x | Good performance, pure JS |
-| **C++ WASM Main** | 144 ms | 1.0x | Fastest WASM implementation |
-| **Rust WASM Main** | 152 ms | 1.06x | Very close to C++ WASM (5% difference) |
-| **C++ WASM Worker** | 195 ms | 1.35x | Good performance with worker overhead |
-| **Rust WASM Worker** | 193 ms | 1.34x | Best for browser (non-blocking) |
-| **C++ Backend** | 504 ms | Baseline | Fastest backend |
-| **Rust Backend** | 614 ms | 1.22x | Very close to C++ BE (22% difference) |
-| **Python Backend (Cython)** | 706 ms | 1.40x | Compiled Python, good performance |
+| **TypeScript** | 207 ms | 1.45x | Good performance, pure JS |
+| **C++ WASM Main** | 143 ms | 1.0x | Fastest WASM implementation |
+| **Rust WASM Main** | 154 ms | 1.08x | Very close to C++ WASM (8% difference) |
+| **C++ WASM Worker** | 189 ms | 1.32x | Good performance with worker overhead |
+| **Rust WASM Worker** | 196 ms | 1.37x | Best for browser (non-blocking) |
+| **C++ Backend** | 476 ms | Baseline | Fastest backend |
+| **Rust Backend** | 618 ms | 1.30x | Very close to C++ BE (30% difference) |
+| **Python Backend (Cython)** | 697 ms | 1.46x | Compiled Python, good performance |
 
 ### Performance Analysis
 
 #### Browser Performance (WASM) - C++ and Rust are Very Close
-- **C++ WASM Main** (144ms) and **Rust WASM Main** (152ms) are **very close** (only 5% difference)
+- **C++ WASM Main** (143ms) and **Rust WASM Main** (154ms) are **very close** (only 8% difference)
 - Both use **LLVM-based compilers**:
   - Rust: Native LLVM compiler
   - C++: Emscripten (LLVM/Clang-based)
@@ -45,7 +45,7 @@ See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algo
 - The small difference is due to hash map implementation details, but LLVM optimizations minimize the gap
 
 #### Backend Performance - C++ and Rust are Very Close
-- **C++ Backend** (504ms) is **22% faster** than Rust Backend (614ms)
+- **C++ Backend** (476ms) is **30% faster** than Rust Backend (618ms)
 - **Key Finding**: After optimizing both to use binary protocol (WebSocket + binary I/O), the performance gap is much smaller than previously observed
 - **Hash Map Implementation**:
   - **C++**: Uses `std::unordered_map` with `FastHash` (matching Rust's FxHash algorithm)
@@ -53,10 +53,10 @@ See [Benchmark Methodology](benchmark.md#benchmark-methodology) for general algo
 - **Compiler**: Both use LLVM (clang for C++, rustc for Rust) with full optimizations:
   - C++: `clang++ -O3 -march=native -ffast-math -flto -stdlib=libc++`
   - Rust: `opt-level = 3, lto = "fat", codegen-units = 1`
-- **Conclusion**: The 22% difference is acceptable and reflects minor hash map implementation differences. Both are well-optimized.
+- **Conclusion**: The 30% difference is acceptable and reflects minor hash map implementation differences. Both are well-optimized.
 
 #### Python Backend (Cython) Performance
-- **Python Backend (Cython)** (706ms) is **40% slower** than C++ Backend (504ms)
+- **Python Backend (Cython)** (697ms) is **46% slower** than C++ Backend (476ms)
 - **Cython Implementation**: 
   - Compiled Python code (`.pyx` → C → native binary)
   - Uses type annotations (`cdef int`, `cdef float`) for C-level performance
@@ -83,7 +83,7 @@ All backend implementations now use **WebSocket with binary protocol** instead o
 - **Frontend**: Sends binary data directly via WebSocket (`ws.send(pointCloudData.buffer)`) - no JSON conversion
 - **Backend**: Sends binary response directly via WebSocket (`ws.send(downsampledPointsBuffer)`) - no JSON conversion
 
-This optimization was critical - it reduced C++ BE from ~1,549ms to ~504ms (3x faster!).
+This optimization was critical - it reduced C++ BE from ~1,549ms to ~476ms (3.3x faster!).
 
 ### 2. Voxel Coordinate Calculation
 ```cpp
@@ -140,9 +140,9 @@ Both C++ and Rust backends use LTO for cross-module optimizations:
 - Or **C++ Backend** or **Rust Backend** for server-side processing (both are very close)
 
 ### For Large Datasets (> 1M points)
-- Use **C++ Backend** (fastest, ~504ms for 1M points)
-- **Rust Backend** is also excellent (~614ms for 1M points, only 22% slower)
-- **Python Backend (Cython)** is acceptable (~706ms for 1M points, 40% slower than C++)
+- Use **C++ Backend** (fastest, ~476ms for 1M points)
+- **Rust Backend** is also excellent (~618ms for 1M points, only 30% slower)
+- **Python Backend (Cython)** is acceptable (~697ms for 1M points, 46% slower than C++)
 
 ## Technical Notes
 
@@ -158,7 +158,7 @@ Both C++ and Rust backends use LTO for cross-module optimizations:
 3. **Compiler**: rustc with full optimizations (`opt-level = 3, lto = "fat"`)
 4. **Direct Indexing**: Uses direct array indexing instead of `push()` for output
 
-The 22% difference is due to minor hash map implementation differences. Both are well-optimized.
+The 30% difference is due to minor hash map implementation differences. Both are well-optimized.
 
 ### Python Backend (Cython) Implementation Details
 1. **Cython Compilation**:
@@ -178,14 +178,14 @@ The 22% difference is due to minor hash map implementation differences. Both are
    - Python dict operations still use Python's C API (bottleneck)
    - Python list operations still have overhead
    - Cython can't fully optimize Python object operations
-5. **Performance**: 40% slower than C++ BE, but still very good for compiled Python code
+5. **Performance**: 46% slower than C++ BE, but still very good for compiled Python code
 
 ## Conclusion
 
 All implementations are **fair, optimized, and produce identical results**. The performance differences reflect platform-specific optimizations rather than algorithm differences:
 
-- **WASM**: C++ and Rust are very close (144ms vs 152ms, only 5% difference) due to LLVM optimizations
-- **Backend**: C++ is fastest (504ms), Rust is very close (614ms, 22% difference), Python (Cython) is good (706ms, 40% slower)
+- **WASM**: C++ and Rust are very close (143ms vs 154ms, only 8% difference) due to LLVM optimizations
+- **Backend**: C++ is fastest (476ms), Rust is very close (618ms, 30% difference), Python (Cython) is good (697ms, 46% slower)
 - **Binary Protocol**: Critical optimization that eliminated JSON overhead and made all backends much faster
 
 The binary protocol optimization was the key breakthrough - it eliminated ~369ms of JSON serialization overhead and made C++ BE competitive with Rust BE. All backends now use the same optimized binary protocol, making the comparison fair and the performance differences minimal.
