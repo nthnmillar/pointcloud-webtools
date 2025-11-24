@@ -22,14 +22,11 @@ macro_rules! console_log {
     ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
 }
 
-// Voxel struct removed - using direct integer hashing for better performance
 
 #[wasm_bindgen]
 pub struct PointCloudToolsRust {
 }
 
-// Note: Memory allocation is handled in JavaScript using the WASM memory buffer directly
-// This avoids needing to export malloc/free functions
 
 #[wasm_bindgen]
 impl PointCloudToolsRust {
@@ -45,18 +42,22 @@ impl PointCloudToolsRust {
         wasm_bindgen::memory()
     }
 
-    /// Direct pointer-based voxel downsampling for zero-copy input access (static version)
+    /// Direct pointer-based voxel downsampling for zero-copy input access
     /// JavaScript allocates memory, copies input data, calls this function,
     /// then reads results from output buffer
     /// 
     /// Pointers are passed as usize (byte offsets into WASM linear memory)
     /// 
     /// # Safety
-    /// This function is unsafe because it reads from raw pointers.
-    /// The caller must ensure:
+    /// This function uses `unsafe` Rust code to access memory directly via raw pointers.
+    /// Rust cannot automatically verify that these pointers are valid, so we must ensure safety manually.
+    /// The function validates inputs (alignment, point count, etc.), but the caller (JavaScript) must guarantee:
     /// - input_ptr points to valid WASM memory with at least point_count * 3 floats
     /// - output_ptr points to valid WASM memory with at least point_count * 3 floats
-    /// - Both pointers are properly aligned
+    /// - Both pointers are properly aligned (4-byte boundaries for floats)
+    /// 
+    /// When used correctly, this function is safe. The `unsafe` keyword is required because
+    /// Rust's compiler cannot automatically verify memory safety with raw pointers.
     #[wasm_bindgen]
     pub fn voxel_downsample_direct_static(
         input_ptr: usize,
@@ -103,23 +104,22 @@ impl PointCloudToolsRust {
         min_z: f32,
         output_ptr: *mut f32,
     ) -> usize {
-        // OPTIMIZATION 1: Pre-calculate inverse voxel size to avoid division
+        // Pre-calculate inverse voxel size to avoid division operations
         let inv_voxel_size = 1.0 / voxel_size;
         
-        // Calculate point count first
         let point_count = points.len() / 3;
         
-        // Validate slice length (minimal check)
+        // Validate slice length
         if points.len() < point_count * 3 {
             return 0;
         }
         
-        // OPTIMIZATION 2: Use FxHashMap (much faster hash for integer keys) with struct for better cache locality
-        // Pre-allocate with estimated capacity to avoid reallocations
+        // Use fast hash map with integer keys for voxel lookup
+        // Pre-allocate with estimated capacity to minimize reallocations
         let estimated_voxels = (point_count / 100).min(100_000);
         let mut voxel_map: FxHashMap<u64, Voxel> = FxHashMap::with_capacity_and_hasher(estimated_voxels, Default::default());
         
-        // OPTIMIZATION 3: Process points in chunks for better cache locality
+        // Process points in chunks for better CPU cache performance
         const CHUNK_SIZE: usize = 1024;
         
         for chunk_start in (0..point_count).step_by(CHUNK_SIZE) {
@@ -127,21 +127,19 @@ impl PointCloudToolsRust {
             
             for i in chunk_start..chunk_end {
                 let i3 = i * 3;
-                // Remove bounds check - slice is already validated, compiler can optimize better
                 let x = points[i3];
                 let y = points[i3 + 1];
                 let z = points[i3 + 2];
                 
-                // OPTIMIZATION 4: Use multiplication instead of division
+                // Calculate voxel grid coordinates using multiplication (faster than division)
                 let voxel_x = ((x - min_x) * inv_voxel_size).floor() as i32;
                 let voxel_y = ((y - min_y) * inv_voxel_size).floor() as i32;
                 let voxel_z = ((z - min_z) * inv_voxel_size).floor() as i32;
                 
-                // OPTIMIZATION 5: Use integer hash key
+                // Combine coordinates into single integer hash key
                 let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
                 
-                // OPTIMIZATION 6: Use entry() API (like C++ try_emplace) - single hash lookup
-                // Use struct for better cache locality (matches C++ implementation)
+                // Update or insert voxel data using single hash lookup
                 voxel_map.entry(voxel_key).and_modify(|voxel| {
                     voxel.count += 1;
                     voxel.sum_x += x;
@@ -156,7 +154,7 @@ impl PointCloudToolsRust {
             }
         }
         
-        // OPTIMIZATION 7: Write results directly to output buffer (matches C++ pattern)
+        // Write averaged voxel centers directly to output buffer
         let mut output_index = 0;
         
         for (_voxel_key, voxel) in voxel_map {
@@ -316,8 +314,8 @@ impl PointCloudToolsRust {
         smoothed_points
     }
 
-    /// Generate voxel centers for debug visualization - MAXIMUM OPTIMIZATION
-    /// Uses direct memory access, integer hashing, and zero-copy operations
+    /// Generate voxel centers for debug visualization
+    /// Returns unique voxel center positions for rendering wireframe cubes
     #[wasm_bindgen]
     pub fn generate_voxel_centers(
         &mut self,
@@ -327,18 +325,17 @@ impl PointCloudToolsRust {
         min_y: f32,
         min_z: f32,
     ) -> Vec<f32> {
-        // OPTIMIZATION 1: Pre-calculate all constants to avoid repeated calculations
+        // Pre-calculate constants to avoid repeated calculations
         let inv_voxel_size = 1.0 / voxel_size;
         let half_voxel_size = voxel_size * 0.5;
         let offset_x = min_x + half_voxel_size;
         let offset_y = min_y + half_voxel_size;
         let offset_z = min_z + half_voxel_size;
         
-        // OPTIMIZATION 2: Use FxHashSet with integer keys (much faster than tuple keys!)
-        // Integer keys are faster to hash than tuples (same optimization as downsampling)
+        // Use fast hash set with integer keys to track unique voxels
         let mut voxel_keys: FxHashSet<u64> = FxHashSet::default();
         
-        // OPTIMIZATION 3: Process points in chunks for better cache locality (same as downsampling)
+        // Process points in chunks for better CPU cache performance
         const CHUNK_SIZE: usize = 1024;
         let point_count = points.len() / 3;
         
@@ -351,29 +348,30 @@ impl PointCloudToolsRust {
                 let y = points[i3 + 1];
                 let z = points[i3 + 2];
                 
-                // OPTIMIZATION 4: Use multiplication instead of division
+                // Calculate voxel grid coordinates using multiplication (faster than division)
                 let voxel_x = ((x - min_x) * inv_voxel_size).floor() as i32;
                 let voxel_y = ((y - min_y) * inv_voxel_size).floor() as i32;
                 let voxel_z = ((z - min_z) * inv_voxel_size).floor() as i32;
                 
-                // OPTIMIZATION 5: Use integer hash key (same as downsampling - much faster than tuple!)
+                // Combine coordinates into single integer hash key
                 let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
                 
                 voxel_keys.insert(voxel_key);
             }
         }
         
-        // OPTIMIZATION 6: Pre-allocate result vector with exact capacity
+        // Pre-allocate result vector with exact capacity
         let voxel_count = voxel_keys.len();
         let mut centers = Vec::with_capacity(voxel_count * 3);
         
-        // OPTIMIZATION 7: Single pass conversion with direct grid position calculation
+        // Convert unique voxel keys to center positions
         for voxel_key in voxel_keys {
-            // Extract voxel coordinates from integer key (same as C++/backend)
+            // Extract voxel coordinates from integer key
             let voxel_x = (voxel_key >> 32) as i32;
-            let voxel_y = ((voxel_key >> 16) & 0xFFFF) as i16 as i32; // Sign-extend 16-bit
-            let voxel_z = (voxel_key & 0xFFFF) as i16 as i32; // Sign-extend 16-bit
-            // Calculate grid center position (exact same as C++/TS implementation)
+            let voxel_y = ((voxel_key >> 16) & 0xFFFF) as i16 as i32;
+            let voxel_z = (voxel_key & 0xFFFF) as i16 as i32;
+            
+            // Calculate voxel center position
             let center_x = offset_x + voxel_x as f32 * voxel_size;
             let center_y = offset_y + voxel_y as f32 * voxel_size;
             let center_z = offset_z + voxel_z as f32 * voxel_size;
