@@ -9,18 +9,22 @@ export class PointCloudToolsRust {
    */
   get_memory(): any;
   /**
-   * Direct pointer-based voxel downsampling for zero-copy input access (static version)
+   * Direct pointer-based voxel downsampling for zero-copy input access
    * JavaScript allocates memory, copies input data, calls this function,
    * then reads results from output buffer
    * 
    * Pointers are passed as usize (byte offsets into WASM linear memory)
    * 
    * # Safety
-   * This function is unsafe because it reads from raw pointers.
-   * The caller must ensure:
+   * This function uses `unsafe` Rust code to access memory directly via raw pointers.
+   * Rust cannot automatically verify that these pointers are valid, so we must ensure safety manually.
+   * The function validates inputs (alignment, point count, etc.), but the caller (JavaScript) must guarantee:
    * - input_ptr points to valid WASM memory with at least point_count * 3 floats
    * - output_ptr points to valid WASM memory with at least point_count * 3 floats
-   * - Both pointers are properly aligned
+   * - Both pointers are properly aligned (4-byte boundaries for floats)
+   * 
+   * When used correctly, this function is safe. The `unsafe` keyword is required because
+   * Rust's compiler cannot automatically verify memory safety with raw pointers.
    */
   static voxel_downsample_direct_static(input_ptr: number, point_count: number, voxel_size: number, min_x: number, min_y: number, min_z: number, output_ptr: number): number;
   /**
@@ -29,8 +33,8 @@ export class PointCloudToolsRust {
    */
   point_cloud_smooth(points: Float32Array, smoothing_radius: number, iterations: number): Float32Array;
   /**
-   * Generate voxel centers for debug visualization - MAXIMUM OPTIMIZATION
-   * Uses direct memory access, integer hashing, and zero-copy operations
+   * Generate voxel centers for debug visualization
+   * Returns unique voxel center positions for rendering wireframe cubes
    */
   generate_voxel_centers(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
 }
