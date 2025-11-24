@@ -73,10 +73,11 @@ async function initialize() {
       throw new Error('WASM malloc/free functions not available');
     }
     
-    // OPTIMIZATION: Cache static function if available to avoid method lookup overhead
-    if (typeof PointCloudToolsRust.voxel_downsample_direct_static === 'function') {
-      voxelDownsampleDirectStaticFunc = PointCloudToolsRust.voxel_downsample_direct_static;
+    // Cache static function - required, no fallback
+    if (typeof PointCloudToolsRust.voxel_downsample_direct_static !== 'function') {
+      throw new Error('voxel_downsample_direct_static function not available in Rust WASM module');
     }
+    voxelDownsampleDirectStaticFunc = PointCloudToolsRust.voxel_downsample_direct_static;
     
     WorkerLog.info('WASM module initialized, creating PointCloudToolsRust instance...');
     
@@ -145,16 +146,14 @@ async function handleVoxelDownsampling(data: any, messageId: number): Promise<vo
       heapF32.set(pointCloudData, inputFloatIndex);
     }
     
-    // OPTIMIZATION: Use cached static function directly to avoid method lookup overhead
-    const outputCount = voxelDownsampleDirectStaticFunc
-      ? voxelDownsampleDirectStaticFunc(
-          inputPtrToUse, pointCount, voxelSize,
-          globalBounds.minX, globalBounds.minY, globalBounds.minZ, outputPtr
-        )
-      : wasmModule.voxel_downsample_direct(
-          inputPtrToUse, pointCount, voxelSize,
-          globalBounds.minX, globalBounds.minY, globalBounds.minZ, outputPtr
-        );
+    // Use cached static function directly
+    if (!voxelDownsampleDirectStaticFunc) {
+      throw new Error('voxel_downsample_direct_static function not available');
+    }
+    const outputCount = voxelDownsampleDirectStaticFunc(
+      inputPtrToUse, pointCount, voxelSize,
+      globalBounds.minX, globalBounds.minY, globalBounds.minZ, outputPtr
+    );
     
     if (outputCount <= 0 || outputCount > pointCount) {
       throw new Error(`Invalid output count: ${outputCount}`);

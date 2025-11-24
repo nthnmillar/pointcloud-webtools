@@ -44,10 +44,11 @@ export class VoxelDownsamplingWASMRust extends BaseService {
         throw new Error('WASM malloc/free functions not available');
       }
       
-      // OPTIMIZATION: Cache static function if available to avoid method lookup overhead
-      if (typeof (PointCloudToolsRust as any).voxel_downsample_direct_static === 'function') {
-        this.voxelDownsampleDirectStaticFunc = (PointCloudToolsRust as any).voxel_downsample_direct_static;
+      // Cache static function - required, no fallback
+      if (typeof (PointCloudToolsRust as any).voxel_downsample_direct_static !== 'function') {
+        throw new Error('voxel_downsample_direct_static function not available in Rust WASM module');
       }
+      this.voxelDownsampleDirectStaticFunc = (PointCloudToolsRust as any).voxel_downsample_direct_static;
       
       // Create the Rust tools instance (still needed for other methods)
       this.wasmModule = new PointCloudToolsRust();
@@ -132,15 +133,13 @@ export class VoxelDownsamplingWASMRust extends BaseService {
           this.heapF32.set(pointCloudData, inputFloatIndex);
         }
         
-        // OPTIMIZATION: Use cached static function directly to avoid method lookup overhead
-        const outputCount = this.voxelDownsampleDirectStaticFunc
-          ? this.voxelDownsampleDirectStaticFunc(
-              inputPtrToUse, pointCount, voxelSize,
-              globalBounds.minX, globalBounds.minY, globalBounds.minZ, outputPtr
-            )
-          : (this.wasmModule as any).voxel_downsample_direct(
-              inputPtrToUse, pointCount, voxelSize,
-              globalBounds.minX, globalBounds.minY, globalBounds.minZ, outputPtr
+        // Use cached static function directly
+        if (!this.voxelDownsampleDirectStaticFunc) {
+          throw new Error('voxel_downsample_direct_static function not available');
+        }
+        const outputCount = this.voxelDownsampleDirectStaticFunc(
+          inputPtrToUse, pointCount, voxelSize,
+          globalBounds.minX, globalBounds.minY, globalBounds.minZ, outputPtr
         );
         
         if (outputCount <= 0 || outputCount > pointCount) {

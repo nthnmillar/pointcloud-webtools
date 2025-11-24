@@ -1,6 +1,5 @@
 use wasm_bindgen::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
-use js_sys::Float32Array;
 
 // Voxel struct for better cache locality (matches C++ implementation)
 #[derive(Clone, Copy)]
@@ -27,9 +26,6 @@ macro_rules! console_log {
 
 #[wasm_bindgen]
 pub struct PointCloudToolsRust {
-    // Store result vectors to keep WASM memory alive for zero-copy views
-    // This allows Float32Array::view() to work without copying
-    result_buffer: Option<Vec<f32>>,
 }
 
 // Note: Memory allocation is handled in JavaScript using the WASM memory buffer directly
@@ -40,9 +36,7 @@ impl PointCloudToolsRust {
     #[wasm_bindgen(constructor)]
     pub fn new() -> PointCloudToolsRust {
         console_log!("Rust WASM: PointCloudToolsRust initialized");
-        PointCloudToolsRust {
-            result_buffer: None,
-        }
+        PointCloudToolsRust {}
     }
     
     /// Get WASM memory for direct access
@@ -73,43 +67,6 @@ impl PointCloudToolsRust {
         min_z: f32,
         output_ptr: usize,
     ) -> usize {
-        // Create a temporary instance to call the internal implementation
-        let mut instance = PointCloudToolsRust::new();
-        instance.voxel_downsample_direct(
-            input_ptr,
-            point_count,
-            voxel_size,
-            min_x,
-            min_y,
-            min_z,
-            output_ptr,
-        )
-    }
-    
-    /// Direct pointer-based voxel downsampling for zero-copy input access
-    /// JavaScript allocates memory, copies input data, calls this function,
-    /// then reads results from output buffer
-    /// 
-    /// Pointers are passed as usize (byte offsets into WASM linear memory)
-    /// 
-    /// # Safety
-    /// This function is unsafe because it reads from raw pointers.
-    /// The caller must ensure:
-    /// - input_ptr points to valid WASM memory with at least point_count * 3 floats
-    /// - output_ptr points to valid WASM memory with at least point_count * 3 floats
-    /// - Both pointers are properly aligned
-    #[wasm_bindgen]
-    pub fn voxel_downsample_direct(
-        &mut self,
-        input_ptr: usize,
-        point_count: usize,
-        voxel_size: f32,
-        min_x: f32,
-        min_y: f32,
-        min_z: f32,
-        output_ptr: usize,
-    ) -> usize {
-        // Log function call for debugging
         if point_count == 0 || voxel_size <= 0.0 {
             return 0;
         }
@@ -125,7 +82,7 @@ impl PointCloudToolsRust {
             let output_ptr_f32 = output_ptr as *mut f32;
             let points = std::slice::from_raw_parts(input_ptr_f32, input_len);
             
-            self.voxel_downsample_internal(
+            Self::voxel_downsample_internal(
                 points,
                 voxel_size,
                 min_x,
@@ -139,7 +96,6 @@ impl PointCloudToolsRust {
     /// Internal voxel downsampling implementation
     /// Writes results directly to output buffer
     fn voxel_downsample_internal(
-        &self,
         points: &[f32],
         voxel_size: f32,
         min_x: f32,
@@ -215,95 +171,6 @@ impl PointCloudToolsRust {
         }
         
         output_index
-    }
-
-    /// Voxel downsampling implementation in Rust - MAXIMUM OPTIMIZATION
-    /// Uses direct memory access and integer hashing for maximum performance
-    /// Returns Float32Array directly for zero-copy access
-    #[wasm_bindgen]
-    pub fn voxel_downsample(
-        &mut self,
-        points: &[f32],
-        voxel_size: f32,
-        min_x: f32,
-        min_y: f32,
-        min_z: f32,
-    ) -> Float32Array {
-        // OPTIMIZATION 1: Pre-calculate inverse voxel size to avoid division
-        let inv_voxel_size = 1.0 / voxel_size;
-        
-        // Calculate point count first
-        let point_count = points.len() / 3;
-        
-        // OPTIMIZATION 2: Use FxHashMap (much faster hash for integer keys) with struct for better cache locality
-        // Pre-allocate with estimated capacity to avoid reallocations
-        let estimated_voxels = point_count / 100; // Rough estimate: ~1% of points become voxels
-        let mut voxel_map: FxHashMap<u64, Voxel> = FxHashMap::with_capacity_and_hasher(estimated_voxels, Default::default());
-        
-        // OPTIMIZATION 3: Process points in chunks for better cache locality
-        const CHUNK_SIZE: usize = 1024;
-        
-        for chunk_start in (0..point_count).step_by(CHUNK_SIZE) {
-            let chunk_end = (chunk_start + CHUNK_SIZE).min(point_count);
-            
-            for i in chunk_start..chunk_end {
-                let i3 = i * 3;
-                let x = points[i3];
-                let y = points[i3 + 1];
-                let z = points[i3 + 2];
-                
-                // OPTIMIZATION 4: Use multiplication instead of division
-                let voxel_x = ((x - min_x) * inv_voxel_size).floor() as i32;
-                let voxel_y = ((y - min_y) * inv_voxel_size).floor() as i32;
-                let voxel_z = ((z - min_z) * inv_voxel_size).floor() as i32;
-                
-                // OPTIMIZATION 5: Use integer hash key
-                let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
-                
-                // OPTIMIZATION 6: Use entry() API (like C++ try_emplace) - single hash lookup
-                // Use struct for better cache locality (matches C++ implementation)
-                voxel_map.entry(voxel_key).and_modify(|voxel| {
-                    voxel.count += 1;
-                    voxel.sum_x += x;
-                    voxel.sum_y += y;
-                    voxel.sum_z += z;
-                }).or_insert(Voxel {
-                    count: 1,
-                    sum_x: x,
-                    sum_y: y,
-                    sum_z: z,
-                });
-            }
-        }
-        
-        // OPTIMIZATION 7: Pre-allocate result vector with exact size (no push() overhead)
-        let voxel_count = voxel_map.len();
-        let mut result = Vec::with_capacity(voxel_count * 3);
-        
-        // OPTIMIZATION 8: Reserve exact capacity and use unsafe to avoid bounds checks
-        // Write directly to pre-allocated memory (like C++ does)
-        unsafe {
-            result.set_len(voxel_count * 3);
-            let mut idx = 0;
-            for (_voxel_key, voxel) in voxel_map {
-                let count_f = voxel.count as f32;
-                *result.get_unchecked_mut(idx) = voxel.sum_x / count_f;
-                *result.get_unchecked_mut(idx + 1) = voxel.sum_y / count_f;
-                *result.get_unchecked_mut(idx + 2) = voxel.sum_z / count_f;
-                idx += 3;
-            }
-        }
-        
-        // OPTIMIZATION 9: Return Float32Array using memory view (zero-copy)
-        // Store Vec in struct to keep WASM memory alive, then create view
-        let js_array = unsafe {
-            Float32Array::view(&result)
-        };
-        
-        // Store the Vec to keep memory alive - the view references it
-        self.result_buffer = Some(result);
-        
-        js_array
     }
 
     /// Point cloud smoothing implementation in Rust

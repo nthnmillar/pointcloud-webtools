@@ -45,20 +45,6 @@ function addHeapObject(obj) {
     return idx;
 }
 
-let cachedFloat32ArrayMemory0 = null;
-
-function getFloat32ArrayMemory0() {
-    if (cachedFloat32ArrayMemory0 === null || cachedFloat32ArrayMemory0.byteLength === 0) {
-        cachedFloat32ArrayMemory0 = new Float32Array(wasm.memory.buffer);
-    }
-    return cachedFloat32ArrayMemory0;
-}
-
-function getArrayF32FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getFloat32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
-}
-
 function getObject(idx) { return heap[idx]; }
 
 function dropObject(idx) {
@@ -71,6 +57,15 @@ function takeObject(idx) {
     const ret = getObject(idx);
     dropObject(idx);
     return ret;
+}
+
+let cachedFloat32ArrayMemory0 = null;
+
+function getFloat32ArrayMemory0() {
+    if (cachedFloat32ArrayMemory0 === null || cachedFloat32ArrayMemory0.byteLength === 0) {
+        cachedFloat32ArrayMemory0 = new Float32Array(wasm.memory.buffer);
+    }
+    return cachedFloat32ArrayMemory0;
 }
 
 let WASM_VECTOR_LEN = 0;
@@ -89,6 +84,11 @@ function getDataViewMemory0() {
         cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
     }
     return cachedDataViewMemory0;
+}
+
+function getArrayF32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getFloat32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
 }
 
 const PointCloudToolsRustFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -147,49 +147,6 @@ export class PointCloudToolsRust {
     static voxel_downsample_direct_static(input_ptr, point_count, voxel_size, min_x, min_y, min_z, output_ptr) {
         const ret = wasm.pointcloudtoolsrust_voxel_downsample_direct_static(input_ptr, point_count, voxel_size, min_x, min_y, min_z, output_ptr);
         return ret >>> 0;
-    }
-    /**
-     * Direct pointer-based voxel downsampling for zero-copy input access
-     * JavaScript allocates memory, copies input data, calls this function,
-     * then reads results from output buffer
-     *
-     * Pointers are passed as usize (byte offsets into WASM linear memory)
-     *
-     * # Safety
-     * This function is unsafe because it reads from raw pointers.
-     * The caller must ensure:
-     * - input_ptr points to valid WASM memory with at least point_count * 3 floats
-     * - output_ptr points to valid WASM memory with at least point_count * 3 floats
-     * - Both pointers are properly aligned
-     * @param {number} input_ptr
-     * @param {number} point_count
-     * @param {number} voxel_size
-     * @param {number} min_x
-     * @param {number} min_y
-     * @param {number} min_z
-     * @param {number} output_ptr
-     * @returns {number}
-     */
-    voxel_downsample_direct(input_ptr, point_count, voxel_size, min_x, min_y, min_z, output_ptr) {
-        const ret = wasm.pointcloudtoolsrust_voxel_downsample_direct(this.__wbg_ptr, input_ptr, point_count, voxel_size, min_x, min_y, min_z, output_ptr);
-        return ret >>> 0;
-    }
-    /**
-     * Voxel downsampling implementation in Rust - MAXIMUM OPTIMIZATION
-     * Uses direct memory access and integer hashing for maximum performance
-     * Returns Float32Array directly for zero-copy access
-     * @param {Float32Array} points
-     * @param {number} voxel_size
-     * @param {number} min_x
-     * @param {number} min_y
-     * @param {number} min_z
-     * @returns {Float32Array}
-     */
-    voxel_downsample(points, voxel_size, min_x, min_y, min_z) {
-        const ptr0 = passArrayF32ToWasm0(points, wasm.__wbindgen_export_0);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.pointcloudtoolsrust_voxel_downsample(this.__wbg_ptr, ptr0, len0, voxel_size, min_x, min_y, min_z);
-        return takeObject(ret);
     }
     /**
      * Point cloud smoothing implementation in Rust
@@ -289,11 +246,6 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbg_wbindgenthrow_451ec1a8469d7eb6 = function(arg0, arg1) {
         throw new Error(getStringFromWasm0(arg0, arg1));
-    };
-    imports.wbg.__wbindgen_cast_cd07b1914aa3d62c = function(arg0, arg1) {
-        // Cast intrinsic for `Ref(Slice(F32)) -> NamedExternref("Float32Array")`.
-        const ret = getArrayF32FromWasm0(arg0, arg1);
-        return addHeapObject(ret);
     };
 
     return imports;

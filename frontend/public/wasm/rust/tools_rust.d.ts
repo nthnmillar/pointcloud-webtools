@@ -24,27 +24,6 @@ export class PointCloudToolsRust {
    */
   static voxel_downsample_direct_static(input_ptr: number, point_count: number, voxel_size: number, min_x: number, min_y: number, min_z: number, output_ptr: number): number;
   /**
-   * Direct pointer-based voxel downsampling for zero-copy input access
-   * JavaScript allocates memory, copies input data, calls this function,
-   * then reads results from output buffer
-   * 
-   * Pointers are passed as usize (byte offsets into WASM linear memory)
-   * 
-   * # Safety
-   * This function is unsafe because it reads from raw pointers.
-   * The caller must ensure:
-   * - input_ptr points to valid WASM memory with at least point_count * 3 floats
-   * - output_ptr points to valid WASM memory with at least point_count * 3 floats
-   * - Both pointers are properly aligned
-   */
-  voxel_downsample_direct(input_ptr: number, point_count: number, voxel_size: number, min_x: number, min_y: number, min_z: number, output_ptr: number): number;
-  /**
-   * Voxel downsampling implementation in Rust - MAXIMUM OPTIMIZATION
-   * Uses direct memory access and integer hashing for maximum performance
-   * Returns Float32Array directly for zero-copy access
-   */
-  voxel_downsample(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
-  /**
    * Point cloud smoothing implementation in Rust
    * This matches the algorithm used in TS, WASM C++, and BE C++
    */
@@ -64,12 +43,10 @@ export interface InitOutput {
   readonly pointcloudtoolsrust_new: () => number;
   readonly pointcloudtoolsrust_get_memory: (a: number) => number;
   readonly pointcloudtoolsrust_voxel_downsample_direct_static: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
-  readonly pointcloudtoolsrust_voxel_downsample_direct: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
-  readonly pointcloudtoolsrust_voxel_downsample: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
   readonly pointcloudtoolsrust_point_cloud_smooth: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
   readonly pointcloudtoolsrust_generate_voxel_centers: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
-  readonly __wbindgen_export_0: (a: number, b: number) => number;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
+  readonly __wbindgen_export_0: (a: number, b: number) => number;
   readonly __wbindgen_export_1: (a: number, b: number, c: number) => void;
 }
 
