@@ -3,17 +3,22 @@
 # Compile WASM modules
 echo "Compiling WASM modules..."
 
+# Get the frontend directory (where this script is located)
+FRONTEND_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Create wasm directories if they don't exist
-mkdir -p public/wasm/cpp
-mkdir -p public/wasm/rust
+mkdir -p "$FRONTEND_DIR/public/wasm/cpp"
+mkdir -p "$FRONTEND_DIR/public/wasm/rust"
 
 # Copy laz-perf.wasm from node_modules to wasm folder (optional)
-if [ -f "node_modules/laz-perf/lib/laz-perf.wasm" ]; then
-    cp node_modules/laz-perf/lib/laz-perf.wasm public/wasm/
+# Get the frontend directory (where this script is located)
+FRONTEND_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$FRONTEND_DIR/node_modules/laz-perf/lib/laz-perf.wasm" ]; then
+    cp "$FRONTEND_DIR/node_modules/laz-perf/lib/laz-perf.wasm" "$FRONTEND_DIR/public/wasm/"
     echo "Copied laz-perf.wasm to public/wasm/"
 else
     # Silently skip if laz-perf is not available (optional dependency)
-    :
+    echo "Warning: laz-perf.wasm not found in node_modules. Run 'yarn install' first."
 fi
 
 # Compile unified tools WASM module
@@ -21,9 +26,9 @@ echo "Compiling unified tools WASM module..."
 EMSCRIPTEN_ROOT=$(dirname $(which emcc))
 SYSTEM_INCLUDE="${EMSCRIPTEN_ROOT}/system/include"
 
-emcc src/wasm/cpp/tools.cpp \
+emcc "$FRONTEND_DIR/src/wasm/cpp/tools.cpp" \
   -I"${SYSTEM_INCLUDE}" \
-  -o public/wasm/cpp/tools_cpp.js \
+  -o "$FRONTEND_DIR/public/wasm/cpp/tools_cpp.js" \
   -std=c++17 \
   -Wno-c++20-extensions \
   -s MODULARIZE=1 \
@@ -43,8 +48,8 @@ emcc src/wasm/cpp/tools.cpp \
 
 # Compile COPC loader WASM module
 echo "Compiling COPC loader WASM module..."
-emcc src/wasm/cpp/copc_loader.cpp \
-  -o public/wasm/copc_loader.js \
+emcc "$FRONTEND_DIR/src/wasm/cpp/copc_loader.cpp" \
+  -o "$FRONTEND_DIR/public/wasm/copc_loader.js" \
   -std=c++17 \
   -Wno-c++20-extensions \
   -s MODULARIZE=1 \
@@ -62,26 +67,29 @@ if ! command -v wasm-pack &> /dev/null; then
     curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 fi
 
-# Navigate to src/wasm/rust directory and build to build directory first
-cd src/wasm/rust
-wasm-pack build --target web --out-dir ../../build/wasm/rust --out-name tools_rust
-cd ../../..
+# Build Rust to WebAssembly directly to public directory
+cd "$FRONTEND_DIR/src/wasm/rust"
+mkdir -p "$FRONTEND_DIR/public/wasm/rust"
+wasm-pack build --target web --out-dir "$FRONTEND_DIR/public/wasm/rust" --out-name tools_rust
+cd "$FRONTEND_DIR"
 
-# Copy files to public directory and rename _bg files to remove suffix (only tools_rust.wasm should exist)
-mkdir -p public/wasm/rust
-# Clean up any old files that might exist (package.json, pointcloud_tools_rust_* files, _bg files)
-rm -f public/wasm/rust/package.json \
-      public/wasm/rust/pointcloud_tools_rust* \
-      public/wasm/rust/tools_rust_bg.wasm \
-      public/wasm/rust/tools_rust_bg.wasm.d.ts
-# Copy and rename WASM file (tools_rust_bg.wasm -> tools_rust.wasm)
-cp src/build/wasm/rust/tools_rust_bg.wasm public/wasm/rust/tools_rust.wasm
-# Copy JS file and update references to use tools_rust.wasm instead of tools_rust_bg.wasm
-sed 's/tools_rust_bg\.wasm/tools_rust.wasm/g' src/build/wasm/rust/tools_rust.js > public/wasm/rust/tools_rust.js
-# Copy TypeScript definitions
-cp src/build/wasm/rust/tools_rust.d.ts public/wasm/rust/
-# Copy and rename WASM .d.ts file, updating references
-    sed 's/tools_rust_bg\.wasm/tools_rust.wasm/g' src/build/wasm/rust/tools_rust_bg.wasm.d.ts > public/wasm/rust/tools_rust.wasm.d.ts
+# Rename _bg files to remove suffix (only tools_rust.wasm should exist)
+cd "$FRONTEND_DIR/public/wasm/rust"
+if [ -f "tools_rust_bg.wasm" ]; then
+    mv tools_rust_bg.wasm tools_rust.wasm
+fi
+# Update JS file to reference tools_rust.wasm instead of tools_rust_bg.wasm
+if [ -f "tools_rust.js" ]; then
+    sed -i 's/tools_rust_bg\.wasm/tools_rust.wasm/g' tools_rust.js
+fi
+# Rename and update WASM .d.ts file
+if [ -f "tools_rust_bg.wasm.d.ts" ]; then
+    sed 's/tools_rust_bg\.wasm/tools_rust.wasm/g' tools_rust_bg.wasm.d.ts > tools_rust.wasm.d.ts
+    rm tools_rust_bg.wasm.d.ts
+fi
+# Clean up unwanted files
+rm -f package.json pointcloud_tools_rust*
+cd "$FRONTEND_DIR"
 
 echo "WASM compilation complete!"
 echo "Generated files:"
