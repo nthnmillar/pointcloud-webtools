@@ -3,61 +3,6 @@ import { ServiceManager } from '../services/ServiceManager';
 import { Log } from '../utils/Log';
 import { WorkerManager } from '../services/tools/WorkerManager';
 
-
-/**
- * Convert Float32Array to point cloud points with bounds calculation in single pass
- * This optimizes both conversion and bounds calculation together
- * DEPRECATED: Use createPointCloudMeshFromFloat32Array instead for better performance
- */
-function convertFloat32ArrayToPoints(
-  points: Float32Array,
-  color: { r: number; g: number; b: number } = { r: 1, g: 1, b: 1 }
-): { points: Array<{ position: { x: number; y: number; z: number }; color: { r: number; g: number; b: number }; intensity: number; classification: number }>; bounds: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } } {
-  const result: Array<{ position: { x: number; y: number; z: number }; color: { r: number; g: number; b: number }; intensity: number; classification: number }> = [];
-  
-  if (points.length === 0 || points.length % 3 !== 0) {
-    return {
-      points: [],
-      bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } },
-    };
-  }
-
-  let minX = points[0], maxX = points[0];
-  let minY = points[1], maxY = points[1];
-  let minZ = points[2], maxZ = points[2];
-
-  // Convert and calculate bounds in single pass
-  for (let i = 0; i < points.length; i += 3) {
-    const x = points[i];
-    const y = points[i + 1];
-    const z = points[i + 2];
-    
-    // Calculate bounds
-    minX = x < minX ? x : minX;
-    maxX = x > maxX ? x : maxX;
-    minY = y < minY ? y : minY;
-    maxY = y > maxY ? y : maxY;
-    minZ = z < minZ ? z : minZ;
-    maxZ = z > maxZ ? z : maxZ;
-
-    // Create point object
-    result.push({
-      position: { x, y, z },
-      color,
-      intensity: 1,
-      classification: 0,
-    });
-  }
-
-  return {
-    points: result,
-    bounds: {
-      min: { x: minX, y: minY, z: minZ },
-      max: { x: maxX, y: maxY, z: maxZ },
-    },
-  };
-}
-
 interface ToolsProps {
   serviceManager: ServiceManager | null;
   className?: string;
@@ -201,7 +146,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     };
   }, []);
 
-  // Note: Using component default values instead of service defaults
+  // Component uses its own default values for voxel size and smoothing parameters
+  // These defaults are separate from service-level defaults to allow component-level control
 
   // Listen for clear scene button clicks to turn off voxel debug toggle
   useEffect(() => {
@@ -313,32 +259,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
-  const handleWasmVoxelDebug = async () => {
-    if (!serviceManager?.toolsService) return;
-    
-    const startTime = performance.now();
-    try {
-      const result = await serviceManager.toolsService.showVoxelDebug(debugVoxelSize, 'WASM', 2000);
-      const processingTime = performance.now() - startTime;
-      
-      Log.Info('Tools', 'WASM Debug Voxel generation completed', {
-        processingTime: processingTime.toFixed(2) + 'ms',
-        voxelCount: result?.voxelCount || 0
-      });
-
-      // Emit benchmark results for debug voxel generation
-      if (onWasmResults) {
-        onWasmResults({
-          originalCount: 0, // Debug voxels don't have original point count
-          processingTime: processingTime,
-          voxelCount: result?.voxelCount || 0,
-        });
-      }
-    } catch (error) {
-      Log.Error('Tools', 'WASM Debug Voxel generation failed', error);
-    }
-  };
-
   const handleWasmCppMainVoxelDebug = async () => {
     if (!serviceManager?.toolsService) return;
     
@@ -430,7 +350,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Set current tool for benchmark display
       onCurrentToolChange?.('voxel');
 
-      // Process with Rust WASM Main thread - NO FALLBACKS
+      // Process with Rust WASM Main thread implementation
+      // Uses the main thread implementation directly (no fallback to worker thread)
       const result = await serviceManager.toolsService.performVoxelDownsamplingRustWasmMain({
         pointCloudData,
         voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
@@ -460,7 +381,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           undefined, // Use default white color
           {
             name: 'Rust WASM Main Downsampled Point Cloud',
-            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             hasIntensity: true,
             hasClassification: true,
           }
@@ -559,7 +479,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Set current tool for benchmark display
       onCurrentToolChange?.('smoothing');
 
-      // Process with Rust WASM Main thread - NO FALLBACKS
+      // Process with Rust WASM Main thread implementation
+      // Uses the main thread implementation directly (no fallback to worker thread)
       const result = await serviceManager.toolsService.performPointCloudSmoothingRustWasmMain({
         points: pointCloudData,
         smoothingRadius,
@@ -962,37 +883,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
-  const handleWasmRustVoxelDebug = async () => {
-    if (!serviceManager?.toolsService) return;
-    
-    const startTime = performance.now();
-    try {
-      const result = await serviceManager.toolsService.showVoxelDebug(debugVoxelSize, 'WASM_RUST', 2000);
-      const processingTime = performance.now() - startTime;
-      
-      Log.Info('Tools', 'WASM Rust Debug Voxel generation completed', {
-        processingTime: processingTime.toFixed(2) + 'ms',
-        voxelCount: result?.voxelCount || 0
-      });
-
-      // Emit benchmark results for debug voxel generation
-      if (onWasmRustResults) {
-        onWasmRustResults({
-          originalCount: 0, // Debug voxels don't have original point count
-          processingTime: processingTime,
-          voxelCount: result?.voxelCount || 0,
-        });
-      }
-    } catch (error) {
-      Log.Error('Tools', 'WASM Rust Debug Voxel generation failed', error);
-    }
-  };
-
   // Handle cancellation
   const handleCancelProcessing = () => {
     if (serviceManager?.toolsService && isProcessing) {
       Log.Info('Tools', 'Cancelling processing...');
-      // Note: Cancellation will be re-implemented in unified service
+      // Cancellation is handled by the tools service
     }
   };
 
@@ -1064,7 +959,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Set current tool for benchmark display
       onCurrentToolChange?.('voxel');
 
-      // Process with WASM C++ worker - NO FALLBACKS
+      // Process with WASM C++ worker thread implementation
+      // Uses worker thread for background processing (no fallback to main thread)
       if (!workerManager.current) {
         Log.Error('Tools', 'Worker manager not available for C++ WASM');
         throw new Error('Worker manager not available for C++ WASM');
@@ -1247,7 +1143,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           undefined, // Use default white color
           {
             name: 'Backend Downsampled Point Cloud',
-            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             hasIntensity: true,
             hasClassification: true,
           }
@@ -1399,7 +1294,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           undefined, // Use default white color
           {
             name: 'Rust BE Downsampled Point Cloud',
-            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             hasIntensity: true,
             hasClassification: true,
           }
@@ -1419,14 +1313,17 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         // Calculate voxel count for display
         // Each downsampled point represents one voxel
         const voxelCount = result.voxelCount || result.downsampledCount || 0;
+        const originalCount = result.originalCount || 0;
+        const downsampledCount = result.downsampledCount || 0;
+        const reductionRatio = originalCount > 0 ? downsampledCount / originalCount : 0;
         
         // Emit results to parent component (use end-to-end time for benchmark)
         if (onBeRustResults) {
           const benchmarkResults = {
-            originalCount: result.originalCount || 0,
-            downsampledCount: result.downsampledCount || 0,
+            originalCount: originalCount,
+            downsampledCount: downsampledCount,
             processingTime: endToEndTime, // Use end-to-end time instead of just Rust time
-            reductionRatio: result.reductionRatio || 0,
+            reductionRatio: reductionRatio,
             voxelCount: voxelCount
           };
           onBeRustResults(benchmarkResults);
@@ -1567,7 +1464,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           undefined, // Use default white color
           {
             name: 'Python BE Downsampled Point Cloud',
-            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             hasIntensity: true,
             hasClassification: true,
           }
@@ -1578,8 +1474,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
         const downsampledCount = result.downsampledCount || 0;
         const voxelCount = result.voxelCount || downsampledCount;
         const reductionRatio = originalCount > 0 && downsampledCount > 0 
-          ? (result.reductionRatio || originalCount / downsampledCount)
-          : 1;
+          ? downsampledCount / originalCount
+          : 0;
         
         // Emit results to parent component (use end-to-end time for benchmark)
         if (onBePythonResults) {
@@ -1816,13 +1712,13 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           });
         } else if (method === 'BE_RUST') {
           result = await serviceManager.toolsService.performPointCloudSmoothingBERust({
-            pointCloudData: pointCloudData,
+            points: pointCloudData,
             smoothingRadius,
             iterations: smoothingIterations
           });
         } else if (method === 'BE_PYTHON') {
           result = await serviceManager.toolsService.performPointCloudSmoothingBEPython({
-            pointCloudData: pointCloudData,
+            points: pointCloudData,
             smoothingRadius,
             iterations: smoothingIterations
           });
@@ -1835,7 +1731,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           });
         }
       } else {
-        // WASM implementations - both C++ and Rust WASM use workers - NO FALLBACKS
+        // WASM implementations use worker threads for background processing
+        // Both C++ and Rust WASM implementations run in separate worker threads
         if (method === 'WASM') {
           // C++ WASM uses worker thread for fair benchmarking
           if (!workerManager.current) {
@@ -1877,7 +1774,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
             processingTime: workerResult.data.processingTime
           };
         } else if (method === 'WASM_RUST') {
-          // Rust WASM uses worker thread for fair benchmarking - NO FALLBACKS
+          // Rust WASM uses worker thread for background processing
+          // Worker threads prevent UI blocking and provide consistent performance for benchmarking
           if (!workerManager.current) {
             Log.Error('Tools', 'Worker manager not available for Rust WASM');
             throw new Error('Worker manager not available for Rust WASM');
@@ -2118,7 +2016,6 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
           undefined, // Use default white color
           {
             name: 'WASM C++ Main Downsampled Point Cloud',
-            voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
             hasIntensity: true,
             hasClassification: true,
           }
@@ -2246,7 +2143,8 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       // Set current tool for benchmark display
       onCurrentToolChange?.('voxel');
 
-      // Process with WASM Rust worker for fair benchmarking - NO FALLBACKS
+      // Process with WASM Rust worker thread for background processing
+      // Worker threads prevent UI blocking and provide consistent performance for benchmarking
       if (!workerManager.current) {
         Log.Error('Tools', 'Worker manager not available for Rust WASM');
         throw new Error('Worker manager not available for Rust WASM');

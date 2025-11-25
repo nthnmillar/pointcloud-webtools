@@ -173,11 +173,19 @@ export class ToolsService extends BaseService {
   }
 
   async performPointCloudSmoothingBERust(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
-    return this.pointCloudSmoothingBERust.pointCloudSmooth(params);
+    return this.pointCloudSmoothingBERust.pointCloudSmooth({
+      pointCloudData: params.points,
+      smoothingRadius: params.smoothingRadius,
+      iterations: params.iterations
+    });
   }
 
   async performPointCloudSmoothingBEPython(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
-    return this.pointCloudSmoothingBEPython.pointCloudSmooth(params);
+    return this.pointCloudSmoothingBEPython.pointCloudSmooth({
+      pointCloudData: params.points,
+      smoothingRadius: params.smoothingRadius,
+      iterations: params.iterations
+    });
   }
 
   // Voxel debug methods

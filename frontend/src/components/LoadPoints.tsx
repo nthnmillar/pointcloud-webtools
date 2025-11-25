@@ -105,7 +105,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
     }
 
     // Wait for service manager to be fully initialized
-    if (!serviceManager.isInitialized) {
+    if (!serviceManager.initialized) {
       if (retryCount >= 5) {
         Log.Error('LoadPoints', 'Service manager still not initialized after 5 retries');
         return;
@@ -113,7 +113,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       Log.Info('LoadPoints', 'Service manager not fully initialized, waiting...', { retryCount });
       // Wait a bit and try again
       setTimeout(() => {
-        if (serviceManager && serviceManager.isInitialized) {
+        if (serviceManager && serviceManager.initialized) {
           loadSampleData(retryCount + 1);
         } else {
           Log.Error('LoadPoints', 'Service manager still not initialized after waiting');
@@ -123,14 +123,14 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
     }
 
     // Additional safety check - ensure all services are ready
-    if (!serviceManager._pointService || !serviceManager._sceneService) {
+    if (!serviceManager.pointService || !serviceManager.sceneService) {
       if (retryCount >= 5) {
         Log.Error('LoadPoints', 'Services still not ready after 5 retries');
         return;
       }
       Log.Info('LoadPoints', 'Services not ready, waiting...', { retryCount });
       setTimeout(() => {
-        if (serviceManager && serviceManager.isInitialized) {
+        if (serviceManager && serviceManager.initialized) {
           loadSampleData(retryCount + 1);
         }
       }, 200);
