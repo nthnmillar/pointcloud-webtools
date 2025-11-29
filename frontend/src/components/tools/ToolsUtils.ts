@@ -37,17 +37,63 @@ export function collectAllPoints(serviceManager: ServiceManager | null): Collect
 
   for (const pointCloudId of allPointCloudIds) {
     const pointCloud = serviceManager.pointService.getPointCloud(pointCloudId);
-    if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
-      for (const point of pointCloud.points) {
-        allPositions.push(point.position.x, point.position.y, point.position.z);
-        
-        // Calculate global bounding box
-        globalMinX = Math.min(globalMinX, point.position.x);
-        globalMinY = Math.min(globalMinY, point.position.y);
-        globalMinZ = Math.min(globalMinZ, point.position.z);
-        globalMaxX = Math.max(globalMaxX, point.position.x);
-        globalMaxY = Math.max(globalMaxY, point.position.y);
-        globalMaxZ = Math.max(globalMaxZ, point.position.z);
+    Log.Debug('Tools', 'Checking point cloud', {
+      id: pointCloudId,
+      exists: !!pointCloud,
+      hasPoints: !!pointCloud?.points,
+      pointCount: pointCloud?.points?.length || 0,
+      hasPositions: !!pointCloud?.positions,
+      positionsLength: pointCloud?.positions?.length || 0,
+      pointCloudKeys: pointCloud ? Object.keys(pointCloud) : []
+    });
+    
+    if (pointCloud) {
+      // Check if we have positions array (for point clouds created from Float32Array)
+      if (pointCloud.positions && pointCloud.positions.length > 0) {
+        Log.Debug('Tools', 'Processing points from positions array', {
+          id: pointCloudId,
+          pointCount: pointCloud.positions.length / 3
+        });
+        const positions = pointCloud.positions;
+        for (let i = 0; i < positions.length; i += 3) {
+          const x = positions[i];
+          const y = positions[i + 1];
+          const z = positions[i + 2];
+          allPositions.push(x, y, z);
+          
+          // Calculate global bounding box
+          globalMinX = Math.min(globalMinX, x);
+          globalMinY = Math.min(globalMinY, y);
+          globalMinZ = Math.min(globalMinZ, z);
+          globalMaxX = Math.max(globalMaxX, x);
+          globalMaxY = Math.max(globalMaxY, y);
+          globalMaxZ = Math.max(globalMaxZ, z);
+        }
+      } else if (pointCloud.points && pointCloud.points.length > 0) {
+        Log.Debug('Tools', 'Processing points from point cloud', {
+          id: pointCloudId,
+          pointCount: pointCloud.points.length
+        });
+        for (const point of pointCloud.points) {
+          allPositions.push(point.position.x, point.position.y, point.position.z);
+          
+          // Calculate global bounding box
+          globalMinX = Math.min(globalMinX, point.position.x);
+          globalMinY = Math.min(globalMinY, point.position.y);
+          globalMinZ = Math.min(globalMinZ, point.position.z);
+          globalMaxX = Math.max(globalMaxX, point.position.x);
+          globalMaxY = Math.max(globalMaxY, point.position.y);
+          globalMaxZ = Math.max(globalMaxZ, point.position.z);
+        }
+      } else {
+        Log.Warn('Tools', 'Point cloud has no valid points or positions', {
+          id: pointCloudId,
+          pointCloud: pointCloud ? 'exists' : 'null',
+          hasPoints: !!pointCloud?.points,
+          pointCount: pointCloud?.points?.length || 0,
+          hasPositions: !!pointCloud?.positions,
+          positionsLength: pointCloud?.positions?.length || 0
+        });
       }
     }
   }
@@ -91,9 +137,17 @@ export function collectAllPointsForSmoothing(serviceManager: ServiceManager | nu
 
   for (const pointCloudId of allPointCloudIds) {
     const pointCloud = serviceManager.pointService.getPointCloud(pointCloudId);
-    if (pointCloud && pointCloud.points && pointCloud.points.length > 0) {
-      for (const point of pointCloud.points) {
-        allPositions.push(point.position.x, point.position.y, point.position.z);
+    if (pointCloud) {
+      // Check if we have positions array (for point clouds created from Float32Array)
+      if (pointCloud.positions && pointCloud.positions.length > 0) {
+        const positions = pointCloud.positions;
+        for (let i = 0; i < positions.length; i += 3) {
+          allPositions.push(positions[i], positions[i + 1], positions[i + 2]);
+        }
+      } else if (pointCloud.points && pointCloud.points.length > 0) {
+        for (const point of pointCloud.points) {
+          allPositions.push(point.position.x, point.position.y, point.position.z);
+        }
       }
     }
   }

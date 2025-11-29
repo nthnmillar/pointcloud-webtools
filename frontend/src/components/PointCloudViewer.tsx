@@ -6,6 +6,22 @@ import { SceneControls } from './SceneControls';
 import { LoadPoints } from './LoadPoints';
 import { Tools } from './Tools';
 
+interface ErrorEventData {
+  error?: string;
+}
+
+interface PointCloudEventData {
+  error?: string;
+  [key: string]: unknown;
+}
+
+interface FileLoadingEventData {
+  error?: string;
+  type?: string;
+  fileName?: string;
+  [key: string]: unknown;
+}
+
 interface PointCloudViewerProps {
   className?: string;
 }
@@ -179,36 +195,36 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     Log.Info('PointCloudViewer', 'Service manager initialized');
   };
 
-  const handlePointCloudLoaded = (_data: any) => {
+  const handlePointCloudLoaded = (_data: PointCloudEventData) => {
     setIsLoading(false);
     setError(null);
   };
 
-  const handlePointCloudLoading = (_data: any) => {
+  const handlePointCloudLoading = (_data: PointCloudEventData) => {
     setIsLoading(true);
     setError(null);
   };
 
-  const handlePointCloudError = (data: any) => {
+  const handlePointCloudError = (data: ErrorEventData) => {
     setIsLoading(false);
     setError(data.error || 'Unknown error occurred');
   };
 
-  const handlePointCloudRendered = (_data: any) => {
+  const handlePointCloudRendered = (_data: PointCloudEventData) => {
     // Point cloud rendered
   };
 
-  const handleFileLoadingStarted = (_data: any) => {
+  const handleFileLoadingStarted = (_data: FileLoadingEventData) => {
     setIsLoading(true);
     setError(null);
   };
 
-  const handleFileLoadingCompleted = (_data: any) => {
+  const handleFileLoadingCompleted = (_data: FileLoadingEventData) => {
     setIsLoading(false);
     setError(null);
   };
 
-  const handleFileLoadingError = (data: any) => {
+  const handleFileLoadingError = (data: ErrorEventData) => {
     setIsLoading(false);
     setError(data.error || 'Failed to load file');
   };

@@ -47,6 +47,7 @@ export interface PointCloudMetadata {
 export interface PointCloudData {
   points: PointCloudPoint[];
   metadata: PointCloudMetadata;
+  positions?: Float32Array; // Optional: stores positions for point clouds created from Float32Array
 }
 
 export interface RenderOptions {

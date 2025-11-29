@@ -1,5 +1,13 @@
 import { Scene, StandardMaterial, Color3, MeshBuilder, Vector3, TransformNode } from '@babylonjs/core';
 import { Log } from '../../../utils/Log';
+import type { ServiceManager } from '../../ServiceManager';
+import type { PointCloudData, PointCloudPoint } from '../../point/PointCloud';
+
+export interface SimplifiedPointCloud {
+  points: Array<{
+    position: { x: number; y: number; z: number };
+  }>;
+}
 
 export interface VoxelDownsampleDebugOptions {
   voxelSize: number;
@@ -11,11 +19,7 @@ export interface VoxelDownsampleDebugOptions {
     maxY: number;
     maxZ: number;
   };
-  pointClouds?: Array<{
-    points: Array<{
-      position: { x: number; y: number; z: number };
-    }>;
-  }>;
+  pointClouds?: SimplifiedPointCloud[];
   maxVoxels?: number;
   wireframeColor?: { r: number; g: number; b: number };
   alpha?: number;
@@ -25,17 +29,17 @@ export class VoxelDownsampleDebug {
   private _voxelDebugGroup: TransformNode | null = null;
   private _isVisible = false;
   private _scene: Scene | null = null;
-  private _currentPointClouds: any[] = [];
-  private _serviceManager: any = null;
+  private _currentPointClouds: SimplifiedPointCloud[] = [];
+  private _serviceManager: ServiceManager | null = null;
   private _updateTimeout: NodeJS.Timeout | null = null;
   private _currentVoxelSize = 2.0;
   private _isUpdating = false;
   private _currentImplementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' = 'TS';
   private _currentColor: { r: number; g: number; b: number } = { r: 0/255, g: 100/255, b: 200/255 };
 
-  constructor(scene: Scene, serviceManager?: any) {
+  constructor(scene: Scene, serviceManager?: ServiceManager | null) {
     this._scene = scene;
-    this._serviceManager = serviceManager;
+    this._serviceManager = serviceManager || null;
   }
 
   /**
@@ -453,11 +457,7 @@ export class VoxelDownsampleDebug {
   /**
    * Get current point clouds for processing
    */
-  public getCurrentPointClouds(): Array<{
-    points: Array<{
-      position: { x: number; y: number; z: number };
-    }>;
-  }> {
+  public getCurrentPointClouds(): SimplifiedPointCloud[] {
     Log.InfoClass(this, 'getCurrentPointClouds called', {
       currentPointClouds: this._currentPointClouds?.length || 0,
       serviceManager: !!this._serviceManager
@@ -474,12 +474,29 @@ export class VoxelDownsampleDebug {
       const pointCloudIds = this._serviceManager.pointService.pointCloudIds || [];
       Log.InfoClass(this, 'Found point cloud IDs', { pointCloudIds });
       
-      const pointClouds = [];
+      const pointClouds: SimplifiedPointCloud[] = [];
       for (const id of pointCloudIds) {
         const pointCloud = this._serviceManager.pointService.getPointCloud(id);
-        if (pointCloud && pointCloud.points) {
-          Log.InfoClass(this, 'Found point cloud', { id, pointCount: pointCloud.points.length });
-          pointClouds.push(pointCloud);
+        if (pointCloud) {
+          // Check if we have positions array (for point clouds created from Float32Array)
+          if (pointCloud.positions && pointCloud.positions.length > 0) {
+            Log.InfoClass(this, 'Found point cloud with positions array', { id, pointCount: pointCloud.positions.length / 3 });
+            const points: Array<{ position: { x: number; y: number; z: number } }> = [];
+            const positions = pointCloud.positions;
+            for (let i = 0; i < positions.length; i += 3) {
+              points.push({
+                position: { x: positions[i], y: positions[i + 1], z: positions[i + 2] }
+              });
+            }
+            pointClouds.push({ points });
+          } else if (pointCloud.points && pointCloud.points.length > 0) {
+            Log.InfoClass(this, 'Found point cloud', { id, pointCount: pointCloud.points.length });
+            pointClouds.push({
+              points: pointCloud.points.map((p: PointCloudPoint) => ({
+                position: { x: p.position.x, y: p.position.y, z: p.position.z }
+              }))
+            });
+          }
         }
       }
       
@@ -631,7 +648,7 @@ export class VoxelDownsampleDebug {
     for (const pointCloudId of allPointCloudIds) {
       const pointCloud = this._serviceManager.pointService.getPointCloud(pointCloudId);
       if (pointCloud && pointCloud.points) {
-        const debugPoints = pointCloud.points.map((p: any) => ({ 
+        const debugPoints = pointCloud.points.map((p: PointCloudPoint) => ({ 
           position: { x: p.position.x, y: p.position.y, z: p.position.z } 
         }));
         pointClouds.push({ points: debugPoints });

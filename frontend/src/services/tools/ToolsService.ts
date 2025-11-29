@@ -51,6 +51,7 @@ export interface PointCloudSmoothingResult {
 
 export class ToolsService extends BaseService {
   private isProcessing = false;
+  private serviceManager: ServiceManager;
   
   // Individual tool services
   public voxelDownsampleService: VoxelDownsampleService;
@@ -65,6 +66,7 @@ export class ToolsService extends BaseService {
 
   constructor(serviceManager: ServiceManager) {
     super();
+    this.serviceManager = serviceManager;
     
     // Initialize individual tool services
     this.voxelDownsampleService = new VoxelDownsampleService(serviceManager);
@@ -205,58 +207,48 @@ export class ToolsService extends BaseService {
     this.voxelDownsampleService.voxelDownsampleDebug.setImplementation(currentImplementation);
 
     try {
-      // Get current point clouds
-      const pointClouds = this.voxelDownsampleService.voxelDownsampleDebug.getCurrentPointClouds();
+      // Use collectAllPoints to get point data directly (handles both points and positions arrays)
+      // This ensures all implementations get the same data
+      const { collectAllPoints } = await import('../../components/tools/ToolsUtils');
+      const pointData = collectAllPoints(this.serviceManager);
       
-      Log.Info('ToolsService', 'Debug voxel generation started', {
-        implementation: implementation || 'TS',
-        voxelSize,
-        pointCloudCount: pointClouds?.length || 0
-      });
-
-      if (!pointClouds || pointClouds.length === 0) {
+      if (!pointData) {
         console.warn('⚠️ No point clouds available for debug visualization');
         Log.Warn('ToolsService', 'No point clouds available for debug visualization');
         throw new Error('No point clouds available for debug visualization');
       }
 
-      // Convert to Float32Array
-      const allPositions: number[] = [];
-      let globalMinX = Infinity, globalMinY = Infinity, globalMinZ = Infinity;
-      let globalMaxX = -Infinity, globalMaxY = -Infinity, globalMaxZ = -Infinity;
-
-      for (const cloud of pointClouds) {
-        for (const point of cloud.points) {
-          allPositions.push(point.position.x, point.position.y, point.position.z);
-          
-          globalMinX = Math.min(globalMinX, point.position.x);
-          globalMinY = Math.min(globalMinY, point.position.y);
-          globalMinZ = Math.min(globalMinZ, point.position.z);
-          globalMaxX = Math.max(globalMaxX, point.position.x);
-          globalMaxY = Math.max(globalMaxY, point.position.y);
-          globalMaxZ = Math.max(globalMaxZ, point.position.z);
-        }
-      }
-
-      const pointCloudData = new Float32Array(allPositions);
+      const pointCloudData = pointData.pointCloudData;
+      const globalBounds = pointData.globalBounds;
+      
+      Log.Info('ToolsService', 'Debug voxel generation started', {
+        implementation: implementation || 'TS',
+        voxelSize,
+        pointCount: pointCloudData.length / 3
+      });
       
       Log.Info('ToolsService', 'Point cloud data prepared', {
+        implementation: implementation || 'TS',
         pointCount: pointCloudData.length / 3,
-        bounds: { globalMinX, globalMinY, globalMinZ, globalMaxX, globalMaxY, globalMaxZ }
+        bounds: globalBounds,
+        voxelSize,
+        firstPoint: pointCloudData.length >= 3 ? {
+          x: pointCloudData[0],
+          y: pointCloudData[1],
+          z: pointCloudData[2]
+        } : null,
+        lastPoint: pointCloudData.length >= 3 ? {
+          x: pointCloudData[pointCloudData.length - 3],
+          y: pointCloudData[pointCloudData.length - 2],
+          z: pointCloudData[pointCloudData.length - 1]
+        } : null
       });
       
       // Use the appropriate implementation
       const result = await this.voxelDownsampleDebugService.generateVoxelCenters({
         pointCloudData,
         voxelSize,
-        globalBounds: {
-          minX: globalMinX,
-          minY: globalMinY,
-          minZ: globalMinZ,
-          maxX: globalMaxX,
-          maxY: globalMaxY,
-          maxZ: globalMaxZ
-        }
+        globalBounds
       }, implementation || 'TS');
 
       Log.Info('ToolsService', 'Debug voxel generation result', {

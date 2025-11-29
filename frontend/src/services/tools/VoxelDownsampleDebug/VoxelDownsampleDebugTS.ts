@@ -33,8 +33,9 @@ export class VoxelDownsampleDebugTS extends BaseService {
   }
 
   async generateVoxelCenters(params: VoxelDebugParams): Promise<VoxelDebugResult> {
+    const pointCount = params.pointCloudData.length / 3;
     Log.Info('VoxelDownsampleDebugTS', 'Generating voxel centers', {
-      pointCount: params.pointCloudData.length / 3,
+      pointCount,
       voxelSize: params.voxelSize,
       bounds: params.globalBounds
     });
@@ -42,18 +43,23 @@ export class VoxelDownsampleDebugTS extends BaseService {
     try {
       const startTime = performance.now();
       
-      const pointCount = params.pointCloudData.length / 3;
-      
       // OPTIMIZATION 1: Use Set for unique voxel coordinates
       // Note: JavaScript bitwise ops are 32-bit only, so string keys are necessary
       // But we optimize the extraction to avoid repeated parsing overhead
       const voxelCoords = new Set<string>();
       
       // OPTIMIZATION 2: Pre-calculate inverse voxel size to avoid division
-      const invVoxelSize = 1.0 / params.voxelSize;
-      const minX = params.globalBounds.minX;
-      const minY = params.globalBounds.minY;
-      const minZ = params.globalBounds.minZ;
+      // Use Math.fround to ensure 32-bit float precision to match C++ float operations
+      // This is critical - C++ uses float (32-bit) while JS uses number (64-bit double)
+      // By using Math.fround, we ensure the multiplication matches C++ float precision
+      const invVoxelSize = Math.fround(1.0 / params.voxelSize);
+      const minX = Math.fround(params.globalBounds.minX);
+      const minY = Math.fround(params.globalBounds.minY);
+      const minZ = Math.fround(params.globalBounds.minZ);
+      
+      // Debug: Track all voxel coordinates to compare with other implementations
+      const debugVoxels: string[] = [];
+      const allVoxelKeys: string[] = [];
       
       // OPTIMIZATION 3: Process points in chunks for better performance
       const CHUNK_SIZE = 1024;
@@ -62,23 +68,71 @@ export class VoxelDownsampleDebugTS extends BaseService {
         
         for (let i = chunkStart; i < chunkEnd; i++) {
           const i3 = i * 3;
-          const x = params.pointCloudData[i3];
-          const y = params.pointCloudData[i3 + 1];
-          const z = params.pointCloudData[i3 + 2];
+          // Use Math.fround to ensure 32-bit float precision (matching C++ float)
+          const x = Math.fround(params.pointCloudData[i3]);
+          const y = Math.fround(params.pointCloudData[i3 + 1]);
+          const z = Math.fround(params.pointCloudData[i3 + 2]);
           
           // OPTIMIZATION 4: Use multiplication instead of division
-          const voxelX = Math.floor((x - minX) * invVoxelSize);
-          const voxelY = Math.floor((y - minY) * invVoxelSize);
-          const voxelZ = Math.floor((z - minZ) * invVoxelSize);
+          // Use Math.floor to match Rust's .floor() and C++'s std::floor()
+          // Calculate exactly the same way as C++/Rust implementations
+          // C++ code: int voxelX = static_cast<int>(std::floor((x - minX) * invVoxelSize));
+          // Use Math.fround on intermediate calculations to match C++ float precision
+          const deltaX = Math.fround((x - minX) * invVoxelSize);
+          const deltaY = Math.fround((y - minY) * invVoxelSize);
+          const deltaZ = Math.fround((z - minZ) * invVoxelSize);
+          
+          // Apply floor - this should now match C++ exactly
+          const voxelX = Math.floor(deltaX);
+          const voxelY = Math.floor(deltaY);
+          const voxelZ = Math.floor(deltaZ);
           
           // OPTIMIZATION 5: Store unique voxel coordinates as composite key
           // JavaScript bitwise ops are 32-bit, so use string key BUT optimized format
           // Format: "x,y,z" for Set uniqueness, but we'll parse efficiently later
           // Using template string is still faster than split+map in extraction loop
           const voxelKey = `${voxelX},${voxelY},${voxelZ}`;
+          
+          // Debug: Track all voxel keys for comparison
+          allVoxelKeys.push(voxelKey);
+          
+          // Debug: Track first few unique voxels
+          if (debugVoxels.length < 10 && !voxelCoords.has(voxelKey)) {
+            debugVoxels.push(voxelKey);
+          }
+          
           voxelCoords.add(voxelKey);
         }
       }
+      
+      // Debug: Log all unique voxels sorted to compare with other implementations
+      const sortedVoxels = Array.from(voxelCoords).sort();
+      
+      // Output to console for easy comparison
+      console.log('🔍 TS Voxel Keys (sorted):', sortedVoxels);
+      console.log('🔍 TS Voxel Count:', sortedVoxels.length);
+      
+      Log.Info('VoxelDownsampleDebugTS', 'Voxel processing complete', {
+        totalPoints: pointCount,
+        uniqueVoxels: voxelCoords.size,
+        firstFewVoxels: debugVoxels.slice(0, 5),
+        allUniqueVoxels: sortedVoxels,
+        bounds: { minX, minY, minZ },
+        invVoxelSize,
+        sampleCalculations: pointCount > 0 ? {
+          firstPoint: {
+            x: params.pointCloudData[0],
+            y: params.pointCloudData[1],
+            z: params.pointCloudData[2],
+            deltaX: (params.pointCloudData[0] - minX) * invVoxelSize,
+            deltaY: (params.pointCloudData[1] - minY) * invVoxelSize,
+            deltaZ: (params.pointCloudData[2] - minZ) * invVoxelSize,
+            voxelX: Math.floor((params.pointCloudData[0] - minX) * invVoxelSize),
+            voxelY: Math.floor((params.pointCloudData[1] - minY) * invVoxelSize),
+            voxelZ: Math.floor((params.pointCloudData[2] - minZ) * invVoxelSize)
+          }
+        } : null
+      });
       
       // OPTIMIZATION 6: Pre-allocate result array and calculate grid positions directly
       const voxelCount = voxelCoords.size;

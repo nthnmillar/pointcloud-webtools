@@ -288,8 +288,10 @@ export class PointService extends BaseService {
       const bounds = this.calculateBoundsFromFloat32Array(positions);
 
       // Store minimal point cloud data
+      // Store positions array for later use (e.g., debug visualization)
       const pointCloudData: PointCloudData = {
         points: [], // Empty - we don't store points, just metadata
+        positions: new Float32Array(positions), // Store a copy of positions for debug/tools
         metadata: {
           name: metadata.name || 'Point Cloud',
           totalPoints: positions.length / 3,
