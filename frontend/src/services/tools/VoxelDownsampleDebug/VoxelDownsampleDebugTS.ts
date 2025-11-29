@@ -68,16 +68,17 @@ export class VoxelDownsampleDebugTS extends BaseService {
         
         for (let i = chunkStart; i < chunkEnd; i++) {
           const i3 = i * 3;
-          // Use Math.fround to ensure 32-bit float precision (matching C++ float)
-          const x = Math.fround(params.pointCloudData[i3]);
-          const y = Math.fround(params.pointCloudData[i3 + 1]);
-          const z = Math.fround(params.pointCloudData[i3 + 2]);
+          // Float32Array already stores values as 32-bit floats, so no need to fround here
+          const x = params.pointCloudData[i3];
+          const y = params.pointCloudData[i3 + 1];
+          const z = params.pointCloudData[i3 + 2];
           
           // OPTIMIZATION 4: Use multiplication instead of division
           // Use Math.floor to match Rust's .floor() and C++'s std::floor()
           // Calculate exactly the same way as C++/Rust implementations
           // C++ code: int voxelX = static_cast<int>(std::floor((x - minX) * invVoxelSize));
-          // Use Math.fround on intermediate calculations to match C++ float precision
+          // Use Math.fround on intermediate calculation to match C++ float precision
+          // This ensures (x - minX) * invVoxelSize matches C++ float arithmetic exactly
           const deltaX = Math.fround((x - minX) * invVoxelSize);
           const deltaY = Math.fround((y - minY) * invVoxelSize);
           const deltaZ = Math.fround((z - minZ) * invVoxelSize);
