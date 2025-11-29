@@ -8,6 +8,8 @@ import {
   Mesh,
   LinesMesh,
   CreateLines,
+  Camera,
+  FreeCamera,
 } from '@babylonjs/core';
 import { DebugCamera } from './DebugCamera';
 import { BaseService } from '../BaseService';
@@ -133,37 +135,52 @@ export class CameraService extends BaseService {
     }
   }
 
-  private applyCameraControls(camera: any): void {
+  private applyCameraControls(camera: ArcRotateCamera | FreeCamera | Camera): void {
     if (!camera) return;
 
     // Check camera type and apply appropriate controls
     if (camera.getClassName() === 'ArcRotateCamera') {
+      // Type guard: narrow to ArcRotateCamera
+      const arcCamera = camera as ArcRotateCamera;
+      
       // For ArcRotateCamera, use wheelPrecision for zoom sensitivity
       // Map 0.001-0.1 to 3.0-0.5 range (inverted: higher slider = lower wheelPrecision = more sensitive)
       // Using wider range to make zoom less sensitive overall
       const newWheelPrecision = Math.max(0.5, Math.min(3.0, 3.0 - (this._zoomSensitivity - 0.001) * (2.5 / 0.099)));
-      camera.wheelPrecision = newWheelPrecision;
+      arcCamera.wheelPrecision = newWheelPrecision;
       
       // Disable wheelDeltaPercentage to ensure equal zoom in/out behavior
-      camera.wheelDeltaPercentage = 0;
+      arcCamera.wheelDeltaPercentage = 0;
 
       // Update panning sensibility using the correct property name
       // Map 0.01-0.5 to 200-10 range (higher slider = lower panningSensibility = more sensitive)
       const newPanningSensibility = Math.max(10, Math.min(200, 200 - (this._panningSensitivity - 0.01) * (190 / 0.49)));
-      camera.panningSensibility = newPanningSensibility;
+      arcCamera.panningSensibility = newPanningSensibility;
       
-      // Also set angularSensibility for panning control
-      camera.angularSensibility = newPanningSensibility;
+      // Also set angularSensibilityX and angularSensibilityY for panning control
+      if ('angularSensibilityX' in arcCamera) {
+        arcCamera.angularSensibilityX = newPanningSensibility;
+      }
+      if ('angularSensibilityY' in arcCamera) {
+        arcCamera.angularSensibilityY = newPanningSensibility;
+      }
       
       // Ensure panning inertia is set for smooth movement
-      camera.panningInertia = 0.9;
-    } else {
-      // For FreeCamera, use wheelPrecision
-      const newWheelPrecision = Math.max(0.1, Math.min(2.0, 0.1 + (this._zoomSensitivity - 0.001) * (1.9 / 0.099)));
-      camera.wheelPrecision = newWheelPrecision;
+      arcCamera.panningInertia = 0.9;
+    } else if (camera.getClassName() === 'FreeCamera') {
+      // Type guard: narrow to FreeCamera
+      const freeCamera = camera as FreeCamera;
+      
+      // For FreeCamera, check if properties exist before setting
+      if ('wheelPrecision' in freeCamera) {
+        const newWheelPrecision = Math.max(0.1, Math.min(2.0, 0.1 + (this._zoomSensitivity - 0.001) * (1.9 / 0.099)));
+        (freeCamera as { wheelPrecision: number }).wheelPrecision = newWheelPrecision;
+      }
 
-      const newPanningSensibility = Math.max(0.1, Math.min(2.0, 0.1 + (this._panningSensitivity - 0.01) * (1.9 / 0.49)));
-      camera.panningSensibility = newPanningSensibility;
+      if ('panningSensibility' in freeCamera) {
+        const newPanningSensibility = Math.max(0.1, Math.min(2.0, 0.1 + (this._panningSensitivity - 0.01) * (1.9 / 0.49)));
+        (freeCamera as { panningSensibility: number }).panningSensibility = newPanningSensibility;
+      }
     }
   }
 
