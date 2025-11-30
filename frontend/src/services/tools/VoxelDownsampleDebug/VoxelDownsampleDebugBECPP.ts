@@ -147,11 +147,9 @@ export class VoxelDownsampleDebugBECPP extends BaseService {
       
       this.ws.onerror = (error) => {
         Log.Error('VoxelDownsampleDebugBECPP', 'WebSocket error', error);
-        console.error('🔧 VoxelDownsampleDebugBECPP: WebSocket error:', error);
       };
       
     } catch (error) {
-      console.error('🔧 VoxelDownsampleDebugBECPP: Failed to connect WebSocket:', error);
       Log.Error('VoxelDownsampleDebugBECPP', 'Failed to connect WebSocket', error);
     }
   }
@@ -164,14 +162,10 @@ export class VoxelDownsampleDebugBECPP extends BaseService {
     
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        console.error('🔧 VoxelDownsampleDebugBECPP: WebSocket not connected', {
+        Log.Error('VoxelDownsampleDebugBECPP', 'WebSocket not connected', {
           wsExists: !!this.ws,
           readyState: this.ws?.readyState,
           expectedState: WebSocket.OPEN
-        });
-        Log.Error('VoxelDownsampleDebugBECPP', 'WebSocket not connected', {
-          wsExists: !!this.ws,
-          readyState: this.ws?.readyState
         });
         reject(new Error('WebSocket not connected'));
         return;

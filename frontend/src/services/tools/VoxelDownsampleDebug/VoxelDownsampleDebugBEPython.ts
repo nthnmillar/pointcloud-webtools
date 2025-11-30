@@ -1,5 +1,5 @@
-import { Log } from '../../../utils/Log';
 import { BaseService } from '../../BaseService';
+import { Log } from '../../../utils/Log';
 import type { VoxelDebugParams, VoxelDebugResult } from './VoxelDownsampleDebugService';
 
 interface VoxelDebugPythonResponseHeader {
@@ -112,7 +112,6 @@ export class VoxelDownsampleDebugBEPython extends BaseService {
             }
           }
         } catch (error) {
-          console.error('🔧 VoxelDownsampleDebugBEPython: Error parsing WebSocket message', error);
           Log.Error('VoxelDownsampleDebugBEPython', 'Error parsing WebSocket message', error);
         }
       };
@@ -131,11 +130,9 @@ export class VoxelDownsampleDebugBEPython extends BaseService {
       
       this.ws.onerror = (error: Event) => {
         Log.Error('VoxelDownsampleDebugBEPython', 'WebSocket error', error);
-        console.error('🔧 VoxelDownsampleDebugBEPython: WebSocket error:', error);
       };
       
     } catch (error) {
-      console.error('🔧 VoxelDownsampleDebugBEPython: Failed to connect WebSocket:', error);
       Log.Error('VoxelDownsampleDebugBEPython', 'Failed to connect WebSocket', error);
     }
   }
@@ -148,14 +145,10 @@ export class VoxelDownsampleDebugBEPython extends BaseService {
     
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        console.error('🔧 VoxelDownsampleDebugBEPython: WebSocket not connected', {
+        Log.Error('VoxelDownsampleDebugBEPython', 'WebSocket not connected', {
           wsExists: !!this.ws,
           readyState: this.ws?.readyState,
           expectedState: WebSocket.OPEN
-        });
-        Log.Error('VoxelDownsampleDebugBEPython', 'WebSocket not connected', {
-          wsExists: !!this.ws,
-          readyState: this.ws?.readyState
         });
         reject(new Error('WebSocket not connected'));
         return;

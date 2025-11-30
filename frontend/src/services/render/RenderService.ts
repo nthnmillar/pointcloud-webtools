@@ -1,5 +1,5 @@
 import { BaseService } from '../BaseService';
-import type { RenderOptions } from '../point/pointCloud';
+import type { RenderOptions } from '../point/PointCloud';
 
 /**
  * Render Service - Handles rendering operations and render options
@@ -12,7 +12,7 @@ export class RenderService extends BaseService {
     this._renderOptions = this.getDefaultRenderOptions();
   }
 
-  async initialize(...args: any[]): Promise<void> {
+  async initialize(..._args: unknown[]): Promise<void> {
     this.isInitialized = true;
     this.emit('initialized');
   }

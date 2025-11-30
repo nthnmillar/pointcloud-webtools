@@ -17,10 +17,18 @@ export interface PointCloudSmoothingResult {
   error?: string;
 }
 
-export class PointCloudSmoothingWASMCPP extends BaseService {
-  private module: any = null;
+interface ToolsWasmModule {
+  pointCloudSmoothing(
+    points: Float32Array,
+    smoothingRadius: number,
+    iterations: number
+  ): Float32Array;
+}
 
-  constructor(serviceManager: ServiceManager) {
+export class PointCloudSmoothingWASMCPP extends BaseService {
+  private module: ToolsWasmModule | null = null;
+
+  constructor(_serviceManager: ServiceManager) {
     super();
   }
 

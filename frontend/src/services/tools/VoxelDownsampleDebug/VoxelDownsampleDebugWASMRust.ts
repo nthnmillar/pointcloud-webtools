@@ -45,6 +45,10 @@ export class VoxelDownsampleDebugWASMRust extends BaseService {
       }
     }
 
+    if (!this.wasmModule) {
+      return { success: false, error: 'Rust WASM module not available' };
+    }
+
     const startTime = performance.now();
 
     try {
@@ -63,11 +67,6 @@ export class VoxelDownsampleDebugWASMRust extends BaseService {
         params.globalBounds.minY,
         params.globalBounds.minZ
       );
-      
-      console.log('🔧 RUST DEBUG: generate_voxel_centers returned:', {
-        resultLength: result.length,
-        voxelCount: result.length / 3
-      });
 
       const processingTime = performance.now() - startTime;
       const voxelCount = result.length / 3;

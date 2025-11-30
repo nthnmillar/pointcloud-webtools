@@ -42,6 +42,8 @@ export class PointCloudSmoothingWASMRust extends BaseService {
   ): Promise<{
     success: boolean;
     smoothedPoints?: Float32Array;
+    originalCount?: number;
+    smoothedCount?: number;
     processingTime?: number;
     error?: string;
   }> {
@@ -62,22 +64,11 @@ export class PointCloudSmoothingWASMRust extends BaseService {
       const pointsArray = pointCloudData;
 
       // Call Rust WASM point cloud smoothing
-      console.log('🔧 RUST SMOOTHING: Calling point_cloud_smooth with:', {
-        pointsLength: pointsArray.length,
-        smoothingRadius,
-        iterations
-      });
-      
       const result = this.wasmModule.point_cloud_smooth(
         pointsArray,
         smoothingRadius,
         iterations
       );
-      
-      console.log('🔧 RUST SMOOTHING: point_cloud_smooth returned:', {
-        resultLength: result.length,
-        pointCount: result.length / 3
-      });
 
       const processingTime = performance.now() - startTime;
 

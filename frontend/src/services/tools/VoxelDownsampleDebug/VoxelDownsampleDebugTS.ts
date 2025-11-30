@@ -109,10 +109,6 @@ export class VoxelDownsampleDebugTS extends BaseService {
       // Debug: Log all unique voxels sorted to compare with other implementations
       const sortedVoxels = Array.from(voxelCoords).sort();
       
-      // Output to console for easy comparison
-      console.log('🔍 TS Voxel Keys (sorted):', sortedVoxels);
-      console.log('🔍 TS Voxel Count:', sortedVoxels.length);
-      
       Log.Info('VoxelDownsampleDebugTS', 'Voxel processing complete', {
         totalPoints: pointCount,
         uniqueVoxels: voxelCoords.size,

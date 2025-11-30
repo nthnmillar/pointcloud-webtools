@@ -23,8 +23,20 @@ export interface VoxelDebugResult {
   error?: string;
 }
 
+interface ToolsWasmModule {
+  _malloc(size: number): number;
+  _free(ptr: number): void;
+  HEAPF32: Float32Array;
+  cwrap?(name: string, returnType: string, argTypes: string[]): (...args: number[]) => number;
+  ccall?(name: string, returnType: string, argTypes: string[], args: number[]): number;
+}
+
+interface WindowWithToolsModule extends Window {
+  ToolsModule?: () => Promise<ToolsWasmModule>;
+}
+
 export class VoxelDownsampleDebugWASMCPP extends BaseService {
-  private module: any = null;
+  private module: ToolsWasmModule | null = null;
   private voxelDebugDirectFunc: ((inputPtr: number, pointCount: number, voxelSize: number, 
                                    minX: number, minY: number, minZ: number, outputPtr: number, maxOutputPoints: number) => number) | null = null;
   private previousOutputPtr: number | null = null;
@@ -36,8 +48,8 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
   async initialize(): Promise<void> {
     try {
       // Prefer global module if present (legacy load via script tag)
-      if (typeof window !== 'undefined' && (window as any).ToolsModule) {
-        this.module = await (window as any).ToolsModule();
+      if (typeof window !== 'undefined' && (window as WindowWithToolsModule).ToolsModule) {
+        this.module = await (window as WindowWithToolsModule).ToolsModule!();
         this.isInitialized = true;
         Log.Info('VoxelDownsampleDebugWASMCPP', 'C++ WASM module loaded from window.ToolsModule');
         return;
@@ -46,7 +58,8 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
       // Fallback: dynamic import like other services (robust to load order)
       Log.Info('VoxelDownsampleDebugWASMCPP', 'window.ToolsModule not found, attempting dynamic import');
       // Note: this file is one directory deeper than WasmFirstService, so we need an extra '../'
-      const ToolsModuleNs: any = await import('../../../../public/wasm/cpp/tools_cpp.js');
+      // @ts-expect-error - tools_cpp.js doesn't have type definitions
+      const ToolsModuleNs = await import('../../../../public/wasm/cpp/tools_cpp.js') as { default?: (options?: { locateFile?: (path: string) => string }) => Promise<ToolsWasmModule>; ToolsModule?: (options?: { locateFile?: (path: string) => string }) => Promise<ToolsWasmModule> };
       const factory = ToolsModuleNs.default || ToolsModuleNs.ToolsModule;
       if (!factory) {
         throw new Error('WASM module factory not found in tools_cpp.js');
@@ -82,7 +95,7 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
       }
     }
 
-    console.log('🔧 WASM Debug: Using C++ WASM module for voxel debug generation', {
+    Log.Info('VoxelDownsampleDebugWASMCPP', 'Using C++ WASM module for voxel debug generation', {
       pointCount: params.pointCloudData.length / 3,
       voxelSize: params.voxelSize,
       bounds: params.globalBounds
@@ -148,7 +161,7 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
               outputPtr,                   // outputPtr (byte pointer, C will cast to float*)
               pointCount                   // maxOutputPoints (safety limit)
             )
-          : this.module.ccall(
+          : (this.module.ccall ? this.module.ccall(
               'voxelDebugDirect',
               'number',
               ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number'],
@@ -162,7 +175,7 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
                 outputPtr,
                 pointCount
               ]
-            );
+            ) : 0);
         
         if (outputCount <= 0 || outputCount > pointCount) {
           throw new Error(`Invalid output count: ${outputCount} (expected 1-${pointCount})`);

@@ -136,7 +136,6 @@ export class PointCloudSmoothingBEPython extends BaseService {
             }
           }
         } catch (error) {
-          console.error('🔧 PointCloudSmoothingBEPython: Error parsing WebSocket message', error);
           Log.Error('PointCloudSmoothingBEPython', 'Error parsing WebSocket message', error);
         }
       };
@@ -155,11 +154,9 @@ export class PointCloudSmoothingBEPython extends BaseService {
       
       this.ws.onerror = (error: Event) => {
         Log.Error('PointCloudSmoothingBEPython', 'WebSocket error', error);
-        console.error('🔧 PointCloudSmoothingBEPython: WebSocket error:', error);
       };
       
     } catch (error) {
-      console.error('🔧 PointCloudSmoothingBEPython: Failed to connect WebSocket:', error);
       Log.Error('PointCloudSmoothingBEPython', 'Failed to connect WebSocket', error);
     }
   }
@@ -173,14 +170,10 @@ export class PointCloudSmoothingBEPython extends BaseService {
     
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        console.error('🔧 PointCloudSmoothingBEPython: WebSocket not connected', {
+        Log.Error('PointCloudSmoothingBEPython', 'WebSocket not connected', {
           wsExists: !!this.ws,
           readyState: this.ws?.readyState,
           expectedState: WebSocket.OPEN
-        });
-        Log.Error('PointCloudSmoothingBEPython', 'WebSocket not connected', {
-          wsExists: !!this.ws,
-          readyState: this.ws?.readyState
         });
         reject(new Error('WebSocket not connected'));
         return;

@@ -126,7 +126,6 @@ export class VoxelDownsampleDebugBERust extends BaseService {
             }
           }
         } catch (error) {
-          console.error('🔧 VoxelDownsampleDebugBERust: Error parsing WebSocket message', error);
           Log.Error('VoxelDownsampleDebugBERust', 'Error parsing WebSocket message', error);
         }
       };
@@ -145,11 +144,9 @@ export class VoxelDownsampleDebugBERust extends BaseService {
       
       this.ws.onerror = (error) => {
         Log.Error('VoxelDownsampleDebugBERust', 'WebSocket error', error);
-        console.error('🔧 VoxelDownsampleDebugBERust: WebSocket error:', error);
       };
       
     } catch (error) {
-      console.error('🔧 VoxelDownsampleDebugBERust: Failed to connect WebSocket:', error);
       Log.Error('VoxelDownsampleDebugBERust', 'Failed to connect WebSocket', error);
     }
   }
@@ -162,14 +159,10 @@ export class VoxelDownsampleDebugBERust extends BaseService {
     
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        console.error('🔧 VoxelDownsampleDebugBERust: WebSocket not connected', {
+        Log.Error('VoxelDownsampleDebugBERust', 'WebSocket not connected', {
           wsExists: !!this.ws,
           readyState: this.ws?.readyState,
           expectedState: WebSocket.OPEN
-        });
-        Log.Error('VoxelDownsampleDebugBERust', 'WebSocket not connected', {
-          wsExists: !!this.ws,
-          readyState: this.ws?.readyState
         });
         reject(new Error('WebSocket not connected'));
         return;
