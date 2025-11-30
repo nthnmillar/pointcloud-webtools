@@ -5,11 +5,9 @@
 #include <emscripten/val.h>
 #include "common.h"
 
-// Forward declaration
-extern "C" {
-    void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCount, 
-                                  float smoothingRadius, int iterations);
-}
+// Forward declaration for the direct smoothing function
+extern "C" void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCount, 
+                                          float smoothingRadius, int iterations);
 
 // Point cloud smoothing function
 emscripten::val pointCloudSmoothing(
