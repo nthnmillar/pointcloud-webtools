@@ -25,18 +25,24 @@ export interface VoxelDownsampleResult {
   error?: string;
 }
 
+interface ToolsWasmModule {
+  _malloc(size: number): number;
+  _free(ptr: number): void;
+  HEAPF32: Float32Array;
+  cwrap?(name: string, returnType: string, argTypes: string[]): (...args: number[]) => number;
+  ccall?(name: string, returnType: string, argTypes: string[], args: number[]): number;
+}
+
 export class VoxelDownsamplingWASMCPP extends BaseService {
-  private module: any = null;
-  private _serviceManager: ServiceManager;
+  private module: ToolsWasmModule | null = null;
   // Store output pointer to keep WASM memory alive for zero-copy view
   // Similar to Rust's result_buffer approach
   private previousOutputPtr: number | null = null;
   // Cache wrapped function to avoid ccall overhead on every call
   private voxelDownsampleDirectFunc: ((...args: number[]) => number) | null = null;
 
-  constructor(serviceManager: ServiceManager) {
+  constructor(_serviceManager: ServiceManager) {
     super();
-    this._serviceManager = serviceManager;
   }
 
   async initialize(): Promise<void> {
@@ -76,7 +82,7 @@ export class VoxelDownsamplingWASMCPP extends BaseService {
       
       // OPTIMIZATION: Pre-wrap the function to avoid ccall overhead on every call
       // cwrap caches the function pointer and reduces call overhead
-      if (this.module.cwrap) {
+      if (this.module && this.module.cwrap) {
         this.voxelDownsampleDirectFunc = this.module.cwrap(
           'voxelDownsampleDirect',
           'number',  // Return type: int

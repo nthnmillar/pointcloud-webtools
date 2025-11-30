@@ -1,7 +1,7 @@
 import { Scene, StandardMaterial, Color3, MeshBuilder, Vector3, TransformNode } from '@babylonjs/core';
 import { Log } from '../../../utils/Log';
 import type { ServiceManager } from '../../ServiceManager';
-import type { PointCloudData, PointCloudPoint } from '../../point/PointCloud';
+import type { PointCloudPoint } from '../../point/PointCloud';
 
 export interface SimplifiedPointCloud {
   points: Array<{
@@ -32,7 +32,6 @@ export class VoxelDownsampleDebug {
   private _currentPointClouds: SimplifiedPointCloud[] = [];
   private _serviceManager: ServiceManager | null = null;
   private _updateTimeout: NodeJS.Timeout | null = null;
-  private _currentVoxelSize = 2.0;
   private _isUpdating = false;
   private _currentImplementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' = 'TS';
   private _currentColor: { r: number; g: number; b: number } = { r: 0/255, g: 100/255, b: 200/255 };
@@ -120,9 +119,6 @@ export class VoxelDownsampleDebug {
       Log.InfoClass(this, 'No active debug visualization to update');
       return;
     }
-
-    // Store the new voxel size
-    this._currentVoxelSize = newVoxelSize;
 
     // Clear any existing timeout
     if (this._updateTimeout) {
@@ -222,9 +218,9 @@ export class VoxelDownsampleDebug {
       // Use the correct implementation to calculate voxel centers
       let voxelCenters: Float32Array;
       
-      if (this._serviceManager?.voxelDownsampleService?.voxelDownsampleDebug) {
+      if (this._serviceManager?.toolsService?.voxelDownsampleDebugService) {
         // Use the proper implementation service
-        const result = await this._serviceManager.voxelDownsampleService.voxelDownsampleDebug.generateVoxelCenters(
+        const result = await this._serviceManager.toolsService.voxelDownsampleDebugService.generateVoxelCenters(
           {
             pointCloudData,
             voxelSize: newVoxelSize,

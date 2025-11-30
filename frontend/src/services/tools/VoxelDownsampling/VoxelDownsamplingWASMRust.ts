@@ -5,9 +5,27 @@ import { Log } from '../../../utils/Log';
 // Import the Rust WASM module
 import init, { PointCloudToolsRust } from '../../../../public/wasm/rust/tools_rust.js';
 
+interface RustWasmInstance {
+  memory: WebAssembly.Memory;
+  __wbindgen_export_0: (size: number, align: number) => number; // malloc
+  __wbindgen_export_1: (ptr: number, size: number, align: number) => void; // free
+}
+
+interface PointCloudToolsRustStatic {
+  voxel_downsample_direct_static: (
+    inputPtr: number,
+    pointCount: number,
+    voxelSize: number,
+    minX: number,
+    minY: number,
+    minZ: number,
+    outputPtr: number
+  ) => number;
+}
+
 export class VoxelDownsamplingWASMRust extends BaseService {
   private wasmModule: PointCloudToolsRust | null = null;
-  private wasmInstance: any = null;
+  private wasmInstance: RustWasmInstance | null = null;
   private memory: WebAssembly.Memory | null = null;
   private heapF32: Float32Array | null = null; // Cached Float32Array view for zero allocation overhead
   private voxelDownsampleDirectStaticFunc: ((...args: number[]) => number) | null = null; // Cached static function
@@ -45,10 +63,11 @@ export class VoxelDownsamplingWASMRust extends BaseService {
       }
       
       // Cache static function - required, no fallback
-      if (typeof (PointCloudToolsRust as any).voxel_downsample_direct_static !== 'function') {
+      const PointCloudToolsRustStatic = PointCloudToolsRust as unknown as PointCloudToolsRustStatic;
+      if (typeof PointCloudToolsRustStatic.voxel_downsample_direct_static !== 'function') {
         throw new Error('voxel_downsample_direct_static function not available in Rust WASM module');
       }
-      this.voxelDownsampleDirectStaticFunc = (PointCloudToolsRust as any).voxel_downsample_direct_static;
+      this.voxelDownsampleDirectStaticFunc = PointCloudToolsRustStatic.voxel_downsample_direct_static;
       
       // Create the Rust tools instance (still needed for other methods)
       this.wasmModule = new PointCloudToolsRust();

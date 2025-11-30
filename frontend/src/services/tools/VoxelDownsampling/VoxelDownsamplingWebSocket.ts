@@ -36,6 +36,38 @@ export class VoxelDownsamplingWebSocket extends BaseService {
     this.connect();
   }
 
+  async initialize(..._args: unknown[]): Promise<void> {
+    // Connection is already established in constructor
+    // Mark as initialized once WebSocket is connected
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.isInitialized = true;
+    } else {
+      // Wait for connection to open
+      return new Promise((resolve) => {
+        if (this.ws) {
+          const originalOnOpen = this.ws.onopen;
+          const wsRef = this.ws;
+          this.ws.onopen = (event) => {
+            if (originalOnOpen) {
+              originalOnOpen.call(wsRef, event);
+            }
+            this.isInitialized = true;
+            resolve();
+          };
+        } else {
+          // If ws is null, connection will be established and we'll be initialized then
+          this.isInitialized = true;
+          resolve();
+        }
+      });
+    }
+  }
+
+  dispose(): void {
+    this.destroy();
+    this.removeAllObservers();
+  }
+
   private connect(): void {
     try {
       Log.Info('VoxelDownsamplingWebSocket', 'Attempting to connect to WebSocket...');
