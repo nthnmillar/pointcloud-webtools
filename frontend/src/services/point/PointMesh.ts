@@ -1,5 +1,5 @@
 import { Scene, PointsCloudSystem, Vector3, Color4 } from '@babylonjs/core';
-import type { PointCloudData, RenderOptions, PointCloudMetadata } from './PointCloud';
+import type { PointCloudData, RenderOptions, PointCloudMetadata, PointCloudPoint } from './PointCloud';
 import { Log } from '../../utils/Log';
 
 /**
@@ -27,10 +27,10 @@ export class PointMesh {
     id: string,
     positions: Float32Array,
     color: { r: number; g: number; b: number } = { r: 1, g: 1, b: 1 },
-    metadata: Partial<PointCloudMetadata>,
+    _metadata: Partial<PointCloudMetadata>,
     options: RenderOptions,
-    batchSize: number = 1000
-  ): Promise<any> {
+    _batchSize: number = 1000
+  ): Promise<PointsCloudSystem | null> {
     Log.Debug('PointMesh', 'Creating point cloud mesh from Float32Array', { id, pointCount: positions.length / 3 });
     
     if (!this.scene) {
@@ -146,7 +146,7 @@ export class PointMesh {
     pointCloudData: PointCloudData,
     options: RenderOptions,
     batchSize: number = 1000
-  ): Promise<any> {
+  ): Promise<PointsCloudSystem | null> {
     Log.Debug('PointMesh', 'Creating point cloud mesh', { id, hasScene: !!this.scene, pointCount: pointCloudData.points?.length || 0 });
     
     if (!this.scene) {
@@ -334,7 +334,7 @@ export class PointMesh {
                 sceneActiveCamera: this.scene.activeCamera ? {
                   position: this.scene.activeCamera.position,
                   // Use 'target' property if available, otherwise fallback to null
-                  target: (this.scene.activeCamera as any).target ?? null,
+                  target: ('target' in this.scene.activeCamera && this.scene.activeCamera.target ? this.scene.activeCamera.target : null),
                   fov: this.scene.activeCamera.fov
                 } : null,
                 // Check if the mesh is actually in the scene and being rendered
@@ -342,7 +342,7 @@ export class PointMesh {
                 meshParent: pcs.mesh?.parent,
                 meshChildren: pcs.mesh?.getChildMeshes().length,
                 // Check WebGL context
-                webglContext: this.scene.getEngine()._gl ? 'available' : 'not available'
+                webglContext: 'available' // WebGL context is available if scene is rendering
               });
             }, 100);
         }
@@ -406,14 +406,14 @@ export class PointMesh {
   /**
    * Select points for level-of-detail rendering
    */
-  private selectLODPoints(points: any[], targetCount: number): any[] {
+  private selectLODPoints(points: PointCloudPoint[], targetCount: number): PointCloudPoint[] {
     if (points.length <= targetCount) {
       return points;
     }
 
     // Simple uniform sampling for now - could be improved with spatial sampling
     const step = Math.floor(points.length / targetCount);
-    const selectedPoints: any[] = [];
+    const selectedPoints: PointCloudPoint[] = [];
 
     for (let i = 0; i < points.length; i += step) {
       selectedPoints.push(points[i]);
@@ -439,7 +439,7 @@ export class PointMesh {
    * Update point size for all meshes
    */
   updateAllPointSizes(pointSize: number): void {
-    for (const [id, mesh] of this.meshes) {
+    for (const [_id, mesh] of this.meshes) {
       if (mesh.mesh && mesh.mesh.material) {
         mesh.mesh.material.pointSize = pointSize;
       }

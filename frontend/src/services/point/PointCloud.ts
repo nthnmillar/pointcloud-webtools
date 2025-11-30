@@ -91,8 +91,49 @@ export type PointCloudEventType =
   | 'cameraChanged'
   | 'renderOptionsChanged';
 
+// Event data types for each event type
+export interface LoadedEventData {
+  id: string;
+  metadata: PointCloudMetadata;
+}
+
+export interface LoadingEventData {
+  id: string;
+}
+
+export interface ErrorEventData {
+  id?: string;
+  error: string;
+}
+
+export interface SelectionChangedEventData {
+  activeId: string;
+}
+
+export interface CameraChangedEventData {
+  position?: Point3D;
+  target?: Point3D;
+  [key: string]: unknown;
+}
+
+export interface RenderOptionsChangedEventData {
+  id?: string;
+  options?: RenderOptions;
+  [key: string]: unknown;
+}
+
+// Union type for all possible event data
+export type PointCloudEventData =
+  | LoadedEventData
+  | LoadingEventData
+  | ErrorEventData
+  | SelectionChangedEventData
+  | CameraChangedEventData
+  | RenderOptionsChangedEventData
+  | Record<string, unknown>; // Fallback for any other data structure
+
 export interface PointCloudEvent {
   type: PointCloudEventType;
-  data?: any;
+  data?: PointCloudEventData;
   timestamp: Date;
 }
