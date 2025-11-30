@@ -1,7 +1,7 @@
 import type { PointCloudData, PointCloudPoint } from '../point/PointCloud';
 import { ServiceManager } from '../ServiceManager';
 import { Log } from '../../utils/Log';
-import type { COPCModule, COPCLoader, COPCHeader, Point3D } from '../../wasm/loaders/COPCModule';
+import type { COPCModule, COPCLoader, COPCHeader, Point3D } from './COPCModule';
 
 // Type for laz-perf module (matching LazWorker.ts)
 interface LazPerfModule {
