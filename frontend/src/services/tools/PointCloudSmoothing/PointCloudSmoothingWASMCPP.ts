@@ -1,21 +1,7 @@
 import { BaseService } from '../../BaseService';
 import type { ServiceManager } from '../../ServiceManager';
 import { Log } from '../../../utils/Log';
-
-export interface PointCloudSmoothingParams {
-  points: Float32Array;
-  smoothingRadius: number;
-  iterations: number;
-}
-
-export interface PointCloudSmoothingResult {
-  success: boolean;
-  smoothedPoints?: Float32Array;
-  originalCount?: number;
-  smoothedCount?: number;
-  processingTime?: number;
-  error?: string;
-}
+import type { PointCloudSmoothingParams, PointCloudSmoothingResult } from '../ToolsService';
 
 interface ToolsWasmModule {
   pointCloudSmoothing(

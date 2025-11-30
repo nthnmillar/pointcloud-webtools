@@ -7,8 +7,8 @@ import { VoxelDownsamplingTS } from './VoxelDownsamplingTS';
 import { VoxelDownsamplingBECPP } from './VoxelDownsamplingBECPP';
 import { VoxelDownsamplingBERust } from './VoxelDownsamplingBERust';
 import { VoxelDownsamplingBEPython } from './VoxelDownsamplingBEPython';
-import { VoxelDownsampleDebug } from './VoxelDownsampleDebug';
-import type { VoxelDownsampleParams, VoxelDownsampleResult } from './VoxelDownsamplingTS';
+import { VoxelDebugVisualization } from '../VoxelDownsampleDebug/VoxelDebugVisualization';
+import type { VoxelDownsampleParams, VoxelDownsampleResult } from '../ToolsService';
 
 export class VoxelDownsampleService extends BaseService {
   private _isInitialized = false;
@@ -19,7 +19,7 @@ export class VoxelDownsampleService extends BaseService {
   public voxelDownsamplingBECPP: VoxelDownsamplingBECPP;
   public voxelDownsamplingBERust: VoxelDownsamplingBERust;
   public voxelDownsamplingBEPython: VoxelDownsamplingBEPython;
-  public voxelDownsampleDebug: VoxelDownsampleDebug | null = null;
+  public voxelDownsampleDebug: VoxelDebugVisualization | null = null;
 
   constructor(serviceManager: ServiceManager) {
     super();
@@ -33,7 +33,7 @@ export class VoxelDownsampleService extends BaseService {
     // Initialize debug visualization after a short delay to ensure scene is ready
     setTimeout(() => {
       if (serviceManager.sceneService?.scene) {
-        this.voxelDownsampleDebug = new VoxelDownsampleDebug(serviceManager.sceneService.scene, serviceManager);
+        this.voxelDownsampleDebug = new VoxelDebugVisualization(serviceManager.sceneService.scene, serviceManager);
       } else {
         Log.WarnClass(this, 'Scene not available for voxel debug initialization');
       }

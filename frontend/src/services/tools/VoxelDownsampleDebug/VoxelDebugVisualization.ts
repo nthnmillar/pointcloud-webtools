@@ -25,7 +25,7 @@ export interface VoxelDownsampleDebugOptions {
   alpha?: number;
 }
 
-export class VoxelDownsampleDebug {
+export class VoxelDebugVisualization {
   private _voxelDebugGroup: TransformNode | null = null;
   private _isVisible = false;
   private _scene: Scene | null = null;

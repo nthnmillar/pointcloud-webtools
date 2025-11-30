@@ -7,7 +7,7 @@ import { PointCloudSmoothingTS } from './PointCloudSmoothingTS';
 import { PointCloudSmoothingBECPP } from './PointCloudSmoothingBECPP';
 import { PointCloudSmoothingBERust } from './PointCloudSmoothingBERust';
 import { PointCloudSmoothingBEPython } from './PointCloudSmoothingBEPython';
-import type { PointCloudSmoothingParams, PointCloudSmoothingResult } from './PointCloudSmoothingTS';
+import type { PointCloudSmoothingParams, PointCloudSmoothingResult } from '../ToolsService';
 
 export class PointCloudSmoothingService extends BaseService {
   private _isInitialized = false;

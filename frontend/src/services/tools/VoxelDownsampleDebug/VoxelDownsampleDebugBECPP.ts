@@ -35,7 +35,7 @@ interface VoxelDebugResponseHeader {
 
 export class VoxelDownsampleDebugBECPP extends BaseService {
   private ws: WebSocket | null = null;
-  private pendingRequests = new Map<string, { resolve: (value: VoxelDebugResult) => void; reject: (reason?: unknown) => void }>();
+  private pendingRequests = new Map<string, { resolve: (value: VoxelDebugResult) => void; reject: (reason?: unknown) => void; timeoutId?: NodeJS.Timeout }>();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
@@ -77,6 +77,9 @@ export class VoxelDownsampleDebugBECPP extends BaseService {
               
               const pending = this.pendingRequests.get(this.pendingHeader.requestId);
               if (pending) {
+                if (pending.timeoutId) {
+                  clearTimeout(pending.timeoutId);
+                }
                 this.pendingRequests.delete(this.pendingHeader.requestId);
                 
                 const result: VoxelDebugResult = {
@@ -97,6 +100,9 @@ export class VoxelDownsampleDebugBECPP extends BaseService {
               
               const pending = this.pendingRequests.get(this.pendingHeader.requestId);
               if (pending) {
+                if (pending.timeoutId) {
+                  clearTimeout(pending.timeoutId);
+                }
                 this.pendingRequests.delete(this.pendingHeader.requestId);
                 
                 const result: VoxelDebugResult = {
@@ -122,6 +128,9 @@ export class VoxelDownsampleDebugBECPP extends BaseService {
                 const { requestId, error } = message;
                 const pending = this.pendingRequests.get(requestId);
                 if (pending) {
+                  if (pending.timeoutId) {
+                    clearTimeout(pending.timeoutId);
+                  }
                   this.pendingRequests.delete(requestId);
                   pending.reject(new Error(error || 'C++ BE WebSocket debug processing failed'));
                 }
@@ -173,8 +182,21 @@ export class VoxelDownsampleDebugBECPP extends BaseService {
 
       const requestId = `debug_cpp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Store the promise resolvers
-      this.pendingRequests.set(requestId, { resolve, reject });
+      // Calculate timeout based on point count - debug operations may take longer for large point clouds
+      const pointCount = params.pointCloudData.length / 3;
+      const timeoutMs = pointCount > 500000 ? 120000 : 60000; // 2 minutes for large clouds, 1 minute for smaller
+      
+      // Set timeout before storing request
+      const timeoutId = setTimeout(() => {
+        const pending = this.pendingRequests.get(requestId);
+        if (pending) {
+          this.pendingRequests.delete(requestId);
+          pending.reject(new Error(`C++ BE WebSocket debug timeout after ${timeoutMs / 1000}s (${pointCount.toLocaleString()} points)`));
+        }
+      }, timeoutMs);
+      
+      // Store the promise resolvers with timeout ID
+      this.pendingRequests.set(requestId, { resolve, reject, timeoutId });
 
       // Send binary data directly - no JSON serialization of points!
       const header = {
@@ -190,14 +212,6 @@ export class VoxelDownsampleDebugBECPP extends BaseService {
       
       // Send binary data directly (fast)
       this.ws.send(params.pointCloudData.buffer);
-
-      // Set a timeout
-      setTimeout(() => {
-        if (this.pendingRequests.has(requestId)) {
-          this.pendingRequests.delete(requestId);
-          reject(new Error('C++ BE WebSocket debug timeout'));
-        }
-      }, 30000); // 30 second timeout
     });
   }
 

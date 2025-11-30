@@ -1,32 +1,10 @@
 import { BaseService } from '../../BaseService';
 import type { ServiceManager } from '../../ServiceManager';
 import { Log } from '../../../utils/Log';
-
-export interface VoxelDownsampleParams {
-  pointCloudData: Float32Array;
-  voxelSize: number;
-  globalBounds: {
-    minX: number;
-    minY: number;
-    minZ: number;
-    maxX: number;
-    maxY: number;
-    maxZ: number;
-  };
-}
-
-export interface VoxelDownsampleResult {
-  success: boolean;
-  downsampledPoints?: Float32Array;
-  originalCount?: number;
-  downsampledCount?: number;
-  processingTime?: number;
-  voxelCount?: number;
-  error?: string;
-}
+import type { VoxelDownsampleParams, VoxelDownsampleResult } from '../ToolsService';
 
 export class VoxelDownsamplingTS extends BaseService {
-  constructor(serviceManager: ServiceManager) {
+  constructor(_serviceManager: ServiceManager) {
     super();
   }
 
