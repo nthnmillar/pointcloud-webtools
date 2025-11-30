@@ -49,6 +49,11 @@ src/build/
 !**/Cargo.toml
 !**/Cargo.lock
 
+# Backend tools build directory
+backend/src/services/tools/build/
+backend/src/services/tools/rust/target/
+backend/src/services/tools/rust/release/
+
 # Cython and C++ build artifacts
 **/*_cython.c
 **/*.o
