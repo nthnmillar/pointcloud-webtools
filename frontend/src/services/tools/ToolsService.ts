@@ -197,7 +197,6 @@ export class ToolsService extends BaseService {
     this.hideVoxelDebug();
     
     if (!this.voxelDownsampleService.voxelDownsampleDebug) {
-      console.error('❌ Voxel debug service not available');
       Log.Error('ToolsService', 'Voxel debug service not available');
       throw new Error('Voxel debug service not available');
     }
@@ -213,7 +212,6 @@ export class ToolsService extends BaseService {
       const pointData = collectAllPoints(this.serviceManager);
       
       if (!pointData) {
-        console.warn('⚠️ No point clouds available for debug visualization');
         Log.Warn('ToolsService', 'No point clouds available for debug visualization');
         throw new Error('No point clouds available for debug visualization');
       }

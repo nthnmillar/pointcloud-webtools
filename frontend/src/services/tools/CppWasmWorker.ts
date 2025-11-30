@@ -37,6 +37,17 @@ export interface CppWasmWorkerResponse {
   error?: string;
 }
 
+interface WorkerReadyMessage {
+  type: 'WORKER_READY';
+  method: string;
+  messageId: number;
+  data?: unknown;
+}
+
+interface WasmMemoryBuffer extends ArrayBuffer {
+  maxByteLength: number;
+}
+
 export class CppWasmWorker {
   private worker: Worker | null = null;
   private messageCallbacks = new Map<number, { resolve: (response: CppWasmWorkerResponse) => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }>();
@@ -179,7 +190,7 @@ export class CppWasmWorker {
         // Check if it's WASM memory (has maxByteLength property) or SharedArrayBuffer
         // WASM memory buffers cannot be transferred, so clone the data
         const isSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined' && buffer instanceof SharedArrayBuffer;
-        const isWasmMemory = (buffer as any).maxByteLength !== undefined;
+        const isWasmMemory = 'maxByteLength' in buffer && typeof (buffer as WasmMemoryBuffer).maxByteLength === 'number';
         
         if (isSharedArrayBuffer || isWasmMemory) {
           message.data.pointCloudData = new Float32Array(message.data.pointCloudData);
@@ -194,7 +205,7 @@ export class CppWasmWorker {
     });
   }
 
-  private handleWorkerMessage(event: MessageEvent<CppWasmWorkerResponse | { type: 'WORKER_READY'; method: string; messageId: number; data: any }>): void {
+  private handleWorkerMessage(event: MessageEvent<CppWasmWorkerResponse | WorkerReadyMessage>): void {
     const { messageId, type } = event.data;
     const error = 'error' in event.data ? event.data.error : undefined;
     Log.Info('CppWasmWorker', 'Received worker message', { messageId, type, error, availableCallbacks: Array.from(this.messageCallbacks.keys()) });

@@ -1,5 +1,7 @@
 // C++ WASM Worker - using exact same pattern as VoxelDownsampleWorker
-console.log('[CppWasmWorker] Worker script started');
+import { Log } from '../../utils/Log';
+
+Log.Info('CppWasmWorker', 'Worker script started');
 
 interface ToolsModule {
   voxelDownsample(inputPoints: Float32Array, voxelSize: number, globalMinX?: number, globalMinY?: number, globalMinZ?: number): Float32Array;
@@ -14,19 +16,6 @@ interface ToolsModule {
   ccall?(name: string, returnType: string, argTypes: string[], args: number[]): number;
 }
 
-// Simple logging function for worker context
-const WorkerLog = {
-  info: (message: string, data?: any) => {
-    console.log(`[CppWasmWorker] ${message}`, data || '');
-  },
-  error: (message: string, data?: any) => {
-    console.error(`[CppWasmWorker] ERROR: ${message}`, data || '');
-  },
-  warn: (message: string, data?: any) => {
-    console.warn(`[CppWasmWorker] WARN: ${message}`, data || '');
-  }
-};
-
 let toolsModule: ToolsModule | null = null;
 let voxelDownsampleDirectFunc: ((...args: number[]) => number) | null = null; // Cached wrapped function
 let voxelDebugDirectFunc: ((...args: number[]) => number) | null = null; // Cached wrapped function for voxel debug
@@ -35,14 +24,14 @@ let previousOutputPtr: number | null = null; // Track output pointer for memory 
 // Initialize WASM module (exact same pattern as VoxelDownsampleWorker)
 async function initialize() {
   try {
-    WorkerLog.info('Starting initialization...');
+    Log.Info('CppWasmWorker', 'Starting initialization...');
     
     // Add a timeout to prevent hanging
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: NodeJS.Timeout | undefined;
     const initPromise = initializeWasmModule();
-    const timeoutPromise = new Promise((_, reject) => {
+    const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutId = setTimeout(() => {
-        WorkerLog.error('WASM module initialization timeout');
+        Log.Error('CppWasmWorker', 'WASM module initialization timeout');
         reject(new Error('WASM module initialization timeout'));
       }, 15000);
     });
@@ -54,15 +43,15 @@ async function initialize() {
       clearTimeout(timeoutId);
     }
     
-    WorkerLog.info('WASM module initialized successfully');
+    Log.Info('CppWasmWorker', 'WASM module initialized successfully');
   } catch (error) {
-    WorkerLog.error('Failed to initialize WASM module', error);
+    Log.Error('CppWasmWorker', 'Failed to initialize WASM module', error);
     throw error;
   }
 }
 
 async function initializeWasmModule() {
-  WorkerLog.info('Loading WASM JS code...');
+  Log.Info('CppWasmWorker', 'Loading WASM JS code...');
   
   // Load WASM module using fetch and eval (exact same as VoxelDownsampleWorker)
   const response = await fetch('/wasm/cpp/tools_cpp.js');
@@ -72,7 +61,7 @@ async function initializeWasmModule() {
   }
   
   const jsCode = await response.text();
-  WorkerLog.info('WASM JS code loaded', { length: jsCode.length });
+  Log.Info('CppWasmWorker', 'WASM JS code loaded', { length: jsCode.length });
 
   // Create a module function (exact same as VoxelDownsampleWorker)
   const moduleFunction = new Function('module', 'exports', jsCode);
@@ -88,7 +77,7 @@ async function initializeWasmModule() {
     throw new Error('ToolsModuleFactory is not a function: ' + typeof ToolsModuleFactory);
   }
 
-  WorkerLog.info('ToolsModuleFactory function obtained');
+  Log.Info('CppWasmWorker', 'ToolsModuleFactory function obtained');
   
   toolsModule = await ToolsModuleFactory({
     locateFile: (path: string) => {
@@ -109,10 +98,10 @@ async function initializeWasmModule() {
       'number',  // Return type: int
       ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number'] // Parameter types
     );
-    WorkerLog.info('Functions wrapped with cwrap for better performance');
+    Log.Info('CppWasmWorker', 'Functions wrapped with cwrap for better performance');
   }
   
-  WorkerLog.info('ToolsModule instance created');
+  Log.Info('CppWasmWorker', 'ToolsModule instance created');
 }
 
 // Process voxel downsampling
@@ -261,7 +250,7 @@ async function processPointCloudSmoothing(data: {
   const startTime = performance.now();
   const { pointCloudData, smoothingRadius, iterations } = data;
   
-  WorkerLog.info('Processing point cloud smoothing', {
+  Log.Info('CppWasmWorker', 'Processing point cloud smoothing', {
     pointCount: pointCloudData.length / 3,
     smoothingRadius,
     iterations
@@ -275,13 +264,13 @@ async function processPointCloudSmoothing(data: {
       iterations
     );
   } catch (error) {
-    WorkerLog.error('C++ WASM pointCloudSmoothing function failed', error);
+    Log.Error('CppWasmWorker', 'C++ WASM pointCloudSmoothing function failed', error);
     throw new Error(`C++ WASM pointCloudSmoothing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 
   const processingTime = performance.now() - startTime;
   
-  WorkerLog.info('Point cloud smoothing completed', {
+  Log.Info('CppWasmWorker', 'Point cloud smoothing completed', {
     originalCount: pointCloudData.length / 3,
     smoothedCount: smoothedPoints.length / 3,
     processingTime
@@ -320,7 +309,7 @@ async function processVoxelDebug(data: {
   const startTime = performance.now();
   const { pointCloudData, voxelSize, globalBounds } = data;
   
-  WorkerLog.info('Processing voxel debug generation', {
+  Log.Info('CppWasmWorker', 'Processing voxel debug generation', {
     pointCount: pointCloudData.length / 3,
     voxelSize,
     globalBounds
@@ -407,7 +396,7 @@ async function processVoxelDebug(data: {
     const processingTime = performance.now() - startTime;
     const voxelCount = outputCount;
   
-      WorkerLog.info('Voxel debug generation completed', {
+      Log.Info('CppWasmWorker', 'Voxel debug generation completed', {
       voxelCount,
       processingTime
     });
@@ -445,33 +434,33 @@ self.onmessage = async function(e) {
       });
     } else if (type === 'VOXEL_DOWNSAMPLE') {
       const result = await processVoxelDownsampling(data);
-      self.postMessage({
+      globalThis.postMessage({
         type: 'SUCCESS',
         method: 'WASM_CPP',
         messageId,
         data: result
-      }, [result.downsampledPoints.buffer]);
+      }, { transfer: [result.downsampledPoints.buffer] });
     } else if (type === 'POINT_CLOUD_SMOOTHING') {
       const result = await processPointCloudSmoothing(data);
-      self.postMessage({
+      globalThis.postMessage({
         type: 'SUCCESS',
         method: 'WASM_CPP',
         messageId,
         data: result
-      }, [result.smoothedPoints.buffer]);
+      }, { transfer: [result.smoothedPoints.buffer] });
     } else if (type === 'VOXEL_DEBUG') {
       const result = await processVoxelDebug(data);
-      self.postMessage({
+      globalThis.postMessage({
         type: 'SUCCESS',
         method: 'WASM_CPP',
         messageId,
         data: result
-      }, [result.voxelCenters.buffer]);
+      }, { transfer: [result.voxelCenters.buffer] });
     } else {
       throw new Error(`Unknown message type: ${type}`);
     }
   } catch (error) {
-    WorkerLog.error('Error processing message', error);
+    Log.Error('CppWasmWorker', 'Error processing message', error);
     self.postMessage({
       type: 'ERROR',
       method: 'WASM_CPP',
@@ -482,7 +471,7 @@ self.onmessage = async function(e) {
   }
 };
 
-console.log('[CppWasmWorker] Worker script loaded and ready');
+Log.Info('CppWasmWorker', 'Worker script loaded and ready');
 
 // Send a ready signal to main thread
 self.postMessage({

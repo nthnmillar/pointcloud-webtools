@@ -1,30 +1,46 @@
 // Web Worker for Rust WASM processing tools - Classic Worker
-let wasmModule: any = null;
-let wasmInstance: any = null;
+import { Log } from '../../utils/Log';
+
+interface PointCloudToolsRust {
+  point_cloud_smooth(points: Float64Array, smoothingRadius: number, iterations: number): Float64Array;
+  generate_voxel_centers(points: Float32Array, voxelSize: number, minX: number, minY: number, minZ: number): Float64Array;
+}
+
+interface RustWasmInstance {
+  memory: WebAssembly.Memory;
+  __wbindgen_export_0: (size: number, align: number) => number; // malloc
+  __wbindgen_export_1: (ptr: number, size: number, align: number) => void; // free
+}
+
+interface PointCloudToolsRustStatic {
+  voxel_downsample_direct_static: (
+    inputPtr: number,
+    pointCount: number,
+    voxelSize: number,
+    minX: number,
+    minY: number,
+    minZ: number,
+    outputPtr: number
+  ) => number;
+}
+
+interface RustWasmModule {
+  default: (wasmPath: string) => Promise<RustWasmInstance>;
+  PointCloudToolsRust: (new () => PointCloudToolsRust) & PointCloudToolsRustStatic;
+}
+
+let wasmModule: PointCloudToolsRust | null = null;
+let wasmInstance: RustWasmInstance | null = null;
 let memory: WebAssembly.Memory | null = null;
 let heapF32: Float32Array | null = null; // Cached Float32Array view for zero allocation overhead
 let voxelDownsampleDirectStaticFunc: ((...args: number[]) => number) | null = null; // Cached static function
 let previousOutputPtr: number | null = null;
 let previousOutputSize: number = 0;
 
-// Simple logging function for worker context
-const WorkerLog = {
-  info: (message: string, data?: any) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[RustWasmWorker] ${message}`, data || '');
-    }
-  },
-  error: (message: string, data?: any) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.error(`[RustWasmWorker] ${message}`, data || '');
-    }
-  }
-};
-
 // Initialize Rust WASM module
 async function initialize() {
   try {
-    WorkerLog.info('Starting Rust WASM initialization...');
+    Log.Info('RustWasmWorker', 'Starting Rust WASM initialization...');
     
     // Load WASM JS code using fetch
     const response = await fetch('/wasm/rust/tools_rust.js');
@@ -33,17 +49,17 @@ async function initialize() {
     }
     
     const jsCode = await response.text();
-    WorkerLog.info('Rust WASM JS code loaded', { length: jsCode.length });
+    Log.Info('RustWasmWorker', 'Rust WASM JS code loaded', { length: jsCode.length });
 
     // Create a data URL for the module and import it
     const blob = new Blob([jsCode], { type: 'application/javascript' });
     const moduleUrl = URL.createObjectURL(blob);
     
-    WorkerLog.info('Created module URL:', moduleUrl);
+    Log.Info('RustWasmWorker', 'Created module URL:', moduleUrl);
     
-    const module = await import(/* @vite-ignore */ moduleUrl);
-    WorkerLog.info('Module imported successfully');
-    WorkerLog.info('Module exports:', Object.keys(module));
+    const module = await import(/* @vite-ignore */ moduleUrl) as unknown as RustWasmModule;
+    Log.Info('RustWasmWorker', 'Module imported successfully');
+    Log.Info('RustWasmWorker', 'Module exports:', Object.keys(module));
     
     // Clean up the URL
     URL.revokeObjectURL(moduleUrl);
@@ -52,7 +68,7 @@ async function initialize() {
     const init = module.default;
     const PointCloudToolsRust = module.PointCloudToolsRust;
     
-    WorkerLog.info('Init function:', typeof init);
+    Log.Info('RustWasmWorker', 'Init function:', typeof init);
     
     // Initialize the WASM module - init() returns the wasm exports object
     wasmInstance = await init('/wasm/rust/tools_rust.wasm');
@@ -79,22 +95,32 @@ async function initialize() {
     }
     voxelDownsampleDirectStaticFunc = PointCloudToolsRust.voxel_downsample_direct_static;
     
-    WorkerLog.info('WASM module initialized, creating PointCloudToolsRust instance...');
+    Log.Info('RustWasmWorker', 'WASM module initialized, creating PointCloudToolsRust instance...');
     
     // Create the Rust tools instance (still needed for other methods)
     wasmModule = new PointCloudToolsRust();
     
-    WorkerLog.info('PointCloudToolsRust instance created:', wasmModule);
+    Log.Info('RustWasmWorker', 'PointCloudToolsRust instance created:', wasmModule);
     
-    WorkerLog.info('Rust WASM module initialized successfully');
+    Log.Info('RustWasmWorker', 'Rust WASM module initialized successfully');
   } catch (error) {
-    WorkerLog.error('Failed to initialize Rust WASM module', error);
+    Log.Error('RustWasmWorker', 'Failed to initialize Rust WASM module', error);
     throw error;
   }
 }
 
+interface VoxelDownsampleData {
+  pointCloudData: Float32Array;
+  voxelSize: number;
+  globalBounds: {
+    minX: number;
+    minY: number;
+    minZ: number;
+  };
+}
+
 // Handle voxel downsampling
-async function handleVoxelDownsampling(data: any, messageId: number): Promise<void> {
+async function handleVoxelDownsampling(data: VoxelDownsampleData, messageId: number): Promise<void> {
   if (!wasmModule || !wasmInstance || !memory) {
     throw new Error('Rust WASM module not initialized');
   }
@@ -201,8 +227,18 @@ async function handleVoxelDownsampling(data: any, messageId: number): Promise<vo
   }
 }
 
+interface PointCloudSmoothingData {
+  pointCloudData: Float32Array;
+  smoothingRadius: number;
+  iterations: number;
+}
+
 // Handle point cloud smoothing
-async function handlePointCloudSmoothing(data: any, messageId: number): Promise<void> {
+async function handlePointCloudSmoothing(data: PointCloudSmoothingData, messageId: number): Promise<void> {
+  if (!wasmModule) {
+    throw new Error('WASM module not initialized');
+  }
+  
   const startTime = performance.now();
   const result = wasmModule.point_cloud_smooth(
     new Float64Array(data.pointCloudData),
@@ -227,8 +263,22 @@ async function handlePointCloudSmoothing(data: any, messageId: number): Promise<
   self.postMessage(response, { transfer: [smoothedPoints.buffer] });
 }
 
+interface VoxelDebugData {
+  pointCloudData: Float32Array;
+  voxelSize: number;
+  globalBounds: {
+    minX: number;
+    minY: number;
+    minZ: number;
+  };
+}
+
 // Handle voxel debug generation
-async function handleVoxelDebug(data: any, messageId: number): Promise<void> {
+async function handleVoxelDebug(data: VoxelDebugData, messageId: number): Promise<void> {
+  if (!wasmModule) {
+    throw new Error('WASM module not initialized');
+  }
+  
   const startTime = performance.now();
   const result = wasmModule.generate_voxel_centers(
     data.pointCloudData,
@@ -255,8 +305,14 @@ async function handleVoxelDebug(data: any, messageId: number): Promise<void> {
   self.postMessage(response, { transfer: [voxelCenters.buffer] });
 }
 
+interface RustWasmWorkerMessage {
+  type: 'INITIALIZE' | 'VOXEL_DOWNSAMPLE' | 'POINT_CLOUD_SMOOTHING' | 'VOXEL_DEBUG';
+  messageId: number;
+  data?: VoxelDownsampleData | PointCloudSmoothingData | VoxelDebugData;
+}
+
 // Message handler
-self.onmessage = async function (e: any) {
+self.onmessage = async function (e: MessageEvent<RustWasmWorkerMessage>) {
   const { type, data, messageId } = e.data;
 
   // Removed logging from hot path for performance
@@ -264,7 +320,7 @@ self.onmessage = async function (e: any) {
   try {
     switch (type) {
       case 'INITIALIZE':
-        WorkerLog.info('INITIALIZE message received');
+        Log.Info('RustWasmWorker', 'INITIALIZE message received');
         await initialize();
         const initResponse = {
           type: 'SUCCESS',
@@ -279,22 +335,31 @@ self.onmessage = async function (e: any) {
         break;
 
       case 'VOXEL_DOWNSAMPLE':
-        await handleVoxelDownsampling(data, messageId);
+        if (!data || !('pointCloudData' in data && 'voxelSize' in data && 'globalBounds' in data)) {
+          throw new Error('Invalid VOXEL_DOWNSAMPLE data');
+        }
+        await handleVoxelDownsampling(data as VoxelDownsampleData, messageId);
         break;
 
       case 'POINT_CLOUD_SMOOTHING':
-        await handlePointCloudSmoothing(data, messageId);
+        if (!data || !('pointCloudData' in data && 'smoothingRadius' in data && 'iterations' in data)) {
+          throw new Error('Invalid POINT_CLOUD_SMOOTHING data');
+        }
+        await handlePointCloudSmoothing(data as PointCloudSmoothingData, messageId);
         break;
 
       case 'VOXEL_DEBUG':
-        await handleVoxelDebug(data, messageId);
+        if (!data || !('pointCloudData' in data && 'voxelSize' in data && 'globalBounds' in data)) {
+          throw new Error('Invalid VOXEL_DEBUG data');
+        }
+        await handleVoxelDebug(data as VoxelDebugData, messageId);
         break;
 
       default:
         throw new Error(`Unknown message type: ${type}`);
     }
   } catch (error) {
-    WorkerLog.error('Error handling message:', error);
+    Log.Error('RustWasmWorker', 'Error handling message:', error);
     const errorResponse = {
       type: 'ERROR',
       method: 'WASM_RUST',
@@ -309,7 +374,7 @@ self.onmessage = async function (e: any) {
   }
 };
 
-WorkerLog.info('RustWasmWorker Classic Worker loaded');
+Log.Info('RustWasmWorker', 'RustWasmWorker Classic Worker loaded');
 
 
 
