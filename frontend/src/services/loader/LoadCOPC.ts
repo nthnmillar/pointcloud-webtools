@@ -1,7 +1,26 @@
 import type { PointCloudData, PointCloudPoint } from '../point/PointCloud';
 import { ServiceManager } from '../ServiceManager';
 import { Log } from '../../utils/Log';
-// COPC WASM module will be loaded dynamically from /wasm/copc_loader.js
+import type { COPCModule, COPCLoader, COPCHeader, Point3D } from '../../wasm/loaders/COPCModule';
+
+// Type for laz-perf module (matching LazWorker.ts)
+interface LazPerfModule {
+  LASZip: new () => {
+    open(dataPtr: number, byteLength: number): void;
+    getCount(): number;
+    getPointLength(): number;
+    getPoint(pointBufferPtr: number): void;
+    delete(): void;
+  };
+  _malloc(size: number): number;
+  _free(ptr: number): void;
+  HEAPU8: Uint8Array;
+}
+
+// Extended COPCLoader interface to include setLazPerf
+interface ExtendedCOPCLoader extends COPCLoader {
+  setLazPerf(lazPerf: LazPerfModule): void;
+}
 
 export interface COPCLoadingProgress {
   stage: 'initializing' | 'processing' | 'complete' | 'error';
@@ -10,12 +29,12 @@ export interface COPCLoadingProgress {
 }
 
 export class LoadCOPC {
-  private module: any = null;
-  private loader: any = null;
+  private module: COPCModule | null = null;
+  private loader: ExtendedCOPCLoader | null = null;
   private isProcessing = false;
   private serviceManager: ServiceManager;
   private currentFileId: string | null = null;
-  private headerData: any = null;
+  private headerData: COPCHeader | null = null;
   private calculatedCentroid: { x: number; y: number; z: number } | null = null;
   private totalPointsProcessed: number = 0;
 
@@ -100,14 +119,14 @@ export class LoadCOPC {
       moduleFunction(module, module.exports);
 
       // Get the COPCModule function
-      const COPCModule = (module.exports as { default?: (options?: { locateFile?: (path: string) => string }) => Promise<any> }).default || module.exports as (options?: { locateFile?: (path: string) => string }) => Promise<any>;
+      const COPCModuleFunction = (module.exports as { default?: (options?: { locateFile?: (path: string) => string }) => Promise<COPCModule> }).default || module.exports as (options?: { locateFile?: (path: string) => string }) => Promise<COPCModule>;
 
-      if (typeof COPCModule !== 'function') {
-        throw new Error('COPCModule is not a function: ' + typeof COPCModule);
+      if (typeof COPCModuleFunction !== 'function') {
+        throw new Error('COPCModule is not a function: ' + typeof COPCModuleFunction);
       }
 
       // Initialize the module
-      this.module = await COPCModule({
+      this.module = await COPCModuleFunction({
         locateFile: (path: string) => {
           if (path.endsWith('.wasm')) {
             return '/wasm/copc_loader.wasm';
@@ -117,8 +136,8 @@ export class LoadCOPC {
       });
       
       // Create a new loader instance with laz-perf
-      this.loader = new this.module.COPCLoader();
-      this.loader.setLazPerf(lazPerf); // Pass laz-perf to the loader
+      this.loader = new this.module.COPCLoader() as ExtendedCOPCLoader;
+      this.loader.setLazPerf(lazPerf as LazPerfModule); // Pass laz-perf to the loader
       
       Log.Info('LoadCOPC', 'COPC WASM module initialized with laz-perf');
     } catch (error) {
@@ -208,16 +227,20 @@ export class LoadCOPC {
     }
   }
 
-  private convertToPointCloudPoints(points: any[]): PointCloudPoint[] {
+  private convertToPointCloudPoints(points: Point3D[]): PointCloudPoint[] {
+    if (!this.headerData || !this.calculatedCentroid) {
+      throw new Error('Header data or centroid not initialized');
+    }
+
     const pointCloudPoints: PointCloudPoint[] = new Array(points.length);
 
     for (let i = 0; i < points.length; i++) {
       const point = points[i];
       pointCloudPoints[i] = {
         position: {
-          x: point.x - this.calculatedCentroid!.x, // Center around origin
-          y: point.y - this.calculatedCentroid!.y,
-          z: point.z - this.calculatedCentroid!.z,
+          x: point.x - this.calculatedCentroid.x, // Center around origin
+          y: point.y - this.calculatedCentroid.y,
+          z: point.z - this.calculatedCentroid.z,
         },
         color: this.headerData.hasColor ? {
           r: point.r,
@@ -234,6 +257,9 @@ export class LoadCOPC {
 
   private createBatchMesh(points: PointCloudPoint[], batchNumber: number): void {
     if (points.length === 0) return;
+    if (!this.headerData || !this.calculatedCentroid) {
+      throw new Error('Header data or centroid not initialized');
+    }
 
     const batchId = `${this.currentFileId}_batch_${batchNumber}`;
     this.totalPointsProcessed += points.length;
@@ -252,7 +278,7 @@ export class LoadCOPC {
         hasColor: this.headerData.hasColor,
         hasIntensity: this.headerData.hasIntensity,
         hasClassification: this.headerData.hasClassification,
-        centroid: this.calculatedCentroid!,
+        centroid: this.calculatedCentroid,
       },
     };
 

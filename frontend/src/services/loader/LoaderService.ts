@@ -1,6 +1,7 @@
 import { BaseService } from '../BaseService';
 import { LoadLaz } from './LoadLaz';
 import { LoadCOPC } from './LoadCOPC';
+import { ServiceManager } from '../ServiceManager';
 
 export interface LazLoadingProgress {
   stage: 'initializing' | 'processing' | 'complete' | 'error';
@@ -8,11 +9,18 @@ export interface LazLoadingProgress {
   message: string;
 }
 
+export interface FileMetadata {
+  name: string;
+  size: number;
+  type: string;
+  lastModified: number;
+}
+
 export class LoaderService extends BaseService {
   private loadLaz: LoadLaz;
   private loadCOPC: LoadCOPC;
 
-  constructor(serviceManager: any) {
+  constructor(serviceManager: ServiceManager) {
     super();
     this.loadLaz = new LoadLaz(serviceManager);
     this.loadCOPC = new LoadCOPC(serviceManager);
@@ -81,7 +89,7 @@ export class LoaderService extends BaseService {
     return ['.laz', '.las', '.copc', '.copc.laz'];
   }
 
-  async getFileMetadata(file: File): Promise<any> {
+  async getFileMetadata(file: File): Promise<FileMetadata> {
     // For now, just return basic file info
     return {
       name: file.name,

@@ -8,13 +8,42 @@ export interface LazLoadingProgress {
   message: string;
 }
 
+// LAS header data structure (from las-header module)
+export interface LasHeaderData {
+  CenterX?: number;
+  CenterY?: number;
+  CenterZ?: number;
+  MinX?: number;
+  MaxX?: number;
+  MinY?: number;
+  MaxY?: number;
+  MinZ?: number;
+  MaxZ?: number;
+  ScaleFactorX?: number;
+  ScaleFactorY?: number;
+  ScaleFactorZ?: number;
+  OffsetX?: number;
+  OffsetY?: number;
+  OffsetZ?: number;
+  [key: string]: unknown;
+}
+
+// Batch data structure from LazWorker
+export interface LazBatchData {
+  batchId: string;
+  points: Float32Array;
+  progress: number;
+  totalBatches: number;
+  header?: LasHeaderData;
+}
+
 export class LoadLaz {
   private worker: Worker | null = null;
   private isProcessing = false;
   private serviceManager: ServiceManager;
   private currentFileId: string | null = null;
   private batchCount: number = 0;
-  private headerData: any = null;
+  private headerData: LasHeaderData | null = null;
   private calculatedCentroid: { x: number; y: number; z: number } | null = null;
   private totalPointsProcessed: number = 0;
   private currentMessageHandler: ((e: MessageEvent) => void) | null = null;
@@ -175,7 +204,7 @@ export class LoadLaz {
     }
   }
 
-  private processBatch(batchData: any): void {
+  private processBatch(batchData: LazBatchData): void {
     if (!batchData.points || batchData.points.length === 0) {
       return;
     }
@@ -212,11 +241,20 @@ export class LoadLaz {
         };
       } else {
         // Fallback to calculating from min/max bounds
-        centroid = {
-          x: (this.headerData.MinX + this.headerData.MaxX) / 2,
-          y: (this.headerData.MinY + this.headerData.MaxY) / 2,
-          z: (this.headerData.MinZ + this.headerData.MaxZ) / 2,
-        };
+        if (
+          this.headerData.MinX !== undefined &&
+          this.headerData.MaxX !== undefined &&
+          this.headerData.MinY !== undefined &&
+          this.headerData.MaxY !== undefined &&
+          this.headerData.MinZ !== undefined &&
+          this.headerData.MaxZ !== undefined
+        ) {
+          centroid = {
+            x: (this.headerData.MinX + this.headerData.MaxX) / 2,
+            y: (this.headerData.MinY + this.headerData.MaxY) / 2,
+            z: (this.headerData.MinZ + this.headerData.MaxZ) / 2,
+          };
+        }
       }
       this.calculatedCentroid = centroid;
       Log.Info('LoadLaz', `Point cloud centroid: (${centroid.x.toFixed(2)}, ${centroid.y.toFixed(2)}, ${centroid.z.toFixed(2)})`);

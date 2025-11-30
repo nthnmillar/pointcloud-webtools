@@ -1,9 +1,40 @@
 // Web Worker for LAZ file processing
-let lazPerf: any = null;
-let lasHeader: any = null;
+
+// Type definitions for external libraries
+interface LASZip {
+  open(dataPtr: number, byteLength: number): void;
+  getCount(): number;
+  getPointLength(): number;
+  getPoint(pointBufferPtr: number): void;
+  delete(): void;
+}
+
+interface LazPerfModule {
+  LASZip: new () => LASZip;
+  _malloc(size: number): number;
+  _free(ptr: number): void;
+  HEAPU8: Uint8Array;
+}
+
+interface LasHeaderModule {
+  readFileObject(options: { input: File }): Promise<LasHeader>;
+}
+
+interface LasHeader {
+  ScaleFactorX?: number;
+  ScaleFactorY?: number;
+  ScaleFactorZ?: number;
+  OffsetX?: number;
+  OffsetY?: number;
+  OffsetZ?: number;
+  [key: string]: unknown;
+}
+
+let lazPerf: LazPerfModule | null = null;
+let lasHeader: LasHeaderModule | null = null;
 let currentFileBuffer: ArrayBuffer | null = null;
-let currentLaszip: any = null;
-let currentHeader: any = null;
+let currentLaszip: LASZip | null = null;
+let currentHeader: LasHeader | null = null;
 let currentBatchIndex = 0;
 let totalBatches = 0;
 let batchSize = 500;
@@ -13,9 +44,10 @@ async function initialize() {
   const lazPerfModule = await import('laz-perf');
   const createLazPerf = lazPerfModule.createLazPerf;
 
-  // @ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const lasHeaderModule = await import('las-header');
-  lasHeader = lasHeaderModule.default;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+  lasHeader = lasHeaderModule.default as LasHeaderModule;
 
   lazPerf = await createLazPerf({
     locateFile: (path: string) =>
@@ -29,6 +61,13 @@ async function initializeFile(
   batchSizeParam: number = 500
 ) {
   try {
+    if (!lasHeader) {
+      throw new Error('lasHeader not initialized');
+    }
+    if (!lazPerf) {
+      throw new Error('lazPerf not initialized');
+    }
+    
     // Read header
     currentHeader = await lasHeader.readFileObject({
       input: new File([fileBuffer], 'file.laz'),
@@ -80,6 +119,10 @@ async function processNextBatch() {
     const endIndex = Math.min(startIndex + batchSize, pointCount);
     const batchPointCount = endIndex - startIndex;
 
+    if (!lazPerf) {
+      throw new Error('lazPerf not initialized');
+    }
+    
     // Create batch points array
     const batchPoints = new Float32Array(batchPointCount * 3);
     const pointBufferPtr = lazPerf._malloc(pointDataRecordLength);
@@ -112,6 +155,9 @@ async function processNextBatch() {
         ).getInt32(8, true);
 
         // Apply scale and offset from header
+        if (!currentHeader) {
+          throw new Error('Header not initialized');
+        }
         const scaledX =
           x * (currentHeader.ScaleFactorX || 1) + (currentHeader.OffsetX || 0);
         const scaledY =
@@ -151,7 +197,7 @@ async function processNextBatch() {
     if (currentBatchIndex >= totalBatches) {
       // Cleanup
       currentLaszip.delete();
-      if (currentFileBuffer) {
+      if (currentFileBuffer && lazPerf) {
         const uint8Array = new Uint8Array(currentFileBuffer);
         const dataPtr = lazPerf._malloc(uint8Array.length);
         lazPerf._free(dataPtr);
@@ -178,7 +224,7 @@ async function processNextBatch() {
 }
 
 // Message handler
-self.onmessage = async function (e) {
+self.onmessage = async function (e: MessageEvent<{ type: string; data?: { fileBuffer?: ArrayBuffer; batchSize?: number } }>) {
   const { type, data } = e.data;
 
   try {
@@ -189,6 +235,9 @@ self.onmessage = async function (e) {
         break;
 
       case 'INITIALIZE_FILE':
+        if (!data?.fileBuffer) {
+          throw new Error('fileBuffer is required for INITIALIZE_FILE');
+        }
         await initializeFile(data.fileBuffer, data.batchSize || 500);
         break;
 
