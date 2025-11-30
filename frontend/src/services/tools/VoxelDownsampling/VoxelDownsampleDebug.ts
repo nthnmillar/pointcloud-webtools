@@ -33,7 +33,7 @@ export class VoxelDownsampleDebug {
   private _serviceManager: ServiceManager | null = null;
   private _updateTimeout: NodeJS.Timeout | null = null;
   private _isUpdating = false;
-  private _currentImplementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' = 'TS';
+  private _currentImplementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' | 'BE_RUST' | 'BE_PYTHON' = 'TS';
   private _currentColor: { r: number; g: number; b: number } = { r: 0/255, g: 100/255, b: 200/255 };
 
   constructor(scene: Scene, serviceManager?: ServiceManager | null) {
@@ -44,7 +44,7 @@ export class VoxelDownsampleDebug {
   /**
    * Set the current implementation for voxel debug
    */
-  public setImplementation(implementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE'): void {
+  public setImplementation(implementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' | 'BE_RUST' | 'BE_PYTHON'): void {
     this._currentImplementation = implementation;
     Log.InfoClass(this, 'Voxel debug implementation set', { implementation });
   }
