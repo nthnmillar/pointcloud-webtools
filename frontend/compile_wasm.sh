@@ -26,8 +26,11 @@ echo "Compiling unified tools WASM module..."
 EMSCRIPTEN_ROOT=$(dirname $(which emcc))
 SYSTEM_INCLUDE="${EMSCRIPTEN_ROOT}/system/include"
 
-emcc "$FRONTEND_DIR/src/wasm/cpp/tools.cpp" \
+emcc "$FRONTEND_DIR/src/wasm/cpp/voxel_downsample.cpp" \
+     "$FRONTEND_DIR/src/wasm/cpp/point_cloud_smoothing.cpp" \
+     "$FRONTEND_DIR/src/wasm/cpp/voxel_debug.cpp" \
   -I"${SYSTEM_INCLUDE}" \
+  -I"$FRONTEND_DIR/src/wasm/cpp" \
   -o "$FRONTEND_DIR/public/wasm/cpp/tools_cpp.js" \
   -std=c++17 \
   -Wno-c++20-extensions \
