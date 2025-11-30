@@ -1,7 +1,8 @@
 {
   "name": "pointcloud-webtools",
-  "private": true,
   "version": "0.0.0",
+  "license": "BSD-3-Clause",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "yarn build-wasm && vite",

@@ -77,7 +77,6 @@ class ProcessPool {
 }
 
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -85,9 +84,10 @@ const __dirname = path.dirname(__filename);
 
 
 // Initialize process pools - increase size for better parallelization
-const voxelDownsamplePool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample'), 8);
-const voxelDebugPool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug'), 4);
-const pointSmoothPool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'point_smooth', 'point_smooth_cpp'), 4);
+// Note: These pools are reserved for future use
+const _voxelDownsamplePool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'voxel_downsample', 'voxel_downsample'), 8);
+const _voxelDebugPool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'voxel_debug', 'voxel_debug'), 4);
+const _pointSmoothPool = new ProcessPool(path.join(__dirname, 'services', 'tools', 'point_smooth', 'point_smooth_cpp'), 4);
 
 const app = express();
 const server = createServer(app);
@@ -165,7 +165,7 @@ wss.on('connection', (ws, req) => {
           pendingHeader = message;
         }
         return; // Exit early for JSON messages
-      } catch (parseError) {
+      } catch {
         // Not JSON, treat as binary data
       }
       
@@ -258,7 +258,7 @@ wss.on('connection', (ws, req) => {
                 
                 // Extract downsampled points (skip 4-byte header)
                 const downsampledPointsBuffer = outputBuffer.slice(4, expectedSize);
-                const downsampledPoints = new Float32Array(downsampledPointsBuffer.buffer, downsampledPointsBuffer.byteOffset, outputCount * 3);
+                const _downsampledPoints = new Float32Array(downsampledPointsBuffer.buffer, downsampledPointsBuffer.byteOffset, outputCount * 3);
                 
               const processingTime = Date.now() - startTime;
               
@@ -397,7 +397,7 @@ wss.on('connection', (ws, req) => {
                 
                 // Extract downsampled points (skip 4-byte header)
                 const downsampledPointsBuffer = outputBuffer.slice(4, expectedSize);
-                const downsampledPoints = new Float32Array(downsampledPointsBuffer.buffer, downsampledPointsBuffer.byteOffset, outputCount * 3);
+                const _downsampledPoints = new Float32Array(downsampledPointsBuffer.buffer, downsampledPointsBuffer.byteOffset, outputCount * 3);
                 
                 const processingTime = Date.now() - startTime;
                 
@@ -511,7 +511,7 @@ wss.on('connection', (ws, req) => {
                 
                 // Extract smoothed points (skip 4-byte header)
                 const smoothedPointsBuffer = outputBuffer.slice(4, expectedSize);
-                const smoothedPoints = new Float32Array(smoothedPointsBuffer.buffer, smoothedPointsBuffer.byteOffset, outputCount * 3);
+                const _smoothedPoints = new Float32Array(smoothedPointsBuffer.buffer, smoothedPointsBuffer.byteOffset, outputCount * 3);
                 
                 const processingTime = Date.now() - startTime;
                 
@@ -628,7 +628,7 @@ wss.on('connection', (ws, req) => {
                 
                 // Extract smoothed points (skip 4-byte header)
                 const smoothedPointsBuffer = outputBuffer.slice(4, expectedSize);
-                const smoothedPoints = new Float32Array(smoothedPointsBuffer.buffer, smoothedPointsBuffer.byteOffset, outputCount * 3);
+                const _smoothedPoints = new Float32Array(smoothedPointsBuffer.buffer, smoothedPointsBuffer.byteOffset, outputCount * 3);
                 
                 const processingTime = Date.now() - startTime;
                 
@@ -758,7 +758,7 @@ wss.on('connection', (ws, req) => {
                 
                 // Extract smoothed points (skip 4-byte header)
                 const smoothedPointsBuffer = outputBuffer.slice(4, expectedSize);
-                const smoothedPoints = new Float32Array(smoothedPointsBuffer.buffer, smoothedPointsBuffer.byteOffset, outputCount * 3);
+                const _smoothedPoints = new Float32Array(smoothedPointsBuffer.buffer, smoothedPointsBuffer.byteOffset, outputCount * 3);
                 
                 const processingTime = Date.now() - startTime;
                 
@@ -896,7 +896,7 @@ wss.on('connection', (ws, req) => {
                 
                 // Extract voxel grid positions (skip 4-byte header)
                 const voxelGridPositionsBuffer = outputBuffer.slice(4, expectedSize);
-                const voxelGridPositions = new Float32Array(voxelGridPositionsBuffer.buffer, voxelGridPositionsBuffer.byteOffset, voxelCount * 3);
+                const _voxelGridPositions = new Float32Array(voxelGridPositionsBuffer.buffer, voxelGridPositionsBuffer.byteOffset, voxelCount * 3);
                 
                 const processingTime = Date.now() - startTime;
 
@@ -1031,7 +1031,7 @@ wss.on('connection', (ws, req) => {
                 
                 // Extract voxel grid positions (skip 4-byte header)
                 const voxelGridPositionsBuffer = outputBuffer.slice(4, expectedSize);
-                const voxelGridPositions = new Float32Array(voxelGridPositionsBuffer.buffer, voxelGridPositionsBuffer.byteOffset, voxelCount * 3);
+                const _voxelGridPositions = new Float32Array(voxelGridPositionsBuffer.buffer, voxelGridPositionsBuffer.byteOffset, voxelCount * 3);
                 
                 const processingTime = Date.now() - startTime;
 
@@ -1166,7 +1166,7 @@ wss.on('connection', (ws, req) => {
                 
                 // Extract voxel grid positions (skip 4-byte header)
                 const voxelGridPositionsBuffer = outputBuffer.slice(4, expectedSize);
-                const voxelGridPositions = new Float32Array(voxelGridPositionsBuffer.buffer, voxelGridPositionsBuffer.byteOffset, voxelCount * 3);
+                const _voxelGridPositions = new Float32Array(voxelGridPositionsBuffer.buffer, voxelGridPositionsBuffer.byteOffset, voxelCount * 3);
                 
                 const processingTime = Date.now() - startTime;
                 
@@ -1300,7 +1300,7 @@ wss.on('connection', (ws, req) => {
                 
                 // Extract downsampled points (skip 4-byte header)
                 const downsampledPointsBuffer = outputBuffer.slice(4, expectedSize);
-                const downsampledPoints = new Float32Array(downsampledPointsBuffer.buffer, downsampledPointsBuffer.byteOffset, outputCount * 3);
+                const _downsampledPoints = new Float32Array(downsampledPointsBuffer.buffer, downsampledPointsBuffer.byteOffset, outputCount * 3);
                 
                 const processingTime = Date.now() - startTime;
                 
@@ -1370,7 +1370,7 @@ app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
 // Configure multer for file uploads
-const upload = multer({ 
+const _upload = multer({ 
   storage: multer.memoryStorage(),
   limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
 });
@@ -1594,7 +1594,7 @@ app.post('/api/point-smooth', async (req, res) => {
       const lines = outputBuffer.trim().split('\n');
       
       if (lines.length >= 2) {
-        const pointCount = parseInt(lines[0]);
+        const _pointCount = parseInt(lines[0]);
         const pointsString = lines[1].trim();
         const points = pointsString.split(' ').map(parseFloat).filter(p => !isNaN(p));
         smoothedPoints = points;

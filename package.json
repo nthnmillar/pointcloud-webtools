@@ -2,6 +2,7 @@
   "name": "pointcloud-webtools",
   "version": "1.0.0",
   "description": "Point Cloud Web Tools - Frontend and Backend",
+  "license": "BSD-3-Clause",
   "private": true,
   "workspaces": [
     "frontend",
@@ -15,9 +16,15 @@
     "build": "yarn build:frontend && yarn build:backend",
     "build:frontend": "cd frontend && yarn build",
     "build:backend": "cd backend && yarn build",
-    "lint": "cd frontend && yarn lint",
-    "format": "cd frontend && yarn format",
-    "format:check": "cd frontend && yarn format:check",
+    "lint": "yarn lint:frontend && yarn lint:backend",
+    "lint:frontend": "cd frontend && yarn lint",
+    "lint:backend": "cd backend && yarn lint",
+    "format": "yarn format:frontend && yarn format:backend",
+    "format:frontend": "cd frontend && yarn format",
+    "format:backend": "cd backend && yarn format",
+    "format:check": "yarn format:check:frontend && yarn format:check:backend",
+    "format:check:frontend": "cd frontend && yarn format:check",
+    "format:check:backend": "cd backend && yarn format:check",
     "install:all": "yarn install && cd frontend && yarn install && cd ../backend && yarn install"
   },
   "devDependencies": {
