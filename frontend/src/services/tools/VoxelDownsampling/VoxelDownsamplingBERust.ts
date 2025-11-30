@@ -144,7 +144,7 @@ export class VoxelDownsamplingBERust extends BaseService {
         }
       };
       
-      this.ws.onclose = (event) => {
+      this.ws.onclose = (_event) => {
         Log.Info('VoxelDownsamplingBERust', 'WebSocket disconnected');
         this.ws = null;
         

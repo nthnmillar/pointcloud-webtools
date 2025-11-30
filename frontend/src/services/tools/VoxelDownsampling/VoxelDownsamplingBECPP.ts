@@ -22,7 +22,7 @@ export class VoxelDownsamplingBECPP extends BaseService {
   private maxReconnectAttempts = 5
   private pendingHeader: VoxelDownsampleResponseHeader | null = null // Track pending binary data header
 
-  constructor(serviceManager: ServiceManager) {
+  constructor(_serviceManager: ServiceManager) {
     super();
   }
 

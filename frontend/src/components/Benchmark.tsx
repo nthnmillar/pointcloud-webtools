@@ -91,6 +91,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
   // Debug logging for WASM Rust results
   React.useEffect(() => {
     if (wasmRustResults) {
+      // Debug logging can be added here if needed
     }
   }, [wasmRustResults]);
 

@@ -10,18 +10,6 @@ interface ErrorEventData {
   error?: string;
 }
 
-interface PointCloudEventData {
-  error?: string;
-  [key: string]: unknown;
-}
-
-interface FileLoadingEventData {
-  error?: string;
-  type?: string;
-  fileName?: string;
-  [key: string]: unknown;
-}
-
 interface PointCloudViewerProps {
   className?: string;
 }
@@ -130,6 +118,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
   // Debug logging for WASM Rust results
   useEffect(() => {
     if (wasmRustResults) {
+      // Debug logging can be added here if needed
     }
   }, [wasmRustResults]);
   const [currentTool, setCurrentTool] = useState<'voxel' | 'smoothing'>('voxel');
@@ -195,12 +184,12 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     Log.Info('PointCloudViewer', 'Service manager initialized');
   };
 
-  const handlePointCloudLoaded = (_data: PointCloudEventData) => {
+  const handlePointCloudLoaded = () => {
     setIsLoading(false);
     setError(null);
   };
 
-  const handlePointCloudLoading = (_data: PointCloudEventData) => {
+  const handlePointCloudLoading = () => {
     setIsLoading(true);
     setError(null);
   };
@@ -210,16 +199,16 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     setError(data.error || 'Unknown error occurred');
   };
 
-  const handlePointCloudRendered = (_data: PointCloudEventData) => {
+  const handlePointCloudRendered = () => {
     // Point cloud rendered
   };
 
-  const handleFileLoadingStarted = (_data: FileLoadingEventData) => {
+  const handleFileLoadingStarted = () => {
     setIsLoading(true);
     setError(null);
   };
 
-  const handleFileLoadingCompleted = (_data: FileLoadingEventData) => {
+  const handleFileLoadingCompleted = () => {
     setIsLoading(false);
     setError(null);
   };

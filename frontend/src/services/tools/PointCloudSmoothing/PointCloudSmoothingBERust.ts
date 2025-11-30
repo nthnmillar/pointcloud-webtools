@@ -38,8 +38,11 @@ export class PointCloudSmoothingBERust extends BaseService {
   private reconnectDelay = 1000;
   private pendingHeader: PointSmoothRustResponseHeader | null = null; // Track pending binary data header
 
+  private baseUrl: string;
+
   constructor(baseUrl: string = 'ws://localhost:3003') {
     super();
+    this.baseUrl = baseUrl;
     this.connect();
   }
 
@@ -49,9 +52,9 @@ export class PointCloudSmoothingBERust extends BaseService {
 
   private connect(): void {
     try {
-      Log.Info('PointCloudSmoothingBERust', 'Connecting to WebSocket', { baseUrl: 'ws://localhost:3003' });
+      Log.Info('PointCloudSmoothingBERust', 'Connecting to WebSocket', { baseUrl: this.baseUrl });
       
-      this.ws = new WebSocket('ws://localhost:3003');
+      this.ws = new WebSocket(this.baseUrl);
       
       this.ws.onopen = () => {
         Log.Info('PointCloudSmoothingBERust', 'WebSocket connected');

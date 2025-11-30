@@ -5,7 +5,7 @@
 import { Log } from '../utils/Log';
 
 export abstract class BaseService {
-  private listeners: Map<string, ((data: any) => void)[]> = new Map();
+  private listeners: Map<string, ((data: unknown) => void)[]> = new Map();
   protected isInitialized: boolean = false;
 
   constructor() {
@@ -15,7 +15,7 @@ export abstract class BaseService {
   /**
    * Initialize the service
    */
-  abstract initialize(...args: any[]): Promise<void>;
+  abstract initialize(...args: unknown[]): Promise<void>;
 
   /**
    * Dispose of the service and clean up resources
@@ -32,7 +32,7 @@ export abstract class BaseService {
   /**
    * Subscribe to service events
    */
-  on(eventType: string, callback: (data: any) => void): void {
+  on(eventType: string, callback: (data: unknown) => void): void {
     if (!this.listeners.has(eventType)) {
       this.listeners.set(eventType, []);
     }
@@ -42,7 +42,7 @@ export abstract class BaseService {
   /**
    * Unsubscribe from service events
    */
-  off(eventType: string, callback: (data: any) => void): void {
+  off(eventType: string, callback: (data: unknown) => void): void {
     const eventListeners = this.listeners.get(eventType);
     if (eventListeners) {
       const index = eventListeners.indexOf(callback);
@@ -55,7 +55,7 @@ export abstract class BaseService {
   /**
    * Emit an event to all subscribers
    */
-  protected emit(eventType: string, data?: any): void {
+  protected emit(eventType: string, data?: unknown): void {
     const eventListeners = this.listeners.get(eventType);
     if (eventListeners) {
       eventListeners.forEach(callback => {

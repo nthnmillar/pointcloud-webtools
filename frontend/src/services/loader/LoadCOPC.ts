@@ -86,8 +86,6 @@ export class LoadCOPC {
       // Process file
       const arrayBuffer = await this.readFileAsArrayBuffer(file);
       await this.processFile(arrayBuffer, batchSize, batchLimit);
-    } catch (error) {
-      throw error;
     } finally {
       this.isProcessing = false;
     }

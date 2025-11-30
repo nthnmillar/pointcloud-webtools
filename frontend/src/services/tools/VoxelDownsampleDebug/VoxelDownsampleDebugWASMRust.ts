@@ -40,7 +40,7 @@ export class VoxelDownsampleDebugWASMRust extends BaseService {
     if (!this.isInitialized || !this.wasmModule) {
       try {
         await this.initialize();
-      } catch (e) {
+      } catch {
         return { success: false, error: 'Rust WASM module not initialized' };
       }
     }

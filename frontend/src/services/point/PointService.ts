@@ -8,7 +8,8 @@ import type {
   RenderOptions,
 } from './PointCloud';
 import { Log } from '../../utils/Log';
-import { Vector3 } from '@babylonjs/core';
+import { Vector3, Scene } from '@babylonjs/core';
+import type { ServiceManager } from '../ServiceManager';
 
 /**
  * Point Service - Handles point cloud data operations
@@ -17,11 +18,11 @@ export class PointService extends BaseService {
   private pointClouds: Map<string, PointCloudData> = new Map();
   private _activePointCloudId: string | null = null;
   private pointMesh: PointMesh | null = null;
-  private scene: any = null;
-  private serviceManager: any = null;
+  private scene: Scene | null = null;
+  private serviceManager: ServiceManager | null = null;
   private _batchSize: number = 5000;
 
-  async initialize(scene: any, serviceManager?: any): Promise<void> {
+  async initialize(scene: Scene, serviceManager?: ServiceManager): Promise<void> {
     if (this.isInitialized) {
       Log.WarnClass(this, 'PointService already initialized, skipping');
       return;
@@ -281,45 +282,41 @@ export class PointService extends BaseService {
     color: { r: number; g: number; b: number } = { r: 1, g: 1, b: 1 },
     metadata: Partial<PointCloudMetadata>
   ): Promise<void> {
-    try {
-      Log.InfoClass(this, 'Creating point cloud from Float32Array', { id, pointCount: positions.length / 3 });
+    Log.InfoClass(this, 'Creating point cloud from Float32Array', { id, pointCount: positions.length / 3 });
 
-      // Calculate bounds from Float32Array
-      const bounds = this.calculateBoundsFromFloat32Array(positions);
+    // Calculate bounds from Float32Array
+    const bounds = this.calculateBoundsFromFloat32Array(positions);
 
-      // Store minimal point cloud data
-      // Store positions array for later use (e.g., debug visualization)
-      const pointCloudData: PointCloudData = {
-        points: [], // Empty - we don't store points, just metadata
-        positions: new Float32Array(positions), // Store a copy of positions for debug/tools
-        metadata: {
-          name: metadata.name || 'Point Cloud',
-          totalPoints: positions.length / 3,
-          bounds,
-          hasColor: true,
-          hasIntensity: false,
-          hasClassification: false,
-          ...metadata
-        }
-      };
-      this.pointClouds.set(id, pointCloudData);
-
-      if (!this.activePointCloudId) {
-        this.activePointCloudId = id;
+    // Store minimal point cloud data
+    // Store positions array for later use (e.g., debug visualization)
+    const pointCloudData: PointCloudData = {
+      points: [], // Empty - we don't store points, just metadata
+      positions: new Float32Array(positions), // Store a copy of positions for debug/tools
+      metadata: {
+        name: metadata.name || 'Point Cloud',
+        totalPoints: positions.length / 3,
+        bounds,
+        hasColor: true,
+        hasIntensity: false,
+        hasClassification: false,
+        ...metadata
       }
+    };
+    this.pointClouds.set(id, pointCloudData);
 
-      // Create the mesh directly using optimized method
-      if (this.pointMesh) {
-        await this.pointMesh.createPointCloudMeshFromFloat32Array(
-          id,
-          positions,
-          color,
-          metadata,
-          this.getRenderOptions()
-        );
-      }
-    } catch (error) {
-      throw error;
+    if (!this.activePointCloudId) {
+      this.activePointCloudId = id;
+    }
+
+    // Create the mesh directly using optimized method
+    if (this.pointMesh) {
+      await this.pointMesh.createPointCloudMeshFromFloat32Array(
+        id,
+        positions,
+        color,
+        metadata,
+        this.getRenderOptions()
+      );
     }
   }
 
@@ -361,26 +358,22 @@ export class PointService extends BaseService {
    * Create point cloud mesh directly (bypasses loadPointCloud)
    */
   async createPointCloudMesh(id: string, data: PointCloudData): Promise<void> {
-    try {
-      Log.InfoClass(this, 'Creating point cloud', { id });
+    Log.InfoClass(this, 'Creating point cloud', { id });
 
-      this.validatePointCloudData(data);
+    this.validatePointCloudData(data);
 
-      // Store the point cloud data
-      this.pointClouds.set(id, data);
+    // Store the point cloud data
+    this.pointClouds.set(id, data);
 
-      // Point cloud created
+    // Point cloud created
 
-      if (!this.activePointCloudId) {
-        this.activePointCloudId = id;
-      }
+    if (!this.activePointCloudId) {
+      this.activePointCloudId = id;
+    }
 
-      // Create the mesh directly - don't call renderPointCloud to avoid duplication
-      if (this.pointMesh) {
-        await this.pointMesh.createPointCloudMesh(id, data, this.getRenderOptions());
-      }
-    } catch (error) {
-      throw error;
+    // Create the mesh directly - don't call renderPointCloud to avoid duplication
+    if (this.pointMesh) {
+      await this.pointMesh.createPointCloudMesh(id, data, this.getRenderOptions());
     }
   }
 

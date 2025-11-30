@@ -171,7 +171,7 @@ export class ServiceManager extends BaseService {
     this._loaderService.cancelLoading();
   }
 
-  async getFileMetadata(file: File): Promise<any> {
+  async getFileMetadata(file: File): Promise<unknown> {
     return this._loaderService.getFileMetadata(file);
   }
 

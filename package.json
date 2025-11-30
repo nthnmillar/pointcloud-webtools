@@ -15,6 +15,9 @@
     "build": "yarn build:frontend && yarn build:backend",
     "build:frontend": "cd frontend && yarn build",
     "build:backend": "cd backend && yarn build",
+    "lint": "cd frontend && yarn lint",
+    "format": "cd frontend && yarn format",
+    "format:check": "cd frontend && yarn format:check",
     "install:all": "yarn install && cd frontend && yarn install && cd ../backend && yarn install"
   },
   "devDependencies": {

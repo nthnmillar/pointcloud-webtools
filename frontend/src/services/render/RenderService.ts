@@ -12,7 +12,7 @@ export class RenderService extends BaseService {
     this._renderOptions = this.getDefaultRenderOptions();
   }
 
-  async initialize(..._args: unknown[]): Promise<void> {
+  async initialize(): Promise<void> {
     this.isInitialized = true;
     this.emit('initialized');
   }

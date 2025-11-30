@@ -106,8 +106,6 @@ export class LoadLaz {
       // Process file with batches
       const arrayBuffer = await this.readFileAsArrayBuffer(file);
       await this.processFile(arrayBuffer, batchSize);
-    } catch (error) {
-      throw error;
     } finally {
       this.isProcessing = false;
     }

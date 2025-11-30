@@ -44,9 +44,7 @@ async function initialize() {
   const lazPerfModule = await import('laz-perf');
   const createLazPerf = lazPerfModule.createLazPerf;
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const lasHeaderModule = await import('las-header');
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
   lasHeader = lasHeaderModule.default as LasHeaderModule;
 
   lazPerf = await createLazPerf({
@@ -169,7 +167,7 @@ async function processNextBatch() {
         batchPoints[i * 3] = scaledX;
         batchPoints[i * 3 + 1] = scaledY;
         batchPoints[i * 3 + 2] = scaledZ;
-      } catch (pointError) {
+      } catch {
         // Continue with next point
       }
     }

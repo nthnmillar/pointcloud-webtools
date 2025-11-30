@@ -17,7 +17,7 @@ export class PointCloudSmoothingTS extends BaseService {
       const startTime = performance.now();
       
       const pointCount = params.points.length / 3;
-      let smoothedPoints = new Float32Array(params.points);
+      const smoothedPoints = new Float32Array(params.points);
       
       // Ultra-optimized smoothing implementation using spatial hashing (O(n) complexity)
       const radiusSquared = params.smoothingRadius * params.smoothingRadius;

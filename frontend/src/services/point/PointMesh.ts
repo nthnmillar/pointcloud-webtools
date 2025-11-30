@@ -28,8 +28,7 @@ export class PointMesh {
     positions: Float32Array,
     color: { r: number; g: number; b: number } = { r: 1, g: 1, b: 1 },
     _metadata: Partial<PointCloudMetadata>,
-    options: RenderOptions,
-    _batchSize: number = 1000
+    options: RenderOptions
   ): Promise<PointsCloudSystem | null> {
     Log.Debug('PointMesh', 'Creating point cloud mesh from Float32Array', { id, pointCount: positions.length / 3 });
     
@@ -439,7 +438,7 @@ export class PointMesh {
    * Update point size for all meshes
    */
   updateAllPointSizes(pointSize: number): void {
-    for (const [_id, mesh] of this.meshes) {
+    for (const [, mesh] of this.meshes) {
       if (mesh.mesh && mesh.mesh.material) {
         mesh.mesh.material.pointSize = pointSize;
       }

@@ -138,7 +138,7 @@ export class PointCloudSmoothingBECPP extends BaseService {
         }
       };
       
-      this.ws.onclose = (event) => {
+      this.ws.onclose = () => {
         Log.Info('PointCloudSmoothingBECPP', 'WebSocket disconnected');
         this.ws = null;
         
