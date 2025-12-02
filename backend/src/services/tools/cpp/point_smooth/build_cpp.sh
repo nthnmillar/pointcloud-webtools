@@ -34,7 +34,7 @@ clang++ \
     -ffast-math \
     -flto \
     -o "${BUILD_DIR}/point_smooth_cpp" \
-    point_smooth_cpp.cpp
+    point_smooth.cpp
 
 echo "✅ C++ point smoothing backend built successfully with clang++!"
 echo "Executable: ${BUILD_DIR}/point_smooth_cpp"
