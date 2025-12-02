@@ -3,7 +3,15 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['node_modules/**', 'build/**', 'target/**', '**/*.so', '**/*.d', '**/*.rlib', '**/*.rmeta'],
+    ignores: [
+      'node_modules/**',
+      'build/**',
+      'target/**',
+      '**/*.so',
+      '**/*.d',
+      '**/*.rlib',
+      '**/*.rmeta',
+    ],
   },
   {
     files: ['**/*.js'],
@@ -17,9 +25,11 @@ export default [
     },
     rules: {
       ...js.configs.recommended.rules,
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       'no-console': 'off', // Allow console.log in backend
     },
   },
 ];
-

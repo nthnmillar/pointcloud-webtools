@@ -3,14 +3,19 @@ import { ServiceManager } from '../../ServiceManager';
 import { Log } from '../../../utils/Log';
 
 // Import the Rust WASM module
-import init, { PointCloudToolsRust } from '../../../../public/wasm/rust/tools_rust.js';
+import init, {
+  PointCloudToolsRust,
+} from '../../../../public/wasm/rust/tools_rust.js';
 
 export class PointCloudSmoothingWASMRust extends BaseService {
   private wasmModule: PointCloudToolsRust | null = null;
 
   constructor(_serviceManager: ServiceManager) {
     super();
-    Log.Info('PointCloudSmoothingWASMRust', 'Rust WASM point cloud smoothing service created');
+    Log.Info(
+      'PointCloudSmoothingWASMRust',
+      'Rust WASM point cloud smoothing service created'
+    );
   }
 
   async initialize(): Promise<void> {
@@ -19,18 +24,28 @@ export class PointCloudSmoothingWASMRust extends BaseService {
     }
 
     try {
-      Log.Info('PointCloudSmoothingWASMRust', 'Starting Rust WASM initialization...');
-      
+      Log.Info(
+        'PointCloudSmoothingWASMRust',
+        'Starting Rust WASM initialization...'
+      );
+
       // Initialize the Rust WASM module
       await init();
-      
+
       // Create the Rust tools instance
       this.wasmModule = new PointCloudToolsRust();
-      
+
       this.isInitialized = true;
-      Log.Info('PointCloudSmoothingWASMRust', 'Rust WASM module loaded successfully for real benchmarking');
+      Log.Info(
+        'PointCloudSmoothingWASMRust',
+        'Rust WASM module loaded successfully for real benchmarking'
+      );
     } catch (error) {
-      Log.Error('PointCloudSmoothingWASMRust', 'Failed to initialize Rust WASM module', error);
+      Log.Error(
+        'PointCloudSmoothingWASMRust',
+        'Failed to initialize Rust WASM module',
+        error
+      );
       throw error;
     }
   }
@@ -54,11 +69,15 @@ export class PointCloudSmoothingWASMRust extends BaseService {
     const startTime = performance.now();
 
     try {
-      Log.Info('PointCloudSmoothingWASMRust', 'Starting Rust WASM point cloud smoothing', {
-        pointCount: pointCloudData.length / 3,
-        smoothingRadius,
-        iterations
-      });
+      Log.Info(
+        'PointCloudSmoothingWASMRust',
+        'Starting Rust WASM point cloud smoothing',
+        {
+          pointCount: pointCloudData.length / 3,
+          smoothingRadius,
+          iterations,
+        }
+      );
 
       // Use Float32Array directly for Rust WASM (now uses f32)
       const pointsArray = pointCloudData;
@@ -72,10 +91,14 @@ export class PointCloudSmoothingWASMRust extends BaseService {
 
       const processingTime = performance.now() - startTime;
 
-      Log.Info('PointCloudSmoothingWASMRust', 'Rust WASM point cloud smoothing completed', {
-        pointCount: pointCloudData.length / 3,
-        processingTime: processingTime.toFixed(2) + 'ms'
-      });
+      Log.Info(
+        'PointCloudSmoothingWASMRust',
+        'Rust WASM point cloud smoothing completed',
+        {
+          pointCount: pointCloudData.length / 3,
+          processingTime: processingTime.toFixed(2) + 'ms',
+        }
+      );
 
       // Result is already Float32Array (Rust WASM now returns f32)
       const smoothedPoints = result;
@@ -87,16 +110,20 @@ export class PointCloudSmoothingWASMRust extends BaseService {
         smoothedPoints,
         originalCount,
         smoothedCount,
-        processingTime
+        processingTime,
       };
     } catch (error) {
       const processingTime = performance.now() - startTime;
-      Log.Error('PointCloudSmoothingWASMRust', 'Rust WASM point cloud smoothing failed', error);
-      
+      Log.Error(
+        'PointCloudSmoothingWASMRust',
+        'Rust WASM point cloud smoothing failed',
+        error
+      );
+
       return {
         success: false,
         processingTime,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -104,6 +131,9 @@ export class PointCloudSmoothingWASMRust extends BaseService {
   dispose(): void {
     this.wasmModule = null;
     this.isInitialized = false;
-    Log.Info('PointCloudSmoothingWASMRust', 'Rust WASM point cloud smoothing service disposed');
+    Log.Info(
+      'PointCloudSmoothingWASMRust',
+      'Rust WASM point cloud smoothing service disposed'
+    );
   }
 }

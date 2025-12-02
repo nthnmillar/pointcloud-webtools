@@ -40,4 +40,3 @@ export interface ToolHandlers {
   isProcessingRef: RefObject<boolean>;
   workerManager: RefObject<WorkerManager | null>;
 }
-

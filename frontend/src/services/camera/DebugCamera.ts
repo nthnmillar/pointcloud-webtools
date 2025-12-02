@@ -17,8 +17,15 @@ export class DebugCamera {
     if (!this._scene) return;
 
     // Simple ArcRotateCamera positioned externally
-    this._camera = new ArcRotateCamera("debugCamera", Math.PI / 2, Math.PI / 4, 20, Vector3.Zero(), this._scene);
-    
+    this._camera = new ArcRotateCamera(
+      'debugCamera',
+      Math.PI / 2,
+      Math.PI / 4,
+      20,
+      Vector3.Zero(),
+      this._scene
+    );
+
     // Set initial sensitivity values to match main camera defaults
     // These values are calculated from the main camera's default sensitivity settings
     this._camera.wheelPrecision = 2.899; // Calculated from zoomSensitivity = 0.005
@@ -26,7 +33,6 @@ export class DebugCamera {
     this._camera.panningInertia = 0.9; // Smooth panning
     this._camera.wheelDeltaPercentage = 0; // Disable for equal zoom in/out
   }
-
 
   /**
    * Activate the debug camera

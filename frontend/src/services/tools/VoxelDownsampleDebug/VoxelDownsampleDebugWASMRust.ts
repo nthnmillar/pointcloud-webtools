@@ -1,17 +1,25 @@
 import { BaseService } from '../../BaseService';
 import { ServiceManager } from '../../ServiceManager';
 import { Log } from '../../../utils/Log';
-import type { VoxelDebugParams, VoxelDebugResult } from './VoxelDownsampleDebugService';
+import type {
+  VoxelDebugParams,
+  VoxelDebugResult,
+} from './VoxelDownsampleDebugService';
 
 // Import the Rust WASM module
-import init, { PointCloudToolsRust } from '../../../../public/wasm/rust/tools_rust.js';
+import init, {
+  PointCloudToolsRust,
+} from '../../../../public/wasm/rust/tools_rust.js';
 
 export class VoxelDownsampleDebugWASMRust extends BaseService {
   private wasmModule: PointCloudToolsRust | null = null;
 
   constructor(_serviceManager: ServiceManager) {
     super();
-    Log.Info('VoxelDownsampleDebugWASMRust', 'Rust WASM voxel debug service created');
+    Log.Info(
+      'VoxelDownsampleDebugWASMRust',
+      'Rust WASM voxel debug service created'
+    );
   }
 
   async initialize(): Promise<void> {
@@ -20,23 +28,35 @@ export class VoxelDownsampleDebugWASMRust extends BaseService {
     }
 
     try {
-      Log.Info('VoxelDownsampleDebugWASMRust', 'Starting Rust WASM initialization...');
-      
+      Log.Info(
+        'VoxelDownsampleDebugWASMRust',
+        'Starting Rust WASM initialization...'
+      );
+
       // Initialize the Rust WASM module
       await init();
-      
+
       // Create the Rust tools instance
       this.wasmModule = new PointCloudToolsRust();
-      
+
       this.isInitialized = true;
-      Log.Info('VoxelDownsampleDebugWASMRust', 'Rust WASM module loaded successfully for real benchmarking');
+      Log.Info(
+        'VoxelDownsampleDebugWASMRust',
+        'Rust WASM module loaded successfully for real benchmarking'
+      );
     } catch (error) {
-      Log.Error('VoxelDownsampleDebugWASMRust', 'Failed to initialize Rust WASM module', error);
+      Log.Error(
+        'VoxelDownsampleDebugWASMRust',
+        'Failed to initialize Rust WASM module',
+        error
+      );
       throw error;
     }
   }
 
-  async generateVoxelCenters(params: VoxelDebugParams): Promise<VoxelDebugResult> {
+  async generateVoxelCenters(
+    params: VoxelDebugParams
+  ): Promise<VoxelDebugResult> {
     if (!this.isInitialized || !this.wasmModule) {
       try {
         await this.initialize();
@@ -52,16 +72,20 @@ export class VoxelDownsampleDebugWASMRust extends BaseService {
     const startTime = performance.now();
 
     try {
-      Log.Info('VoxelDownsampleDebugWASMRust', 'Starting Rust WASM voxel center generation', {
-        pointCount: params.pointCloudData.length / 3,
-        voxelSize: params.voxelSize,
-        bounds: params.globalBounds
-      });
+      Log.Info(
+        'VoxelDownsampleDebugWASMRust',
+        'Starting Rust WASM voxel center generation',
+        {
+          pointCount: params.pointCloudData.length / 3,
+          voxelSize: params.voxelSize,
+          bounds: params.globalBounds,
+        }
+      );
 
       // OPTIMIZATION: Use direct Float32Array - Rust can handle f32 directly
       // No conversion needed - Rust WASM accepts &[f32] directly from Float32Array
       const result = this.wasmModule.generate_voxel_centers(
-        params.pointCloudData,  // Direct Float32Array - zero conversion!
+        params.pointCloudData, // Direct Float32Array - zero conversion!
         params.voxelSize,
         params.globalBounds.minX,
         params.globalBounds.minY,
@@ -71,11 +95,15 @@ export class VoxelDownsampleDebugWASMRust extends BaseService {
       const processingTime = performance.now() - startTime;
       const voxelCount = result.length / 3;
 
-      Log.Info('VoxelDownsampleDebugWASMRust', 'Rust WASM voxel center generation completed', {
-        pointCount: params.pointCloudData.length / 3,
-        voxelCount,
-        processingTime: processingTime.toFixed(2) + 'ms'
-      });
+      Log.Info(
+        'VoxelDownsampleDebugWASMRust',
+        'Rust WASM voxel center generation completed',
+        {
+          pointCount: params.pointCloudData.length / 3,
+          voxelCount,
+          processingTime: processingTime.toFixed(2) + 'ms',
+        }
+      );
 
       // Convert result back to Float32Array
       const voxelCenters = new Float32Array(result);
@@ -84,16 +112,20 @@ export class VoxelDownsampleDebugWASMRust extends BaseService {
         success: true,
         voxelCenters,
         voxelCount,
-        processingTime
+        processingTime,
       };
     } catch (error) {
       const processingTime = performance.now() - startTime;
-      Log.Error('VoxelDownsampleDebugWASMRust', 'Rust WASM voxel center generation failed', error);
-      
+      Log.Error(
+        'VoxelDownsampleDebugWASMRust',
+        'Rust WASM voxel center generation failed',
+        error
+      );
+
       return {
         success: false,
         processingTime,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -101,6 +133,9 @@ export class VoxelDownsampleDebugWASMRust extends BaseService {
   dispose(): void {
     this.wasmModule = null;
     this.isInitialized = false;
-    Log.Info('VoxelDownsampleDebugWASMRust', 'Rust WASM voxel debug service disposed');
+    Log.Info(
+      'VoxelDownsampleDebugWASMRust',
+      'Rust WASM voxel debug service disposed'
+    );
   }
 }

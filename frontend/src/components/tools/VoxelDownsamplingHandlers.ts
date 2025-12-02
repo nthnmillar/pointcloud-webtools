@@ -19,8 +19,11 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
   } = handlers;
 
   const handleRustWasmMainVoxelDownsampling = async () => {
-    Log.Info('Tools', '=== Starting Rust WASM Main Thread Voxel Downsampling ===');
-    
+    Log.Info(
+      'Tools',
+      '=== Starting Rust WASM Main Thread Voxel Downsampling ==='
+    );
+
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
       return;
@@ -37,17 +40,18 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
       Log.Info('Tools', 'Starting Rust WASM Main voxel downsampling', {
         pointCount: pointData.pointCloudData.length / 3,
         voxelSize,
-        bounds: pointData.globalBounds
+        bounds: pointData.globalBounds,
       });
 
       serviceManager.pointService?.clearAllPointClouds();
       callbacks.onCurrentToolChange?.('voxel');
 
-      const result = await serviceManager.toolsService.performVoxelDownsamplingRustWasmMain({
-        pointCloudData: pointData.pointCloudData,
-        voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-        globalBounds: pointData.globalBounds
-      });
+      const result =
+        await serviceManager.toolsService.performVoxelDownsamplingRustWasmMain({
+          pointCloudData: pointData.pointCloudData,
+          voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
+          globalBounds: pointData.globalBounds,
+        });
 
       if (result.success && result.downsampledPoints) {
         const rustWasmMainId = `rust_wasm_main_downsampled_${Date.now()}`;
@@ -65,17 +69,24 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         const endToEndTime = performance.now() - startTime;
         const originalCount = result.originalCount || 0;
         const downsampledCount = result.downsampledCount || 0;
-        const reductionRatio = originalCount > 0 && downsampledCount > 0 ? downsampledCount / originalCount : 0;
-        
+        const reductionRatio =
+          originalCount > 0 && downsampledCount > 0
+            ? downsampledCount / originalCount
+            : 0;
+
         callbacks.onRustWasmMainResults?.({
           originalCount,
           downsampledCount,
           processingTime: endToEndTime,
           reductionRatio,
-          voxelCount: downsampledCount
+          voxelCount: downsampledCount,
         });
       } else {
-        Log.Error('Tools', 'Rust WASM Main voxel downsampling failed', result.error);
+        Log.Error(
+          'Tools',
+          'Rust WASM Main voxel downsampling failed',
+          result.error
+        );
       }
     } catch (error) {
       Log.Error('Tools', 'Rust WASM Main voxel downsampling error', error);
@@ -87,7 +98,7 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
 
   const handleWasmVoxelDownsampling = async () => {
     Log.Info('Tools', '=== Starting WASM Voxel Downsampling ===');
-    
+
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
       return;
@@ -104,7 +115,7 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
       Log.Info('Tools', 'Starting WASM voxel downsampling', {
         pointCount: pointData.pointCloudData.length / 3,
         voxelSize,
-        bounds: pointData.globalBounds
+        bounds: pointData.globalBounds,
       });
 
       serviceManager.pointService?.clearAllPointClouds();
@@ -117,7 +128,9 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
 
       if (!workerManager.current.isReady) {
         Log.Error('Tools', 'Workers not initialized - FAILING');
-        throw new Error('Workers not initialized - C++ WASM worker system failed');
+        throw new Error(
+          'Workers not initialized - C++ WASM worker system failed'
+        );
       }
 
       Log.Info('Tools', 'Calling worker for WASM C++ voxel downsampling');
@@ -135,9 +148,18 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         }
       );
 
-      if (workerResult.type !== 'SUCCESS' || !workerResult.data?.downsampledPoints) {
-        Log.Error('Tools', 'WASM C++ voxel downsampling failed in worker', workerResult.error);
-        throw new Error(`WASM C++ voxel downsampling failed: ${workerResult.error}`);
+      if (
+        workerResult.type !== 'SUCCESS' ||
+        !workerResult.data?.downsampledPoints
+      ) {
+        Log.Error(
+          'Tools',
+          'WASM C++ voxel downsampling failed in worker',
+          workerResult.error
+        );
+        throw new Error(
+          `WASM C++ voxel downsampling failed: ${workerResult.error}`
+        );
       }
 
       const result = {
@@ -146,7 +168,7 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         originalCount: workerResult.data.originalCount,
         downsampledCount: workerResult.data.downsampledCount,
         processingTime: workerResult.data.processingTime,
-        voxelCount: workerResult.data.downsampledCount
+        voxelCount: workerResult.data.downsampledCount,
       };
 
       if (result.success && result.downsampledPoints) {
@@ -165,13 +187,16 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         const endToEndTime = performance.now() - startTime;
         const originalCount = result.originalCount || 0;
         const downsampledCount = result.downsampledCount || 0;
-        
+
         callbacks.onWasmResults?.({
           originalCount,
           downsampledCount,
           processingTime: endToEndTime,
-          reductionRatio: originalCount > 0 && downsampledCount > 0 ? originalCount / downsampledCount : 1,
-          voxelCount: downsampledCount
+          reductionRatio:
+            originalCount > 0 && downsampledCount > 0
+              ? originalCount / downsampledCount
+              : 1,
+          voxelCount: downsampledCount,
         });
       }
     } catch (error) {
@@ -197,7 +222,7 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
       Log.Info('Tools', 'Starting BE voxel downsampling', {
         pointCount: pointData.pointCloudData.length / 3,
         voxelSize,
-        bounds: pointData.globalBounds
+        bounds: pointData.globalBounds,
       });
 
       serviceManager.pointService?.clearAllPointClouds();
@@ -206,7 +231,7 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
       const result = await serviceManager.toolsService.voxelDownsampleBackend({
         pointCloudData: pointData.pointCloudData,
         voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-        globalBounds: pointData.globalBounds
+        globalBounds: pointData.globalBounds,
       });
 
       if (result.success && result.downsampledPoints) {
@@ -225,13 +250,16 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         const endToEndTime = performance.now() - startTime;
         const originalCount = result.originalCount || 0;
         const downsampledCount = result.downsampledCount || 0;
-        
+
         callbacks.onBeResults?.({
           originalCount,
           downsampledCount,
           processingTime: endToEndTime,
-          reductionRatio: originalCount > 0 && downsampledCount > 0 ? originalCount / downsampledCount : 1,
-          voxelCount: downsampledCount
+          reductionRatio:
+            originalCount > 0 && downsampledCount > 0
+              ? originalCount / downsampledCount
+              : 1,
+          voxelCount: downsampledCount,
         });
       } else {
         Log.Error('Tools', 'Backend voxel downsampling failed', result.error);
@@ -258,7 +286,7 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
       const result = await serviceManager.toolsService.voxelDownsampleBERust({
         pointCloudData: pointData.pointCloudData,
         voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-        globalBounds: pointData.globalBounds
+        globalBounds: pointData.globalBounds,
       });
 
       if (result.success && result.downsampledPoints) {
@@ -276,18 +304,23 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         const endToEndTime = performance.now() - startTime;
         const originalCount = result.originalCount || 0;
         const downsampledCount = result.downsampledCount || 0;
-        const reductionRatio = originalCount > 0 ? downsampledCount / originalCount : 0;
+        const reductionRatio =
+          originalCount > 0 ? downsampledCount / originalCount : 0;
         const voxelCount = result.voxelCount || downsampledCount;
-        
+
         callbacks.onBeRustResults?.({
           originalCount,
           downsampledCount,
           processingTime: endToEndTime,
           reductionRatio,
-          voxelCount
+          voxelCount,
         });
       } else {
-        Log.Error('Tools', 'Backend Rust voxel downsampling failed', result.error);
+        Log.Error(
+          'Tools',
+          'Backend Rust voxel downsampling failed',
+          result.error
+        );
       }
     } catch (error) {
       Log.Error('Tools', 'Backend Rust voxel downsampling error', error);
@@ -314,7 +347,7 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
       const result = await serviceManager.toolsService.voxelDownsampleBEPython({
         pointCloudData: pointData.pointCloudData,
         voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-        globalBounds: pointData.globalBounds
+        globalBounds: pointData.globalBounds,
       });
 
       if (result.success && result.downsampledPoints) {
@@ -333,19 +366,24 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         const originalCount = result.originalCount || 0;
         const downsampledCount = result.downsampledCount || 0;
         const voxelCount = result.voxelCount || downsampledCount;
-        const reductionRatio = originalCount > 0 && downsampledCount > 0 
-          ? downsampledCount / originalCount
-          : 0;
-        
+        const reductionRatio =
+          originalCount > 0 && downsampledCount > 0
+            ? downsampledCount / originalCount
+            : 0;
+
         callbacks.onBePythonResults?.({
           originalCount,
           downsampledCount,
           processingTime: endToEndTime,
           reductionRatio,
-          voxelCount
+          voxelCount,
         });
       } else {
-        Log.Error('Tools', 'Backend Python voxel downsampling failed', result.error);
+        Log.Error(
+          'Tools',
+          'Backend Python voxel downsampling failed',
+          result.error
+        );
       }
     } catch (error) {
       Log.Error('Tools', 'Backend Python voxel downsampling error', error);
@@ -370,7 +408,7 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
       Log.Info('Tools', 'Starting TS voxel downsampling', {
         pointCount: pointData.pointCloudData.length / 3,
         voxelSize,
-        bounds: pointData.globalBounds
+        bounds: pointData.globalBounds,
       });
 
       serviceManager.pointService?.clearAllPointClouds();
@@ -379,7 +417,7 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
       const result = await serviceManager.toolsService.voxelDownsampleTS({
         pointCloudData: pointData.pointCloudData,
         voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-        globalBounds: pointData.globalBounds
+        globalBounds: pointData.globalBounds,
       });
 
       if (result.success && result.downsampledPoints) {
@@ -398,16 +436,23 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         const endToEndTime = performance.now() - startTime;
         const originalCount = result.originalCount || 0;
         const downsampledCount = result.downsampledCount || 0;
-        
+
         callbacks.onTsResults?.({
           originalCount,
           downsampledCount,
           processingTime: endToEndTime,
-          reductionRatio: originalCount > 0 && downsampledCount > 0 ? originalCount / downsampledCount : 1,
-          voxelCount: downsampledCount
+          reductionRatio:
+            originalCount > 0 && downsampledCount > 0
+              ? originalCount / downsampledCount
+              : 1,
+          voxelCount: downsampledCount,
         });
       } else {
-        Log.Error('Tools', 'TypeScript voxel downsampling failed', result.error);
+        Log.Error(
+          'Tools',
+          'TypeScript voxel downsampling failed',
+          result.error
+        );
       }
     } catch (error) {
       Log.Error('Tools', 'TypeScript voxel downsampling error', error);
@@ -415,8 +460,11 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
   };
 
   const handleWasmCppMainVoxelDownsampling = async () => {
-    Log.Info('Tools', '=== Starting WASM C++ Main Thread Voxel Downsampling ===');
-    
+    Log.Info(
+      'Tools',
+      '=== Starting WASM C++ Main Thread Voxel Downsampling ==='
+    );
+
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
       return;
@@ -433,17 +481,18 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
       Log.Info('Tools', 'Starting WASM C++ Main voxel downsampling', {
         pointCount: pointData.pointCloudData.length / 3,
         voxelSize,
-        bounds: pointData.globalBounds
+        bounds: pointData.globalBounds,
       });
 
       serviceManager.pointService?.clearAllPointClouds();
       callbacks.onCurrentToolChange?.('voxel');
 
-      const result = await serviceManager.toolsService.performVoxelDownsamplingWASMCPP({
-        pointCloudData: pointData.pointCloudData,
-        voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
-        globalBounds: pointData.globalBounds
-      });
+      const result =
+        await serviceManager.toolsService.performVoxelDownsamplingWASMCPP({
+          pointCloudData: pointData.pointCloudData,
+          voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
+          globalBounds: pointData.globalBounds,
+        });
 
       if (result.success && result.downsampledPoints) {
         const wasmCppMainId = `wasm_cpp_main_downsampled_${Date.now()}`;
@@ -461,17 +510,24 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         const endToEndTime = performance.now() - startTime;
         const originalCount = result.originalCount || 0;
         const downsampledCount = result.downsampledCount || 0;
-        const reductionRatio = originalCount > 0 && downsampledCount > 0 ? originalCount / downsampledCount : 1;
-        
+        const reductionRatio =
+          originalCount > 0 && downsampledCount > 0
+            ? originalCount / downsampledCount
+            : 1;
+
         callbacks.onWasmCppMainResults?.({
           originalCount,
           downsampledCount,
           processingTime: endToEndTime,
           reductionRatio,
-          voxelCount: downsampledCount
+          voxelCount: downsampledCount,
         });
       } else {
-        Log.Error('Tools', 'WASM C++ Main voxel downsampling failed', result.error);
+        Log.Error(
+          'Tools',
+          'WASM C++ Main voxel downsampling failed',
+          result.error
+        );
       }
     } catch (error) {
       Log.Error('Tools', 'WASM C++ Main voxel downsampling error', error);
@@ -505,7 +561,9 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
 
       if (!workerManager.current.isReady) {
         Log.Error('Tools', 'Workers not initialized - FAILING');
-        throw new Error('Workers not initialized - Rust WASM worker system failed');
+        throw new Error(
+          'Workers not initialized - Rust WASM worker system failed'
+        );
       }
 
       Log.Info('Tools', 'Calling worker for WASM Rust voxel downsampling');
@@ -519,21 +577,30 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
           minZ: pointData.globalBounds.minZ,
           maxX: pointData.globalBounds.maxX,
           maxY: pointData.globalBounds.maxY,
-          maxZ: pointData.globalBounds.maxZ
+          maxZ: pointData.globalBounds.maxZ,
         }
       );
 
-      if (workerResult.type !== 'SUCCESS' || !workerResult.data?.downsampledPoints) {
-        Log.Error('Tools', 'WASM Rust voxel downsampling failed in worker', workerResult.error);
-        throw new Error(`WASM Rust voxel downsampling failed: ${workerResult.error}`);
+      if (
+        workerResult.type !== 'SUCCESS' ||
+        !workerResult.data?.downsampledPoints
+      ) {
+        Log.Error(
+          'Tools',
+          'WASM Rust voxel downsampling failed in worker',
+          workerResult.error
+        );
+        throw new Error(
+          `WASM Rust voxel downsampling failed: ${workerResult.error}`
+        );
       }
-      
+
       const result = {
         success: true,
         downsampledPoints: workerResult.data.downsampledPoints,
         originalCount: workerResult.data.originalCount,
         downsampledCount: workerResult.data.downsampledCount,
-        processingTime: workerResult.data.processingTime
+        processingTime: workerResult.data.processingTime,
       };
 
       if (result.success && result.downsampledPoints) {
@@ -552,13 +619,16 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         const endToEndTime = performance.now() - startTime;
         const originalCount = result.originalCount || 0;
         const downsampledCount = result.downsampledCount || 0;
-        
+
         callbacks.onWasmRustResults?.({
           originalCount,
           downsampledCount,
           processingTime: endToEndTime,
-          reductionRatio: originalCount > 0 && downsampledCount > 0 ? originalCount / downsampledCount : 1,
-          voxelCount: downsampledCount
+          reductionRatio:
+            originalCount > 0 && downsampledCount > 0
+              ? originalCount / downsampledCount
+              : 1,
+          voxelCount: downsampledCount,
         });
       }
     } catch (error) {

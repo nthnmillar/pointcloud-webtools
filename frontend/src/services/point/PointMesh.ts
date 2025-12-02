@@ -1,5 +1,10 @@
 import { Scene, PointsCloudSystem, Vector3, Color4 } from '@babylonjs/core';
-import type { PointCloudData, RenderOptions, PointCloudMetadata, PointCloudPoint } from './PointCloud';
+import type {
+  PointCloudData,
+  RenderOptions,
+  PointCloudMetadata,
+  PointCloudPoint,
+} from './PointCloud';
 import { Log } from '../../utils/Log';
 
 /**
@@ -30,8 +35,11 @@ export class PointMesh {
     _metadata: Partial<PointCloudMetadata>,
     options: RenderOptions
   ): Promise<PointsCloudSystem | null> {
-    Log.Debug('PointMesh', 'Creating point cloud mesh from Float32Array', { id, pointCount: positions.length / 3 });
-    
+    Log.Debug('PointMesh', 'Creating point cloud mesh from Float32Array', {
+      id,
+      pointCount: positions.length / 3,
+    });
+
     if (!this.scene) {
       Log.Error('PointMesh', 'No scene available');
       return null;
@@ -54,7 +62,8 @@ export class PointMesh {
 
     // Apply level-of-detail based on point count
     const lodPointCount = this.calculateLODPointCount(pointCount, options);
-    const step = pointCount > lodPointCount ? Math.floor(pointCount / lodPointCount) : 1;
+    const step =
+      pointCount > lodPointCount ? Math.floor(pointCount / lodPointCount) : 1;
     const pointsToRender = Math.min(lodPointCount, pointCount);
 
     // Pre-allocate arrays for better performance
@@ -105,7 +114,10 @@ export class PointMesh {
         }
       );
     } catch (error) {
-      Log.Error('PointMesh', 'Failed to add points', { id, error: error instanceof Error ? error.message : 'Unknown error' });
+      Log.Error('PointMesh', 'Failed to add points', {
+        id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       return null;
     }
 
@@ -116,7 +128,7 @@ export class PointMesh {
     try {
       if (typeof pcs.buildMeshAsync === 'function') {
         await pcs.buildMeshAsync();
-        
+
         if (pcs.mesh && pcs.mesh.material) {
           pcs.mesh.material.pointSize = options.pointSize;
           pcs.mesh.setEnabled(true);
@@ -124,7 +136,10 @@ export class PointMesh {
         }
       }
     } catch (error) {
-      Log.Error('PointMesh', 'Error building mesh', { id, error: error instanceof Error ? error.message : 'Unknown error' });
+      Log.Error('PointMesh', 'Error building mesh', {
+        id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
 
     // Update performance stats
@@ -146,8 +161,12 @@ export class PointMesh {
     options: RenderOptions,
     batchSize: number = 1000
   ): Promise<PointsCloudSystem | null> {
-    Log.Debug('PointMesh', 'Creating point cloud mesh', { id, hasScene: !!this.scene, pointCount: pointCloudData.points?.length || 0 });
-    
+    Log.Debug('PointMesh', 'Creating point cloud mesh', {
+      id,
+      hasScene: !!this.scene,
+      pointCount: pointCloudData.points?.length || 0,
+    });
+
     if (!this.scene) {
       Log.Error('PointMesh', 'No scene available');
       return null;
@@ -163,12 +182,10 @@ export class PointMesh {
     // Remove existing mesh if it exists
     this.removeMesh(id);
 
-    
     // Create PointsCloudSystem with optimized capacity
     const pcs = new PointsCloudSystem(`pointCloud_${id}`, 1, this.scene);
-    
+
     this.meshes.set(id, pcs);
-    
 
     // Apply level-of-detail based on point count
     const pointCount = this.calculateLODPointCount(
@@ -202,7 +219,7 @@ export class PointMesh {
         positions[arrayIndex] = -point.position.y; // left -> right
         positions[arrayIndex + 1] = point.position.z; // up -> up
         positions[arrayIndex + 2] = point.position.x; // forward -> forward
-        
+
         // Debug: Log first few transformed positions
         if (i < 3) {
           Log.Debug('PointMesh', 'Coordinate transformation', {
@@ -210,14 +227,14 @@ export class PointMesh {
             transformed: {
               x: -point.position.y,
               y: point.position.z,
-              z: point.position.x
+              z: point.position.x,
             },
             arrayIndex: arrayIndex,
             finalPosition: {
               x: positions[arrayIndex],
               y: positions[arrayIndex + 1],
-              z: positions[arrayIndex + 2]
-            }
+              z: positions[arrayIndex + 2],
+            },
           });
         }
 
@@ -253,7 +270,10 @@ export class PointMesh {
         }
       );
     } catch (error) {
-      Log.Error('PointMesh', 'Failed to add points', { id, error: error instanceof Error ? error.message : 'Unknown error' });
+      Log.Error('PointMesh', 'Failed to add points', {
+        id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
       return null;
     }
 
@@ -264,108 +284,124 @@ export class PointMesh {
     try {
       if (typeof pcs.buildMeshAsync === 'function') {
         await pcs.buildMeshAsync();
-        
-        
+
         // Set point size after mesh is built
         if (pcs.mesh && pcs.mesh.material) {
           pcs.mesh.material.pointSize = options.pointSize;
         }
-        
-            // Ensure the mesh is visible
-            if (pcs.mesh) {
-              pcs.mesh.setEnabled(true);
-              pcs.mesh.isVisible = true;
 
-              // Make points much larger for debugging
-              if (pcs.mesh.material) {
-                pcs.mesh.material.pointSize = 2; // Default point size
-              }
+        // Ensure the mesh is visible
+        if (pcs.mesh) {
+          pcs.mesh.setEnabled(true);
+          pcs.mesh.isVisible = true;
 
-              // Debug: Check if mesh is actually in the scene
-              Log.Info('PointMesh', 'Mesh added to scene check', {
-                meshName: pcs.mesh.name,
-                meshInScene: this.scene.meshes.includes(pcs.mesh),
-                sceneMeshCount: this.scene.meshes.length,
-                sceneMeshNames: this.scene.meshes.map(m => m.name)
-              });
-          
-          Log.Debug('PointMesh', 'Mesh enabled and visible', { 
-            id, 
-            isEnabled: pcs.mesh.isEnabled(), 
+          // Make points much larger for debugging
+          if (pcs.mesh.material) {
+            pcs.mesh.material.pointSize = 2; // Default point size
+          }
+
+          // Debug: Check if mesh is actually in the scene
+          Log.Info('PointMesh', 'Mesh added to scene check', {
+            meshName: pcs.mesh.name,
+            meshInScene: this.scene.meshes.includes(pcs.mesh),
+            sceneMeshCount: this.scene.meshes.length,
+            sceneMeshNames: this.scene.meshes.map(m => m.name),
+          });
+
+          Log.Debug('PointMesh', 'Mesh enabled and visible', {
+            id,
+            isEnabled: pcs.mesh.isEnabled(),
             isVisible: pcs.mesh.isVisible,
             position: pcs.mesh.position,
             boundingInfo: pcs.mesh.getBoundingInfo(),
             material: !!pcs.mesh.material,
-            pointSize: pcs.mesh.material?.pointSize
+            pointSize: pcs.mesh.material?.pointSize,
           });
-          
-            // Debug: Check what's actually in the scene
-            Log.Info('PointMesh', 'Scene contents after mesh creation', {
-              sceneMeshes: this.scene.meshes.length,
-              sceneMeshesList: this.scene.meshes.map(m => ({
-                name: m.name,
-                isEnabled: m.isEnabled(),
-                isVisible: m.isVisible,
-                position: m.position,
-                boundingInfo: m.getBoundingInfo()
-              })),
-              pointCloudMesh: pcs.mesh.name,
-              pointCloudMeshEnabled: pcs.mesh.isEnabled(),
-              pointCloudMeshVisible: pcs.mesh.isVisible,
-              pointCloudMeshPosition: pcs.mesh.position,
-              pointCloudMeshBoundingInfo: pcs.mesh.getBoundingInfo(),
-              pointCloudMeshWorldMatrix: pcs.mesh.getWorldMatrix(),
-              pointCloudMeshAbsolutePosition: pcs.mesh.getAbsolutePosition()
-            });
 
-            // Additional debugging: Check if the mesh is actually being rendered
-            setTimeout(() => {
-              Log.Info('PointMesh', 'Mesh status after 100ms', {
-                meshName: pcs.mesh?.name,
-                isEnabled: pcs.mesh?.isEnabled(),
-                isVisible: pcs.mesh?.isVisible,
-                position: pcs.mesh?.position,
-                boundingInfo: pcs.mesh?.getBoundingInfo(),
-                material: pcs.mesh?.material ? {
-                  pointSize: pcs.mesh.material.pointSize,
-                  materialType: pcs.mesh.material.constructor.name
-                } : null,
-                sceneActiveCamera: this.scene.activeCamera ? {
-                  position: this.scene.activeCamera.position,
-                  // Use 'target' property if available, otherwise fallback to null
-                  target: ('target' in this.scene.activeCamera && this.scene.activeCamera.target ? this.scene.activeCamera.target : null),
-                  fov: this.scene.activeCamera.fov
-                } : null,
-                // Check if the mesh is actually in the scene and being rendered
-                meshInScene: pcs.mesh ? this.scene.meshes.includes(pcs.mesh) : false,
-                meshParent: pcs.mesh?.parent,
-                meshChildren: pcs.mesh?.getChildMeshes().length,
-                // Check WebGL context
-                webglContext: 'available' // WebGL context is available if scene is rendering
-              });
-            }, 100);
+          // Debug: Check what's actually in the scene
+          Log.Info('PointMesh', 'Scene contents after mesh creation', {
+            sceneMeshes: this.scene.meshes.length,
+            sceneMeshesList: this.scene.meshes.map(m => ({
+              name: m.name,
+              isEnabled: m.isEnabled(),
+              isVisible: m.isVisible,
+              position: m.position,
+              boundingInfo: m.getBoundingInfo(),
+            })),
+            pointCloudMesh: pcs.mesh.name,
+            pointCloudMeshEnabled: pcs.mesh.isEnabled(),
+            pointCloudMeshVisible: pcs.mesh.isVisible,
+            pointCloudMeshPosition: pcs.mesh.position,
+            pointCloudMeshBoundingInfo: pcs.mesh.getBoundingInfo(),
+            pointCloudMeshWorldMatrix: pcs.mesh.getWorldMatrix(),
+            pointCloudMeshAbsolutePosition: pcs.mesh.getAbsolutePosition(),
+          });
+
+          // Additional debugging: Check if the mesh is actually being rendered
+          setTimeout(() => {
+            Log.Info('PointMesh', 'Mesh status after 100ms', {
+              meshName: pcs.mesh?.name,
+              isEnabled: pcs.mesh?.isEnabled(),
+              isVisible: pcs.mesh?.isVisible,
+              position: pcs.mesh?.position,
+              boundingInfo: pcs.mesh?.getBoundingInfo(),
+              material: pcs.mesh?.material
+                ? {
+                    pointSize: pcs.mesh.material.pointSize,
+                    materialType: pcs.mesh.material.constructor.name,
+                  }
+                : null,
+              sceneActiveCamera: this.scene.activeCamera
+                ? {
+                    position: this.scene.activeCamera.position,
+                    // Use 'target' property if available, otherwise fallback to null
+                    target:
+                      'target' in this.scene.activeCamera &&
+                      this.scene.activeCamera.target
+                        ? this.scene.activeCamera.target
+                        : null,
+                    fov: this.scene.activeCamera.fov,
+                  }
+                : null,
+              // Check if the mesh is actually in the scene and being rendered
+              meshInScene: pcs.mesh
+                ? this.scene.meshes.includes(pcs.mesh)
+                : false,
+              meshParent: pcs.mesh?.parent,
+              meshChildren: pcs.mesh?.getChildMeshes().length,
+              // Check WebGL context
+              webglContext: 'available', // WebGL context is available if scene is rendering
+            });
+          }, 100);
         }
       } else {
         // If buildMeshAsync doesn't exist, try to build synchronously or use alternative method
-        Log.Warn('PointMesh', 'buildMeshAsync not available, trying alternative approach', { id });
-        
+        Log.Warn(
+          'PointMesh',
+          'buildMeshAsync not available, trying alternative approach',
+          { id }
+        );
+
         // Try to force the mesh creation
         if (pcs.mesh) {
           pcs.mesh.setEnabled(true);
           pcs.mesh.isVisible = true;
-          Log.Debug('PointMesh', 'Mesh enabled and visible', { 
-            id, 
-            isEnabled: pcs.mesh.isEnabled(), 
+          Log.Debug('PointMesh', 'Mesh enabled and visible', {
+            id,
+            isEnabled: pcs.mesh.isEnabled(),
             isVisible: pcs.mesh.isVisible,
             position: pcs.mesh.position,
             boundingInfo: pcs.mesh.getBoundingInfo(),
             material: !!pcs.mesh.material,
-            pointSize: pcs.mesh.material?.pointSize
+            pointSize: pcs.mesh.material?.pointSize,
           });
         }
       }
     } catch (error) {
-      Log.Error('PointMesh', 'Error building mesh', { id, error: error instanceof Error ? error.message : 'Unknown error' });
+      Log.Error('PointMesh', 'Error building mesh', {
+        id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
 
     // Update performance stats
@@ -405,7 +441,10 @@ export class PointMesh {
   /**
    * Select points for level-of-detail rendering
    */
-  private selectLODPoints(points: PointCloudPoint[], targetCount: number): PointCloudPoint[] {
+  private selectLODPoints(
+    points: PointCloudPoint[],
+    targetCount: number
+  ): PointCloudPoint[] {
     if (points.length <= targetCount) {
       return points;
     }
@@ -450,25 +489,31 @@ export class PointMesh {
    */
   removeMesh(id: string): void {
     // Debug: Check scene contents before removing mesh
-    const beforeRemove = this.scene.meshes.map(m => ({ name: m.name, type: m.constructor.name }));
+    const beforeRemove = this.scene.meshes.map(m => ({
+      name: m.name,
+      type: m.constructor.name,
+    }));
     Log.Info('PointMesh', 'Scene contents before removing mesh', {
       meshId: id,
       sceneMeshCount: this.scene.meshes.length,
-      sceneMeshes: beforeRemove
+      sceneMeshes: beforeRemove,
     });
-    
+
     const mesh = this.meshes.get(id);
     if (mesh) {
       mesh.dispose();
       this.meshes.delete(id);
     }
-    
+
     // Debug: Check scene contents after removing mesh
-    const afterRemove = this.scene.meshes.map(m => ({ name: m.name, type: m.constructor.name }));
+    const afterRemove = this.scene.meshes.map(m => ({
+      name: m.name,
+      type: m.constructor.name,
+    }));
     Log.Info('PointMesh', 'Scene contents after removing mesh', {
       meshId: id,
       sceneMeshCount: this.scene.meshes.length,
-      sceneMeshes: afterRemove
+      sceneMeshes: afterRemove,
     });
   }
 

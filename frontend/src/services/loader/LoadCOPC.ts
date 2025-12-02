@@ -68,7 +68,11 @@ export class LoadCOPC {
     }
   }
 
-  async loadFromFile(file: File, batchSize: number = 500, batchLimit?: number): Promise<void> {
+  async loadFromFile(
+    file: File,
+    batchSize: number = 500,
+    batchLimit?: number
+  ): Promise<void> {
     // Cancel any existing loading process
     if (this.isProcessing) {
       Log.Info('LoadCOPC', 'Cancelling previous loading process');
@@ -98,7 +102,7 @@ export class LoadCOPC {
       // Load laz-perf for real point decompression
       const lazPerfModule = await import('laz-perf');
       const createLazPerf = lazPerfModule.createLazPerf;
-      
+
       // Initialize laz-perf
       const lazPerf = await createLazPerf({
         locateFile: (path: string) =>
@@ -117,10 +121,22 @@ export class LoadCOPC {
       moduleFunction(module, module.exports);
 
       // Get the COPCModule function
-      const COPCModuleFunction = (module.exports as { default?: (options?: { locateFile?: (path: string) => string }) => Promise<COPCModule> }).default || module.exports as (options?: { locateFile?: (path: string) => string }) => Promise<COPCModule>;
+      const COPCModuleFunction =
+        (
+          module.exports as {
+            default?: (options?: {
+              locateFile?: (path: string) => string;
+            }) => Promise<COPCModule>;
+          }
+        ).default ||
+        (module.exports as (options?: {
+          locateFile?: (path: string) => string;
+        }) => Promise<COPCModule>);
 
       if (typeof COPCModuleFunction !== 'function') {
-        throw new Error('COPCModule is not a function: ' + typeof COPCModuleFunction);
+        throw new Error(
+          'COPCModule is not a function: ' + typeof COPCModuleFunction
+        );
       }
 
       // Initialize the module
@@ -130,13 +146,13 @@ export class LoadCOPC {
             return '/wasm/copc_loader.wasm';
           }
           return path;
-        }
+        },
       });
-      
+
       // Create a new loader instance with laz-perf
       this.loader = new this.module.COPCLoader() as ExtendedCOPCLoader;
       this.loader.setLazPerf(lazPerf as LazPerfModule); // Pass laz-perf to the loader
-      
+
       Log.Info('LoadCOPC', 'COPC WASM module initialized with laz-perf');
     } catch (error) {
       Log.Error('LoadCOPC', 'Failed to initialize COPC WASM module', error);
@@ -165,7 +181,7 @@ export class LoadCOPC {
         bounds: this.loader.getBounds(),
         hasColor: this.headerData.hasColor,
         hasIntensity: this.headerData.hasIntensity,
-        hasClassification: this.headerData.hasClassification
+        hasClassification: this.headerData.hasClassification,
       });
 
       // Calculate centroid for centering
@@ -173,7 +189,6 @@ export class LoadCOPC {
 
       // Process points in batches
       await this.processPointsInBatches(batchSize, batchLimit);
-
     } catch (error) {
       Log.Error('LoadCOPC', 'Error processing COPC file', error);
       throw error;
@@ -190,18 +205,30 @@ export class LoadCOPC {
       z: (this.headerData.minZ + this.headerData.maxZ) / 2,
     };
 
-    Log.Info('LoadCOPC', `Point cloud centroid: (${this.calculatedCentroid.x.toFixed(2)}, ${this.calculatedCentroid.y.toFixed(2)}, ${this.calculatedCentroid.z.toFixed(2)})`);
+    Log.Info(
+      'LoadCOPC',
+      `Point cloud centroid: (${this.calculatedCentroid.x.toFixed(2)}, ${this.calculatedCentroid.y.toFixed(2)}, ${this.calculatedCentroid.z.toFixed(2)})`
+    );
   }
 
-  private async processPointsInBatches(batchSize: number, batchLimit?: number): Promise<void> {
+  private async processPointsInBatches(
+    batchSize: number,
+    batchLimit?: number
+  ): Promise<void> {
     if (!this.loader || !this.calculatedCentroid) return;
 
     const allPoints = this.loader.getAllPoints();
     const totalPoints = allPoints.length;
     const totalBatches = Math.ceil(totalPoints / batchSize);
-    const maxBatches = batchLimit !== undefined && batchLimit > 0 ? Math.min(batchLimit, totalBatches) : totalBatches;
+    const maxBatches =
+      batchLimit !== undefined && batchLimit > 0
+        ? Math.min(batchLimit, totalBatches)
+        : totalBatches;
 
-    Log.Info('LoadCOPC', `Processing ${totalPoints} points in ${maxBatches} batches${batchLimit ? ` (limited from ${totalBatches} total)` : ''}`);
+    Log.Info(
+      'LoadCOPC',
+      `Processing ${totalPoints} points in ${maxBatches} batches${batchLimit ? ` (limited from ${totalBatches} total)` : ''}`
+    );
 
     for (let i = 0; i < maxBatches; i++) {
       const startIndex = i * batchSize;
@@ -219,9 +246,15 @@ export class LoadCOPC {
     }
 
     if (batchLimit && maxBatches < totalBatches) {
-      Log.Info('LoadCOPC', `Stopped at batch limit of ${batchLimit}. Processed ${this.totalPointsProcessed} points in ${maxBatches} batches`);
+      Log.Info(
+        'LoadCOPC',
+        `Stopped at batch limit of ${batchLimit}. Processed ${this.totalPointsProcessed} points in ${maxBatches} batches`
+      );
     } else {
-      Log.Info('LoadCOPC', `Completed processing ${this.totalPointsProcessed} points in ${maxBatches} batches`);
+      Log.Info(
+        'LoadCOPC',
+        `Completed processing ${this.totalPointsProcessed} points in ${maxBatches} batches`
+      );
     }
   }
 
@@ -240,20 +273,27 @@ export class LoadCOPC {
           y: point.y - this.calculatedCentroid.y,
           z: point.z - this.calculatedCentroid.z,
         },
-        color: this.headerData.hasColor ? {
-          r: point.r,
-          g: point.g,
-          b: point.b,
-        } : undefined,
+        color: this.headerData.hasColor
+          ? {
+              r: point.r,
+              g: point.g,
+              b: point.b,
+            }
+          : undefined,
         intensity: this.headerData.hasIntensity ? point.intensity : undefined,
-        classification: this.headerData.hasClassification ? point.classification : undefined,
+        classification: this.headerData.hasClassification
+          ? point.classification
+          : undefined,
       };
     }
 
     return pointCloudPoints;
   }
 
-  private createBatchMesh(points: PointCloudPoint[], batchNumber: number): void {
+  private createBatchMesh(
+    points: PointCloudPoint[],
+    batchNumber: number
+  ): void {
     if (points.length === 0) return;
     if (!this.headerData || !this.calculatedCentroid) {
       throw new Error('Header data or centroid not initialized');
@@ -261,17 +301,20 @@ export class LoadCOPC {
 
     const batchId = `${this.currentFileId}_batch_${batchNumber}`;
     this.totalPointsProcessed += points.length;
-    
-    Log.Info('LoadCOPC', `Creating batch: ${batchId} (${points.length} points, ${this.totalPointsProcessed} total processed)`);
+
+    Log.Info(
+      'LoadCOPC',
+      `Creating batch: ${batchId} (${points.length} points, ${this.totalPointsProcessed} total processed)`
+    );
 
     const pointCloudData: PointCloudData = {
       points: points,
       metadata: {
         name: batchId,
         totalPoints: points.length,
-        bounds: { 
-          min: { x: 0, y: 0, z: 0 }, 
-          max: { x: 0, y: 0, z: 0 } 
+        bounds: {
+          min: { x: 0, y: 0, z: 0 },
+          max: { x: 0, y: 0, z: 0 },
         }, // Dummy bounds
         hasColor: this.headerData.hasColor,
         hasIntensity: this.headerData.hasIntensity,

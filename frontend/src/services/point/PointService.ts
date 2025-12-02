@@ -22,12 +22,15 @@ export class PointService extends BaseService {
   private serviceManager: ServiceManager | null = null;
   private _batchSize: number = 5000;
 
-  async initialize(scene: Scene, serviceManager?: ServiceManager): Promise<void> {
+  async initialize(
+    scene: Scene,
+    serviceManager?: ServiceManager
+  ): Promise<void> {
     if (this.isInitialized) {
       Log.WarnClass(this, 'PointService already initialized, skipping');
       return;
     }
-    
+
     this.scene = scene;
     this.serviceManager = serviceManager;
     this.pointMesh = new PointMesh(scene);
@@ -47,7 +50,11 @@ export class PointService extends BaseService {
   /**
    * Load point cloud data
    */
-  async loadPointCloud(id: string, data: PointCloudData, autoPositionCamera: boolean = true): Promise<void> {
+  async loadPointCloud(
+    id: string,
+    data: PointCloudData,
+    autoPositionCamera: boolean = true
+  ): Promise<void> {
     this.emit('loading', { id });
 
     try {
@@ -71,7 +78,7 @@ export class PointService extends BaseService {
       // Auto-position camera only when requested (e.g., for new point clouds, not downsampled ones)
       if (autoPositionCamera) {
         this.autoPositionCamera(data);
-        
+
         // Debug: Check camera position after positioning
         if (this.scene && this.scene.activeCamera) {
           Log.Info('PointService', 'Camera position after auto-positioning', {
@@ -82,13 +89,13 @@ export class PointService extends BaseService {
             pointCloudCenter: {
               x: (data.metadata.bounds.min.x + data.metadata.bounds.max.x) / 2,
               y: (data.metadata.bounds.min.y + data.metadata.bounds.max.y) / 2,
-              z: (data.metadata.bounds.min.z + data.metadata.bounds.max.z) / 2
+              z: (data.metadata.bounds.min.z + data.metadata.bounds.max.z) / 2,
             },
             pointCloudSize: {
               x: data.metadata.bounds.max.x - data.metadata.bounds.min.x,
               y: data.metadata.bounds.max.y - data.metadata.bounds.min.y,
-              z: data.metadata.bounds.max.z - data.metadata.bounds.min.z
-            }
+              z: data.metadata.bounds.max.z - data.metadata.bounds.min.z,
+            },
           });
         }
       }
@@ -282,7 +289,10 @@ export class PointService extends BaseService {
     color: { r: number; g: number; b: number } = { r: 1, g: 1, b: 1 },
     metadata: Partial<PointCloudMetadata>
   ): Promise<void> {
-    Log.InfoClass(this, 'Creating point cloud from Float32Array', { id, pointCount: positions.length / 3 });
+    Log.InfoClass(this, 'Creating point cloud from Float32Array', {
+      id,
+      pointCount: positions.length / 3,
+    });
 
     // Calculate bounds from Float32Array
     const bounds = this.calculateBoundsFromFloat32Array(positions);
@@ -299,8 +309,8 @@ export class PointService extends BaseService {
         hasColor: true,
         hasIntensity: false,
         hasClassification: false,
-        ...metadata
-      }
+        ...metadata,
+      },
     };
     this.pointClouds.set(id, pointCloudData);
 
@@ -331,9 +341,12 @@ export class PointService extends BaseService {
       return { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } };
     }
 
-    let minX = positions[0], maxX = positions[0];
-    let minY = positions[1], maxY = positions[1];
-    let minZ = positions[2], maxZ = positions[2];
+    let minX = positions[0],
+      maxX = positions[0];
+    let minY = positions[1],
+      maxY = positions[1];
+    let minZ = positions[2],
+      maxZ = positions[2];
 
     for (let i = 0; i < positions.length; i += 3) {
       const x = positions[i];
@@ -373,7 +386,11 @@ export class PointService extends BaseService {
 
     // Create the mesh directly - don't call renderPointCloud to avoid duplication
     if (this.pointMesh) {
-      await this.pointMesh.createPointCloudMesh(id, data, this.getRenderOptions());
+      await this.pointMesh.createPointCloudMesh(
+        id,
+        data,
+        this.getRenderOptions()
+      );
     }
   }
 
@@ -381,7 +398,12 @@ export class PointService extends BaseService {
    * Render a point cloud
    */
   async renderPointCloud(id: string, options: RenderOptions): Promise<void> {
-    Log.InfoClass(this, 'Rendering point cloud', { id, hasPointCloud: !!this.pointClouds.get(id), hasPointMesh: !!this.pointMesh, scene: !!this.scene });
+    Log.InfoClass(this, 'Rendering point cloud', {
+      id,
+      hasPointCloud: !!this.pointClouds.get(id),
+      hasPointMesh: !!this.pointMesh,
+      scene: !!this.scene,
+    });
 
     // Debug: Check scene state before rendering
     if (this.scene) {
@@ -392,19 +414,28 @@ export class PointService extends BaseService {
         sceneMeshNames: this.scene.meshes.map(m => m.name),
         sceneChildren: this.scene.children ? this.scene.children.length : 0,
         sceneId: this.scene.uid || 'no-uid',
-        sceneConstructor: this.scene.constructor.name
+        sceneConstructor: this.scene.constructor.name,
       });
     }
 
     const pointCloud = this.pointClouds.get(id);
     if (!pointCloud || !this.pointMesh) {
-      Log.WarnClass(this, 'Cannot render point cloud - missing data or mesh', { id, hasPointCloud: !!pointCloud, hasPointMesh: !!this.pointMesh });
+      Log.WarnClass(this, 'Cannot render point cloud - missing data or mesh', {
+        id,
+        hasPointCloud: !!pointCloud,
+        hasPointMesh: !!this.pointMesh,
+      });
       return;
     }
 
     // Create the mesh directly
-    await this.pointMesh.createPointCloudMesh(id, pointCloud, options, this._batchSize);
-    
+    await this.pointMesh.createPointCloudMesh(
+      id,
+      pointCloud,
+      options,
+      this._batchSize
+    );
+
     // Note: Camera auto-positioning is handled in loadPointCloud, not here
     // This prevents camera repositioning during downsampling operations
   }
@@ -482,15 +513,19 @@ export class PointService extends BaseService {
    */
   private autoPositionCamera(pointCloud: PointCloudData): void {
     if (!this.serviceManager || !pointCloud.metadata.bounds) {
-      Log.WarnClass(this, 'Cannot position camera - missing serviceManager or bounds', { 
-        hasServiceManager: !!this.serviceManager, 
-        hasBounds: !!pointCloud.metadata.bounds 
-      });
+      Log.WarnClass(
+        this,
+        'Cannot position camera - missing serviceManager or bounds',
+        {
+          hasServiceManager: !!this.serviceManager,
+          hasBounds: !!pointCloud.metadata.bounds,
+        }
+      );
       return;
     }
 
     const bounds = pointCloud.metadata.bounds;
-    
+
     // Transform coordinates from robotics (X=forward, Y=left, Z=up) to Babylon.js (X=right, Y=up, Z=forward)
     const center = {
       x: -(bounds.min.y + bounds.max.y) / 2, // left -> right (negated)
@@ -505,13 +540,13 @@ export class PointService extends BaseService {
       bounds.max.z - bounds.min.z
     );
 
-    Log.InfoClass(this, 'Positioning camera for point cloud', { 
-      bounds, 
-      center, 
+    Log.InfoClass(this, 'Positioning camera for point cloud', {
+      bounds,
+      center,
       size,
-      pointCount: pointCloud.points.length 
+      pointCount: pointCloud.points.length,
     });
-    
+
     // Debug: Log the actual point positions
     const firstFewPoints = pointCloud.points.slice(0, 5).map(p => p.position);
     Log.InfoClass(this, 'First few point positions', { firstFewPoints });
@@ -525,8 +560,12 @@ export class PointService extends BaseService {
       if (Math.abs(camera.radius - newRadius) > 5) {
         camera.radius = newRadius;
       }
-      Log.InfoClass(this, 'Camera positioned for point cloud', { center, size, radius: camera.radius });
-      
+      Log.InfoClass(this, 'Camera positioned for point cloud', {
+        center,
+        size,
+        radius: camera.radius,
+      });
+
       // Debug: Log actual camera position and target
       Log.InfoClass(this, 'Camera debug info', {
         position: camera.position,
@@ -534,9 +573,11 @@ export class PointService extends BaseService {
         radius: camera.radius,
         alpha: camera.alpha,
         beta: camera.beta,
-        distanceFromTarget: camera.position.subtract(camera.getTarget()).length()
+        distanceFromTarget: camera.position
+          .subtract(camera.getTarget())
+          .length(),
       });
-      
+
       // Debug: Check if camera is looking at the right place
       const target = camera.getTarget();
       const distance = camera.position.subtract(target).length();
@@ -546,7 +587,7 @@ export class PointService extends BaseService {
         cameraPosition: camera.position,
         distanceFromTarget: distance,
         pointCloudSize: size,
-        isReasonableDistance: distance < size * 5 // Should be within 5x the point cloud size
+        isReasonableDistance: distance < size * 5, // Should be within 5x the point cloud size
       });
     } else {
       Log.WarnClass(this, 'Camera not available for positioning');

@@ -4,16 +4,35 @@ import { Log } from '../../utils/Log';
 Log.Info('CppWasmWorker', 'Worker script started');
 
 interface ToolsModule {
-  voxelDownsample(inputPoints: Float32Array, voxelSize: number, globalMinX?: number, globalMinY?: number, globalMinZ?: number): Float32Array;
-  pointCloudSmoothing(inputPoints: Float32Array, smoothingRadius?: number, iterations?: number): Float32Array;
+  voxelDownsample(
+    inputPoints: Float32Array,
+    voxelSize: number,
+    globalMinX?: number,
+    globalMinY?: number,
+    globalMinZ?: number
+  ): Float32Array;
+  pointCloudSmoothing(
+    inputPoints: Float32Array,
+    smoothingRadius?: number,
+    iterations?: number
+  ): Float32Array;
   showVoxelDebug(inputPoints: Float32Array, voxelSize: number): void;
   getVoxelDebugCenters(): Float32Array | number[];
   // Direct memory access functions
   _malloc(size: number): number;
   _free(ptr: number): void;
   HEAPF32: Float32Array;
-  cwrap?(name: string, returnType: string, argTypes: string[]): (...args: number[]) => number;
-  ccall?(name: string, returnType: string, argTypes: string[], args: number[]): number;
+  cwrap?(
+    name: string,
+    returnType: string,
+    argTypes: string[]
+  ): (...args: number[]) => number;
+  ccall?(
+    name: string,
+    returnType: string,
+    argTypes: string[],
+    args: number[]
+  ): number;
 }
 
 let toolsModule: ToolsModule | null = null;
@@ -25,7 +44,7 @@ let previousOutputPtr: number | null = null; // Track output pointer for memory 
 async function initialize() {
   try {
     Log.Info('CppWasmWorker', 'Starting initialization...');
-    
+
     // Add a timeout to prevent hanging
     let timeoutId: NodeJS.Timeout | undefined;
     const initPromise = initializeWasmModule();
@@ -35,14 +54,14 @@ async function initialize() {
         reject(new Error('WASM module initialization timeout'));
       }, 15000);
     });
-    
+
     await Promise.race([initPromise, timeoutPromise]);
-    
+
     // Clear the timeout since initialization succeeded
     if (timeoutId) {
       clearTimeout(timeoutId);
     }
-    
+
     Log.Info('CppWasmWorker', 'WASM module initialized successfully');
   } catch (error) {
     Log.Error('CppWasmWorker', 'Failed to initialize WASM module', error);
@@ -52,14 +71,16 @@ async function initialize() {
 
 async function initializeWasmModule() {
   Log.Info('CppWasmWorker', 'Loading WASM JS code...');
-  
+
   // Load WASM module using fetch and eval (exact same as VoxelDownsampleWorker)
   const response = await fetch('/wasm/cpp/tools_cpp.js');
-  
+
   if (!response.ok) {
-    throw new Error(`Failed to fetch WASM JS: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Failed to fetch WASM JS: ${response.status} ${response.statusText}`
+    );
   }
-  
+
   const jsCode = await response.text();
   Log.Info('CppWasmWorker', 'WASM JS code loaded', { length: jsCode.length });
 
@@ -71,36 +92,60 @@ async function initializeWasmModule() {
   moduleFunction(module, module.exports);
 
   // Get the ToolsModule function
-  const ToolsModuleFactory = (module.exports as { default?: (options?: { locateFile?: (path: string) => string }) => Promise<ToolsModule> }).default || module.exports as (options?: { locateFile?: (path: string) => string }) => Promise<ToolsModule>;
+  const ToolsModuleFactory =
+    (
+      module.exports as {
+        default?: (options?: {
+          locateFile?: (path: string) => string;
+        }) => Promise<ToolsModule>;
+      }
+    ).default ||
+    (module.exports as (options?: {
+      locateFile?: (path: string) => string;
+    }) => Promise<ToolsModule>);
 
   if (typeof ToolsModuleFactory !== 'function') {
-    throw new Error('ToolsModuleFactory is not a function: ' + typeof ToolsModuleFactory);
+    throw new Error(
+      'ToolsModuleFactory is not a function: ' + typeof ToolsModuleFactory
+    );
   }
 
   Log.Info('CppWasmWorker', 'ToolsModuleFactory function obtained');
-  
+
   toolsModule = await ToolsModuleFactory({
     locateFile: (path: string) => {
       return path.endsWith('.wasm') ? '/wasm/cpp/tools_cpp.wasm' : path;
     },
   });
-  
+
   // OPTIMIZATION: Pre-wrap the function to avoid ccall overhead on every call
   // cwrap caches the function pointer and reduces call overhead
   if (toolsModule.cwrap) {
     voxelDownsampleDirectFunc = toolsModule.cwrap(
       'voxelDownsampleDirect',
-      'number',  // Return type: int
+      'number', // Return type: int
       ['number', 'number', 'number', 'number', 'number', 'number', 'number'] // Parameter types
     );
     voxelDebugDirectFunc = toolsModule.cwrap(
       'voxelDebugDirect',
-      'number',  // Return type: int
-      ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number'] // Parameter types
+      'number', // Return type: int
+      [
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+      ] // Parameter types
     );
-    Log.Info('CppWasmWorker', 'Functions wrapped with cwrap for better performance');
+    Log.Info(
+      'CppWasmWorker',
+      'Functions wrapped with cwrap for better performance'
+    );
   }
-  
+
   Log.Info('CppWasmWorker', 'ToolsModule instance created');
 }
 
@@ -123,37 +168,42 @@ async function processVoxelDownsampling(data: {
 
   // Check if required functions are available
   if (!toolsModule._malloc || !toolsModule._free || !toolsModule.HEAPF32) {
-    throw new Error('Required WASM functions not available. Missing: ' + 
-      (!toolsModule._malloc ? '_malloc ' : '') +
-      (!toolsModule._free ? '_free ' : '') +
-      (!toolsModule.HEAPF32 ? 'HEAPF32' : ''));
+    throw new Error(
+      'Required WASM functions not available. Missing: ' +
+        (!toolsModule._malloc ? '_malloc ' : '') +
+        (!toolsModule._free ? '_free ' : '') +
+        (!toolsModule.HEAPF32 ? 'HEAPF32' : '')
+    );
   }
 
   const startTime = performance.now();
   const { pointCloudData, voxelSize, globalBounds } = data;
-  
+
   const pointCount = pointCloudData.length / 3;
   const floatCount = pointCloudData.length;
-  
+
   // Free previous output buffer if it exists (keep only one result alive at a time)
   if (previousOutputPtr !== null) {
     toolsModule._free(previousOutputPtr);
     previousOutputPtr = null;
   }
-  
+
   // Allocate memory in WASM heap for input and output
   // Note: Output buffer must be worst-case (same as input) to avoid buffer overflow
   const inputPtr = toolsModule._malloc(floatCount * 4); // 4 bytes per float
   const outputPtr = toolsModule._malloc(floatCount * 4); // Worst-case: same size as input (safe)
-  
+
   if (!inputPtr || !outputPtr) {
-    throw new Error(`Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`);
+    throw new Error(
+      `Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`
+    );
   }
-  
+
   // OPTIMIZATION: Check if input is already in WASM memory (zero-copy optimization)
-  const isInputInWasmMemory = pointCloudData.buffer === toolsModule.HEAPF32.buffer;
+  const isInputInWasmMemory =
+    pointCloudData.buffer === toolsModule.HEAPF32.buffer;
   let inputPtrToUse = inputPtr;
-  
+
   try {
     if (isInputInWasmMemory) {
       // Input is already in WASM memory - use it directly (zero-copy!)
@@ -166,68 +216,80 @@ async function processVoxelDownsampling(data: {
       const inputFloatIndex = inputPtr >> 2; // Convert byte pointer to float index
       toolsModule.HEAPF32.set(pointCloudData, inputFloatIndex);
     }
-    
+
     // OPTIMIZATION: Use cached wrapped function (cwrap) instead of ccall for better performance
     // cwrap reduces function call overhead by caching the function pointer
     const outputCount = voxelDownsampleDirectFunc
       ? voxelDownsampleDirectFunc(
-          inputPtrToUse,               // inputPtr (byte pointer, C will cast to float*)
-          pointCount,                  // pointCount
-          voxelSize,                   // voxelSize
-          globalBounds.minX,           // globalMinX
-          globalBounds.minY,           // globalMinY
-          globalBounds.minZ,           // globalMinZ
-          outputPtr                    // outputPtr (byte pointer, C will cast to float*)
+          inputPtrToUse, // inputPtr (byte pointer, C will cast to float*)
+          pointCount, // pointCount
+          voxelSize, // voxelSize
+          globalBounds.minX, // globalMinX
+          globalBounds.minY, // globalMinY
+          globalBounds.minZ, // globalMinZ
+          outputPtr // outputPtr (byte pointer, C will cast to float*)
         )
       : toolsModule.ccall
         ? toolsModule.ccall(
             'voxelDownsampleDirect',
             'number',
-            ['number', 'number', 'number', 'number', 'number', 'number', 'number'],
+            [
+              'number',
+              'number',
+              'number',
+              'number',
+              'number',
+              'number',
+              'number',
+            ],
             [
               inputPtrToUse,
               pointCount,
-    voxelSize,
-    globalBounds.minX,
-    globalBounds.minY,
+              voxelSize,
+              globalBounds.minX,
+              globalBounds.minY,
               globalBounds.minZ,
-              outputPtr
+              outputPtr,
             ]
           )
-        : (() => { throw new Error('No direct function available'); })();
-    
+        : (() => {
+            throw new Error('No direct function available');
+          })();
+
     if (outputCount <= 0 || outputCount > pointCount) {
-      throw new Error(`Invalid output count: ${outputCount} (expected 1-${pointCount})`);
+      throw new Error(
+        `Invalid output count: ${outputCount} (expected 1-${pointCount})`
+      );
     }
-    
+
     // ZERO-COPY OUTPUT: Create direct view of WASM memory
     // Store output pointer to keep WASM memory alive - don't free it immediately
     const resultFloatCount = outputCount * 3;
     const outputFloatIndex = outputPtr >> 2;
-    
+
     // Create zero-copy view of WASM memory for processing
     const downsampledPointsView = toolsModule.HEAPF32.subarray(
       outputFloatIndex,
       outputFloatIndex + resultFloatCount
     );
-    
+
     // OPTIMIZATION: Copy to new buffer only for transfer (WASM memory cannot be transferred)
     // This is necessary because postMessage cannot transfer WASM/asm.js ArrayBuffers
     // We still get zero-copy benefits during processing, only copy at the end
     const downsampledPoints = new Float32Array(downsampledPointsView);
-    
+
     // Store output pointer to keep memory alive (for the view, even though we copied)
     // Previous output pointer was already freed above
     previousOutputPtr = outputPtr;
 
-  const processingTime = performance.now() - startTime;
+    const processingTime = performance.now() - startTime;
 
-  return {
-    downsampledPoints,
+    return {
+      downsampledPoints,
       originalCount: pointCount,
       downsampledCount: outputCount,
-    processingTime
-  };
+      processingTime,
+    };
   } finally {
     // Free input memory only if we allocated it (not if it was already in WASM memory)
     if (!isInputInWasmMemory && inputPtr) {
@@ -249,11 +311,11 @@ async function processPointCloudSmoothing(data: {
 
   const startTime = performance.now();
   const { pointCloudData, smoothingRadius, iterations } = data;
-  
+
   Log.Info('CppWasmWorker', 'Processing point cloud smoothing', {
     pointCount: pointCloudData.length / 3,
     smoothingRadius,
-    iterations
+    iterations,
   });
 
   let smoothedPoints: Float32Array;
@@ -264,23 +326,29 @@ async function processPointCloudSmoothing(data: {
       iterations
     );
   } catch (error) {
-    Log.Error('CppWasmWorker', 'C++ WASM pointCloudSmoothing function failed', error);
-    throw new Error(`C++ WASM pointCloudSmoothing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    Log.Error(
+      'CppWasmWorker',
+      'C++ WASM pointCloudSmoothing function failed',
+      error
+    );
+    throw new Error(
+      `C++ WASM pointCloudSmoothing failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 
   const processingTime = performance.now() - startTime;
-  
+
   Log.Info('CppWasmWorker', 'Point cloud smoothing completed', {
     originalCount: pointCloudData.length / 3,
     smoothedCount: smoothedPoints.length / 3,
-    processingTime
+    processingTime,
   });
 
   return {
     smoothedPoints,
     originalCount: pointCloudData.length / 3,
     smoothedCount: smoothedPoints.length / 3,
-    processingTime
+    processingTime,
   };
 }
 
@@ -308,34 +376,37 @@ async function processVoxelDebug(data: {
 
   const startTime = performance.now();
   const { pointCloudData, voxelSize, globalBounds } = data;
-  
+
   Log.Info('CppWasmWorker', 'Processing voxel debug generation', {
     pointCount: pointCloudData.length / 3,
     voxelSize,
-    globalBounds
+    globalBounds,
   });
 
   const pointCount = pointCloudData.length / 3;
   const floatCount = pointCloudData.length;
-  
+
   // Free previous output buffer if it exists
   if (previousOutputPtr !== null) {
     toolsModule._free(previousOutputPtr);
     previousOutputPtr = null;
   }
-  
+
   // Allocate memory in WASM heap for input and output
   const inputPtr = toolsModule._malloc(floatCount * 4); // 4 bytes per float
   const outputPtr = toolsModule._malloc(floatCount * 4); // Worst-case: same size as input
-  
+
   if (!inputPtr || !outputPtr) {
-    throw new Error(`Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`);
+    throw new Error(
+      `Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`
+    );
   }
-  
+
   // OPTIMIZATION: Check if input is already in WASM memory (zero-copy optimization)
-  const isInputInWasmMemory = pointCloudData.buffer === toolsModule.HEAPF32.buffer;
+  const isInputInWasmMemory =
+    pointCloudData.buffer === toolsModule.HEAPF32.buffer;
   let inputPtrToUse = inputPtr;
-  
+
   try {
     if (isInputInWasmMemory) {
       // Input is already in WASM memory - use it directly (zero-copy!)
@@ -347,24 +418,33 @@ async function processVoxelDebug(data: {
       const inputFloatIndex = inputPtr >> 2; // Convert byte pointer to float index
       toolsModule.HEAPF32.set(pointCloudData, inputFloatIndex);
     }
-    
+
     // OPTIMIZATION: Use cached wrapped function (cwrap) instead of ccall for better performance
     const outputCount = voxelDebugDirectFunc
       ? voxelDebugDirectFunc(
-          inputPtrToUse,               // inputPtr (byte pointer, C will cast to float*)
-          pointCount,                  // pointCount
-          voxelSize,                   // voxelSize
-          globalBounds.minX,           // minX
-          globalBounds.minY,           // minY
-          globalBounds.minZ,           // minZ
-          outputPtr,                   // outputPtr (byte pointer, C will cast to float*)
-          pointCount                   // maxOutputPoints (safety limit)
+          inputPtrToUse, // inputPtr (byte pointer, C will cast to float*)
+          pointCount, // pointCount
+          voxelSize, // voxelSize
+          globalBounds.minX, // minX
+          globalBounds.minY, // minY
+          globalBounds.minZ, // minZ
+          outputPtr, // outputPtr (byte pointer, C will cast to float*)
+          pointCount // maxOutputPoints (safety limit)
         )
       : toolsModule.ccall
         ? toolsModule.ccall(
             'voxelDebugDirect',
             'number',
-            ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number'],
+            [
+              'number',
+              'number',
+              'number',
+              'number',
+              'number',
+              'number',
+              'number',
+              'number',
+            ],
             [
               inputPtrToUse,
               pointCount,
@@ -373,38 +453,45 @@ async function processVoxelDebug(data: {
               globalBounds.minY,
               globalBounds.minZ,
               outputPtr,
-              pointCount
+              pointCount,
             ]
           )
-        : (() => { throw new Error('No direct function available'); })();
-    
+        : (() => {
+            throw new Error('No direct function available');
+          })();
+
     if (outputCount <= 0 || outputCount > pointCount) {
-      throw new Error(`Invalid output count: ${outputCount} (expected 1-${pointCount})`);
+      throw new Error(
+        `Invalid output count: ${outputCount} (expected 1-${pointCount})`
+      );
     }
-    
+
     // ZERO-COPY OUTPUT: Create direct view of WASM memory
     const resultFloatCount = outputCount * 3;
     const outputFloatIndex = outputPtr >> 2;
-    const centersArray = toolsModule.HEAPF32.subarray(outputFloatIndex, outputFloatIndex + resultFloatCount);
-    
+    const centersArray = toolsModule.HEAPF32.subarray(
+      outputFloatIndex,
+      outputFloatIndex + resultFloatCount
+    );
+
     // Copy to new buffer for transfer (WASM memory cannot be transferred)
     const centersArrayCopy = new Float32Array(centersArray);
-    
+
     // Store output pointer to keep WASM memory alive
     previousOutputPtr = outputPtr;
 
     const processingTime = performance.now() - startTime;
     const voxelCount = outputCount;
-  
-      Log.Info('CppWasmWorker', 'Voxel debug generation completed', {
+
+    Log.Info('CppWasmWorker', 'Voxel debug generation completed', {
       voxelCount,
-      processingTime
+      processingTime,
     });
 
     return {
       voxelCenters: centersArrayCopy,
       voxelCount,
-      processingTime
+      processingTime,
     };
   } catch (error) {
     // Free allocated memory on error
@@ -419,10 +506,10 @@ async function processVoxelDebug(data: {
 }
 
 // Message handler
-self.onmessage = async function(e) {
+self.onmessage = async function (e) {
   const { type, messageId, data } = e.data;
   // Removed logging from hot path for performance
-  
+
   try {
     if (type === 'INITIALIZE') {
       await initialize();
@@ -430,32 +517,41 @@ self.onmessage = async function(e) {
         type: 'SUCCESS',
         method: 'WASM_CPP',
         messageId,
-        data: { originalCount: 0, processingTime: 0 }
+        data: { originalCount: 0, processingTime: 0 },
       });
     } else if (type === 'VOXEL_DOWNSAMPLE') {
       const result = await processVoxelDownsampling(data);
-      globalThis.postMessage({
-        type: 'SUCCESS',
-        method: 'WASM_CPP',
-        messageId,
-        data: result
-      }, { transfer: [result.downsampledPoints.buffer] });
+      globalThis.postMessage(
+        {
+          type: 'SUCCESS',
+          method: 'WASM_CPP',
+          messageId,
+          data: result,
+        },
+        { transfer: [result.downsampledPoints.buffer] }
+      );
     } else if (type === 'POINT_CLOUD_SMOOTHING') {
       const result = await processPointCloudSmoothing(data);
-      globalThis.postMessage({
-        type: 'SUCCESS',
-        method: 'WASM_CPP',
-        messageId,
-        data: result
-      }, { transfer: [result.smoothedPoints.buffer] });
+      globalThis.postMessage(
+        {
+          type: 'SUCCESS',
+          method: 'WASM_CPP',
+          messageId,
+          data: result,
+        },
+        { transfer: [result.smoothedPoints.buffer] }
+      );
     } else if (type === 'VOXEL_DEBUG') {
       const result = await processVoxelDebug(data);
-      globalThis.postMessage({
-        type: 'SUCCESS',
-        method: 'WASM_CPP',
-        messageId,
-        data: result
-      }, { transfer: [result.voxelCenters.buffer] });
+      globalThis.postMessage(
+        {
+          type: 'SUCCESS',
+          method: 'WASM_CPP',
+          messageId,
+          data: result,
+        },
+        { transfer: [result.voxelCenters.buffer] }
+      );
     } else {
       throw new Error(`Unknown message type: ${type}`);
     }
@@ -466,7 +562,7 @@ self.onmessage = async function(e) {
       method: 'WASM_CPP',
       messageId,
       data: { originalCount: 0, processingTime: 0 },
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };
@@ -478,5 +574,5 @@ self.postMessage({
   type: 'WORKER_READY',
   method: 'WASM_CPP',
   messageId: -1,
-  data: { originalCount: 0, processingTime: 0 }
+  data: { originalCount: 0, processingTime: 0 },
 });

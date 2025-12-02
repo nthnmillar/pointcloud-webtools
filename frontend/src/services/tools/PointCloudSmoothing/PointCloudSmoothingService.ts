@@ -7,11 +7,14 @@ import { PointCloudSmoothingTS } from './PointCloudSmoothingTS';
 import { PointCloudSmoothingBECPP } from './PointCloudSmoothingBECPP';
 import { PointCloudSmoothingBERust } from './PointCloudSmoothingBERust';
 import { PointCloudSmoothingBEPython } from './PointCloudSmoothingBEPython';
-import type { PointCloudSmoothingParams, PointCloudSmoothingResult } from '../ToolsService';
+import type {
+  PointCloudSmoothingParams,
+  PointCloudSmoothingResult,
+} from '../ToolsService';
 
 export class PointCloudSmoothingService extends BaseService {
   private _isInitialized = false;
-  
+
   public pointCloudSmoothingWASMCPP: PointCloudSmoothingWASMCPP;
   public pointCloudSmoothingWASMRust: PointCloudSmoothingWASMRust;
   public pointCloudSmoothingTS: PointCloudSmoothingTS;
@@ -21,8 +24,12 @@ export class PointCloudSmoothingService extends BaseService {
 
   constructor(serviceManager: ServiceManager) {
     super();
-    this.pointCloudSmoothingWASMCPP = new PointCloudSmoothingWASMCPP(serviceManager);
-    this.pointCloudSmoothingWASMRust = new PointCloudSmoothingWASMRust(serviceManager);
+    this.pointCloudSmoothingWASMCPP = new PointCloudSmoothingWASMCPP(
+      serviceManager
+    );
+    this.pointCloudSmoothingWASMRust = new PointCloudSmoothingWASMRust(
+      serviceManager
+    );
     this.pointCloudSmoothingTS = new PointCloudSmoothingTS(serviceManager);
     this.pointCloudSmoothingBECPP = new PointCloudSmoothingBECPP();
     this.pointCloudSmoothingBERust = new PointCloudSmoothingBERust();
@@ -40,15 +47,15 @@ export class PointCloudSmoothingService extends BaseService {
       Log.InfoClass(this, 'Initializing WASM C++ service...');
       await this.pointCloudSmoothingWASMCPP.initialize();
       Log.InfoClass(this, 'WASM C++ service initialized successfully');
-      
+
       Log.InfoClass(this, 'Initializing TS service...');
       await this.pointCloudSmoothingTS.initialize();
       Log.InfoClass(this, 'TS service initialized successfully');
-      
+
       Log.InfoClass(this, 'Initializing Rust WASM service...');
       await this.pointCloudSmoothingWASMRust.initialize();
       Log.InfoClass(this, 'Rust WASM service initialized successfully');
-      
+
       Log.InfoClass(this, 'Initializing BE C++ service...');
       await this.pointCloudSmoothingBECPP.initialize();
       Log.InfoClass(this, 'BE C++ service initialized successfully');
@@ -62,9 +69,16 @@ export class PointCloudSmoothingService extends BaseService {
       Log.InfoClass(this, 'BE Python service initialized successfully');
 
       this._isInitialized = true;
-      Log.InfoClass(this, 'PointCloudSmoothingService initialized successfully');
+      Log.InfoClass(
+        this,
+        'PointCloudSmoothingService initialized successfully'
+      );
     } catch (error) {
-      Log.ErrorClass(this, 'Failed to initialize PointCloudSmoothingService', error);
+      Log.ErrorClass(
+        this,
+        'Failed to initialize PointCloudSmoothingService',
+        error
+      );
       throw error;
     }
   }
@@ -73,11 +87,15 @@ export class PointCloudSmoothingService extends BaseService {
     return this._isInitialized;
   }
 
-  async performPointCloudSmoothingWASMCPP(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
+  async performPointCloudSmoothingWASMCPP(
+    params: PointCloudSmoothingParams
+  ): Promise<PointCloudSmoothingResult> {
     return this.pointCloudSmoothingWASMCPP.pointCloudSmoothing(params);
   }
 
-  async performPointCloudSmoothingWASMRust(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
+  async performPointCloudSmoothingWASMRust(
+    params: PointCloudSmoothingParams
+  ): Promise<PointCloudSmoothingResult> {
     return this.pointCloudSmoothingWASMRust.performPointCloudSmoothing(
       params.points,
       params.smoothingRadius,
@@ -85,31 +103,39 @@ export class PointCloudSmoothingService extends BaseService {
     );
   }
 
-  async performPointCloudSmoothingTS(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
+  async performPointCloudSmoothingTS(
+    params: PointCloudSmoothingParams
+  ): Promise<PointCloudSmoothingResult> {
     return this.pointCloudSmoothingTS.pointCloudSmoothing(params);
   }
 
-  async performPointCloudSmoothingBECPP(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
+  async performPointCloudSmoothingBECPP(
+    params: PointCloudSmoothingParams
+  ): Promise<PointCloudSmoothingResult> {
     return this.pointCloudSmoothingBECPP.pointCloudSmooth({
       pointCloudData: params.points,
       smoothingRadius: params.smoothingRadius,
-      iterations: params.iterations
+      iterations: params.iterations,
     });
   }
 
-  async performPointCloudSmoothingBERust(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
+  async performPointCloudSmoothingBERust(
+    params: PointCloudSmoothingParams
+  ): Promise<PointCloudSmoothingResult> {
     return this.pointCloudSmoothingBERust.pointCloudSmooth({
       pointCloudData: params.points,
       smoothingRadius: params.smoothingRadius,
-      iterations: params.iterations
+      iterations: params.iterations,
     });
   }
 
-  async performPointCloudSmoothingBEPython(params: PointCloudSmoothingParams): Promise<PointCloudSmoothingResult> {
+  async performPointCloudSmoothingBEPython(
+    params: PointCloudSmoothingParams
+  ): Promise<PointCloudSmoothingResult> {
     return this.pointCloudSmoothingBEPython.pointCloudSmooth({
       pointCloudData: params.points,
       smoothingRadius: params.smoothingRadius,
-      iterations: params.iterations
+      iterations: params.iterations,
     });
   }
 
@@ -124,4 +150,3 @@ export class PointCloudSmoothingService extends BaseService {
     this.removeAllObservers();
   }
 }
-

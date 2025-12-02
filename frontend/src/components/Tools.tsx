@@ -93,19 +93,29 @@ interface ToolsProps {
   onCurrentToolChange?: (tool: 'voxel' | 'smoothing') => void;
 }
 
-export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmResults, onTsResults, onBeResults, onWasmRustResults, onBeRustResults, onBePythonResults, onWasmCppMainResults, onRustWasmMainResults, onCurrentToolChange }) => {
+export const Tools: React.FC<ToolsProps> = ({
+  serviceManager,
+  className,
+  onWasmResults,
+  onTsResults,
+  onBeResults,
+  onWasmRustResults,
+  onBeRustResults,
+  onBePythonResults,
+  onWasmCppMainResults,
+  onRustWasmMainResults,
+  onCurrentToolChange,
+}) => {
   const [isVisible, setIsVisible] = useState(false);
   const [voxelSize] = useState(2.0); // Fixed voxel size for downsampling
   const [debugVoxelSize, setDebugVoxelSize] = useState(2.0); // Separate voxel size for debug visualization
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVoxelDebug, setShowVoxelDebug] = useState(false);
-  
 
   // Point cloud smoothing state
   const [smoothingRadius, setSmoothingRadius] = useState(0.5);
   const [smoothingIterations, setSmoothingIterations] = useState(3);
-  
-  
+
   // Use ref to track processing state for event handlers
   const isProcessingRef = useRef(false);
 
@@ -119,10 +129,13 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
       try {
         // Prevent double initialization
         if (workerManager.current || isInitializing.current) {
-          Log.Info('Tools', 'WorkerManager already exists or initializing, skipping');
+          Log.Info(
+            'Tools',
+            'WorkerManager already exists or initializing, skipping'
+          );
           return;
         }
-        
+
         isInitializing.current = true;
         Log.Info('Tools', 'Creating WorkerManager...');
         workerManager.current = new WorkerManager();
@@ -219,12 +232,11 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
     }
   };
 
-
   // Handle voxel debug visualization
   const handleVoxelDebugToggle = () => {
     const newShowDebug = !showVoxelDebug;
     setShowVoxelDebug(newShowDebug);
-    
+
     if (serviceManager?.toolsService) {
       if (newShowDebug) {
         // Show voxel debug grid
@@ -274,8 +286,10 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
   };
 
   // Create handlers from separated modules
-  const voxelDownsamplingHandlers = createVoxelDownsamplingHandlers(toolHandlers);
-  const pointCloudSmoothingHandlers = createPointCloudSmoothingHandlers(toolHandlers);
+  const voxelDownsamplingHandlers =
+    createVoxelDownsamplingHandlers(toolHandlers);
+  const pointCloudSmoothingHandlers =
+    createPointCloudSmoothingHandlers(toolHandlers);
   const voxelDebugHandlers = createVoxelDebugHandlers(toolHandlers);
 
   // Destructure handlers for use in UI
@@ -398,11 +412,16 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                               max="2.0"
                               step="0.1"
                               value={smoothingRadius}
-                              onChange={e => setSmoothingRadius(parseFloat(e.target.value))}
+                              onChange={e =>
+                                setSmoothingRadius(parseFloat(e.target.value))
+                              }
                               className="tool-slider"
                               style={{ width: '120px', marginLeft: '8px' }}
                             />
-                            <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
+                            <div
+                              className="tool-value"
+                              style={{ marginLeft: '8px', fontSize: '12px' }}
+                            >
                               {smoothingRadius.toFixed(1)}m
                             </div>
                           </div>
@@ -414,11 +433,16 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                               max="10"
                               step="1"
                               value={smoothingIterations}
-                              onChange={e => setSmoothingIterations(parseInt(e.target.value))}
+                              onChange={e =>
+                                setSmoothingIterations(parseInt(e.target.value))
+                              }
                               className="tool-slider"
                               style={{ width: '120px', marginLeft: '8px' }}
                             />
-                            <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
+                            <div
+                              className="tool-value"
+                              style={{ marginLeft: '8px', fontSize: '12px' }}
+                            >
                               {smoothingIterations}
                             </div>
                           </div>
@@ -432,154 +456,196 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           tool.name === 'Voxel Downsampling'
                             ? handleTsVoxelDownsampling
                             : tool.name === 'Point Cloud Smoothing'
-                            ? handleTsPointCloudSmoothing
-                            : undefined
+                              ? handleTsPointCloudSmoothing
+                              : undefined
                         }
                         disabled={isProcessing}
                       >
-                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                        {isProcessing &&
+                        (tool.name === 'Voxel Downsampling' ||
+                          tool.name === 'Point Cloud Smoothing')
                           ? 'Processing...'
                           : 'TS'}
                       </button>
                     </div>
                     <div className="tools-col-4">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
                         <button
                           className="tools-wasm-main-btn"
                           onClick={
                             tool.name === 'Voxel Downsampling'
                               ? handleWasmCppMainVoxelDownsampling
                               : tool.name === 'Point Cloud Smoothing'
-                              ? handleWasmCppMainPointCloudSmoothing
-                              : undefined
+                                ? handleWasmCppMainPointCloudSmoothing
+                                : undefined
                           }
                           disabled={isProcessing}
                         >
-                          {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                          {isProcessing &&
+                          (tool.name === 'Voxel Downsampling' ||
+                            tool.name === 'Point Cloud Smoothing')
                             ? 'Processing...'
                             : 'C++ Main'}
                         </button>
-                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing') && (
-                          <button
-                            className="tools-cancel-btn"
-                            onClick={handleCancelProcessing}
-                            style={{
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        )}
+                        {isProcessing &&
+                          (tool.name === 'Voxel Downsampling' ||
+                            tool.name === 'Point Cloud Smoothing') && (
+                            <button
+                              className="tools-cancel-btn"
+                              onClick={handleCancelProcessing}
+                              style={{
+                                backgroundColor: '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          )}
                       </div>
                     </div>
                     <div className="tools-col-5">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
                         <button
                           className="tools-rust-wasm-main-btn"
                           onClick={
                             tool.name === 'Voxel Downsampling'
                               ? handleRustWasmMainVoxelDownsampling
                               : tool.name === 'Point Cloud Smoothing'
-                              ? handleRustWasmMainPointCloudSmoothing
-                              : undefined
+                                ? handleRustWasmMainPointCloudSmoothing
+                                : undefined
                           }
                           disabled={isProcessing}
                         >
-                          {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                          {isProcessing &&
+                          (tool.name === 'Voxel Downsampling' ||
+                            tool.name === 'Point Cloud Smoothing')
                             ? 'Processing...'
                             : 'Rust Main'}
                         </button>
-                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing') && (
-                          <button
-                            className="tools-cancel-btn"
-                            onClick={handleCancelProcessing}
-                            style={{
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        )}
+                        {isProcessing &&
+                          (tool.name === 'Voxel Downsampling' ||
+                            tool.name === 'Point Cloud Smoothing') && (
+                            <button
+                              className="tools-cancel-btn"
+                              onClick={handleCancelProcessing}
+                              style={{
+                                backgroundColor: '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          )}
                       </div>
                     </div>
                     <div className="tools-col-6">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
                         <button
                           className="tools-wasm-btn"
                           onClick={
                             tool.name === 'Voxel Downsampling'
                               ? handleWasmVoxelDownsampling
                               : tool.name === 'Point Cloud Smoothing'
-                              ? handleWasmPointCloudSmoothing
-                              : undefined
+                                ? handleWasmPointCloudSmoothing
+                                : undefined
                           }
                           disabled={isProcessing}
                         >
-                          {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                          {isProcessing &&
+                          (tool.name === 'Voxel Downsampling' ||
+                            tool.name === 'Point Cloud Smoothing')
                             ? 'Processing...'
                             : 'C++ Worker'}
                         </button>
-                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing') && (
-                          <button
-                            className="tools-cancel-btn"
-                            onClick={handleCancelProcessing}
-                            style={{
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        )}
+                        {isProcessing &&
+                          (tool.name === 'Voxel Downsampling' ||
+                            tool.name === 'Point Cloud Smoothing') && (
+                            <button
+                              className="tools-cancel-btn"
+                              onClick={handleCancelProcessing}
+                              style={{
+                                backgroundColor: '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          )}
                       </div>
                     </div>
                     <div className="tools-col-7">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
                         <button
                           className="tools-wasm-rust-btn"
                           onClick={
                             tool.name === 'Voxel Downsampling'
                               ? handleWasmRustVoxelDownsampling
                               : tool.name === 'Point Cloud Smoothing'
-                              ? handleWasmRustPointCloudSmoothing
-                              : undefined
+                                ? handleWasmRustPointCloudSmoothing
+                                : undefined
                           }
                           disabled={isProcessing}
                         >
-                          {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                          {isProcessing &&
+                          (tool.name === 'Voxel Downsampling' ||
+                            tool.name === 'Point Cloud Smoothing')
                             ? 'Processing...'
                             : 'Rust Worker'}
                         </button>
-                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing') && (
-                          <button
-                            className="tools-cancel-btn"
-                            onClick={handleCancelProcessing}
-                            style={{
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        )}
+                        {isProcessing &&
+                          (tool.name === 'Voxel Downsampling' ||
+                            tool.name === 'Point Cloud Smoothing') && (
+                            <button
+                              className="tools-cancel-btn"
+                              onClick={handleCancelProcessing}
+                              style={{
+                                backgroundColor: '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          )}
                       </div>
                     </div>
                     <div className="tools-col-8">
@@ -589,12 +655,14 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           tool.name === 'Voxel Downsampling'
                             ? handleBeVoxelDownsampling
                             : tool.name === 'Point Cloud Smoothing'
-                            ? handleBePointCloudSmoothing
-                            : undefined
+                              ? handleBePointCloudSmoothing
+                              : undefined
                         }
                         disabled={isProcessing}
                       >
-                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                        {isProcessing &&
+                        (tool.name === 'Voxel Downsampling' ||
+                          tool.name === 'Point Cloud Smoothing')
                           ? 'Processing...'
                           : 'C++ BE'}
                       </button>
@@ -606,12 +674,14 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           tool.name === 'Voxel Downsampling'
                             ? handleBeRustVoxelDownsampling
                             : tool.name === 'Point Cloud Smoothing'
-                            ? handleBeRustPointCloudSmoothing
-                            : undefined
+                              ? handleBeRustPointCloudSmoothing
+                              : undefined
                         }
                         disabled={isProcessing}
                       >
-                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                        {isProcessing &&
+                        (tool.name === 'Voxel Downsampling' ||
+                          tool.name === 'Point Cloud Smoothing')
                           ? 'Processing...'
                           : 'Rust BE'}
                       </button>
@@ -623,24 +693,28 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                           tool.name === 'Voxel Downsampling'
                             ? handleBePythonVoxelDownsampling
                             : tool.name === 'Point Cloud Smoothing'
-                            ? handleBePythonPointCloudSmoothing
-                            : undefined
+                              ? handleBePythonPointCloudSmoothing
+                              : undefined
                         }
                         disabled={isProcessing}
                       >
-                        {isProcessing && (tool.name === 'Voxel Downsampling' || tool.name === 'Point Cloud Smoothing')
+                        {isProcessing &&
+                        (tool.name === 'Voxel Downsampling' ||
+                          tool.name === 'Point Cloud Smoothing')
                           ? 'Processing...'
                           : 'Python BE'}
                       </button>
                     </div>
                   </div>
-                  
+
                   {/* Debug Voxels Row - Show after Voxel Downsampling */}
                   {tool.name === 'Voxel Downsampling' && (
                     <div className="tools-table-row">
                       <div className="tools-col-1">
                         <div className="tool-name">Debug Voxels</div>
-                        <div className="tool-description">Visualize voxel grid for debugging</div>
+                        <div className="tool-description">
+                          Visualize voxel grid for debugging
+                        </div>
                       </div>
                       <div className="tools-col-2">
                         <div className="tool-control">
@@ -662,11 +736,18 @@ export const Tools: React.FC<ToolsProps> = ({ serviceManager, className, onWasmR
                               max="2.0"
                               step="0.01"
                               value={debugVoxelSize}
-                              onChange={e => handleVoxelSizeChange(parseFloat(e.target.value))}
+                              onChange={e =>
+                                handleVoxelSizeChange(
+                                  parseFloat(e.target.value)
+                                )
+                              }
                               className="tool-slider"
                               style={{ width: '120px', marginLeft: '8px' }}
                             />
-                            <div className="tool-value" style={{ marginLeft: '8px', fontSize: '12px' }}>
+                            <div
+                              className="tool-value"
+                              style={{ marginLeft: '8px', fontSize: '12px' }}
+                            >
                               {debugVoxelSize.toFixed(2)}m
                             </div>
                           </div>

@@ -18,7 +18,16 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
   } = handlers;
 
   // Shared processing function for most smoothing methods
-  const processPointCloudSmoothing = async (method: 'TS' | 'WASM' | 'WASM_CPP_MAIN' | 'WASM_RUST' | 'BE' | 'BE_RUST' | 'BE_PYTHON'): Promise<{
+  const processPointCloudSmoothing = async (
+    method:
+      | 'TS'
+      | 'WASM'
+      | 'WASM_CPP_MAIN'
+      | 'WASM_RUST'
+      | 'BE'
+      | 'BE_RUST'
+      | 'BE_PYTHON'
+  ): Promise<{
     originalCount: number;
     smoothedCount?: number;
     processingTime: number;
@@ -26,7 +35,7 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
     iterations?: number;
   } | null> => {
     Log.Info('Tools', '=== Starting Point Cloud Smoothing ===', { method });
-    
+
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
       return null;
@@ -42,45 +51,60 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
       Log.Info('Tools', 'Starting point cloud smoothing', {
         pointCount: pointCloudData.length / 3,
         smoothingRadius,
-        iterations: smoothingIterations
+        iterations: smoothingIterations,
       });
 
       serviceManager.pointService?.clearAllPointClouds();
       callbacks.onCurrentToolChange?.('smoothing');
 
       let result;
-      
-      if (method === 'TS' || method === 'BE' || method === 'BE_RUST' || method === 'BE_PYTHON' || method === 'WASM_CPP_MAIN') {
+
+      if (
+        method === 'TS' ||
+        method === 'BE' ||
+        method === 'BE_RUST' ||
+        method === 'BE_PYTHON' ||
+        method === 'WASM_CPP_MAIN'
+      ) {
         if (method === 'TS') {
-          result = await serviceManager.toolsService.performPointCloudSmoothingTS({
-            points: pointCloudData,
-            smoothingRadius,
-            iterations: smoothingIterations
-          });
+          result =
+            await serviceManager.toolsService.performPointCloudSmoothingTS({
+              points: pointCloudData,
+              smoothingRadius,
+              iterations: smoothingIterations,
+            });
         } else if (method === 'BE') {
-          result = await serviceManager.toolsService.performPointCloudSmoothingBECPP({
-            points: pointCloudData,
-            smoothingRadius,
-            iterations: smoothingIterations
-          });
+          result =
+            await serviceManager.toolsService.performPointCloudSmoothingBECPP({
+              points: pointCloudData,
+              smoothingRadius,
+              iterations: smoothingIterations,
+            });
         } else if (method === 'BE_RUST') {
-          result = await serviceManager.toolsService.performPointCloudSmoothingBERust({
-            points: pointCloudData,
-            smoothingRadius,
-            iterations: smoothingIterations
-          });
+          result =
+            await serviceManager.toolsService.performPointCloudSmoothingBERust({
+              points: pointCloudData,
+              smoothingRadius,
+              iterations: smoothingIterations,
+            });
         } else if (method === 'BE_PYTHON') {
-          result = await serviceManager.toolsService.performPointCloudSmoothingBEPython({
-            points: pointCloudData,
-            smoothingRadius,
-            iterations: smoothingIterations
-          });
+          result =
+            await serviceManager.toolsService.performPointCloudSmoothingBEPython(
+              {
+                points: pointCloudData,
+                smoothingRadius,
+                iterations: smoothingIterations,
+              }
+            );
         } else {
-          result = await serviceManager.toolsService.performPointCloudSmoothingWASMCPP({
-            points: pointCloudData,
-            smoothingRadius,
-            iterations: smoothingIterations
-          });
+          result =
+            await serviceManager.toolsService.performPointCloudSmoothingWASMCPP(
+              {
+                points: pointCloudData,
+                smoothingRadius,
+                iterations: smoothingIterations,
+              }
+            );
         }
       } else {
         if (method === 'WASM') {
@@ -89,15 +113,21 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
             throw new Error('Worker manager not available for C++ WASM');
           }
 
-          const workerResult = await workerManager.current.processPointCloudSmoothing(
-            'WASM_CPP',
-            pointCloudData,
-            smoothingRadius,
-            smoothingIterations
-          );
+          const workerResult =
+            await workerManager.current.processPointCloudSmoothing(
+              'WASM_CPP',
+              pointCloudData,
+              smoothingRadius,
+              smoothingIterations
+            );
 
-          if (workerResult.type !== 'SUCCESS' || !workerResult.data?.smoothedPoints) {
-            throw new Error(`WASM C++ point cloud smoothing failed: ${workerResult.error}`);
+          if (
+            workerResult.type !== 'SUCCESS' ||
+            !workerResult.data?.smoothedPoints
+          ) {
+            throw new Error(
+              `WASM C++ point cloud smoothing failed: ${workerResult.error}`
+            );
           }
 
           result = {
@@ -105,7 +135,7 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
             smoothedPoints: workerResult.data.smoothedPoints,
             originalCount: workerResult.data.originalCount,
             smoothedCount: workerResult.data.smoothedCount,
-            processingTime: workerResult.data.processingTime
+            processingTime: workerResult.data.processingTime,
           };
         } else if (method === 'WASM_RUST') {
           if (!workerManager.current || !workerManager.current.isReady) {
@@ -113,15 +143,21 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
             throw new Error('Worker manager not available for Rust WASM');
           }
 
-          const workerResult = await workerManager.current.processPointCloudSmoothing(
-            'WASM_RUST',
-            pointCloudData,
-            smoothingRadius,
-            smoothingIterations
-          );
+          const workerResult =
+            await workerManager.current.processPointCloudSmoothing(
+              'WASM_RUST',
+              pointCloudData,
+              smoothingRadius,
+              smoothingIterations
+            );
 
-          if (workerResult.type !== 'SUCCESS' || !workerResult.data?.smoothedPoints) {
-            throw new Error(`WASM Rust point cloud smoothing failed: ${workerResult.error}`);
+          if (
+            workerResult.type !== 'SUCCESS' ||
+            !workerResult.data?.smoothedPoints
+          ) {
+            throw new Error(
+              `WASM Rust point cloud smoothing failed: ${workerResult.error}`
+            );
           }
 
           result = {
@@ -129,7 +165,7 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
             smoothedPoints: workerResult.data.smoothedPoints,
             originalCount: workerResult.data.originalCount,
             smoothedCount: workerResult.data.smoothedCount,
-            processingTime: workerResult.data.processingTime
+            processingTime: workerResult.data.processingTime,
           };
         } else {
           Log.Error('Tools', `Unknown method: ${method}`);
@@ -140,7 +176,7 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
       if (result.success && result.smoothedPoints) {
         const smoothedPoints = [];
         const pointCount = result.smoothedPoints.length / 3;
-        
+
         for (let i = 0; i < pointCount; i++) {
           const pointIndex = i * 3;
           smoothedPoints.push({
@@ -164,13 +200,13 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
               min: {
                 x: Math.min(...smoothedPoints.map(p => p.position.x)),
                 y: Math.min(...smoothedPoints.map(p => p.position.y)),
-                z: Math.min(...smoothedPoints.map(p => p.position.z))
+                z: Math.min(...smoothedPoints.map(p => p.position.z)),
               },
               max: {
                 x: Math.max(...smoothedPoints.map(p => p.position.x)),
                 y: Math.max(...smoothedPoints.map(p => p.position.y)),
-                z: Math.max(...smoothedPoints.map(p => p.position.z))
-              }
+                z: Math.max(...smoothedPoints.map(p => p.position.z)),
+              },
             },
             hasColor: true,
             hasIntensity: true,
@@ -179,19 +215,23 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
             smoothedCount: result.smoothedCount || 0,
             smoothingRadius: smoothingRadius,
             iterations: smoothingIterations,
-            processingTime: result.processingTime || 0
+            processingTime: result.processingTime || 0,
           },
         };
 
         const smoothedId = `wasm_smoothed_${Date.now()}`;
-        await serviceManager.pointService?.loadPointCloud(smoothedId, smoothedPointCloud, false);
+        await serviceManager.pointService?.loadPointCloud(
+          smoothedId,
+          smoothedPointCloud,
+          false
+        );
 
         return {
           originalCount: result.originalCount || 0,
           smoothedCount: result.smoothedCount || 0,
           processingTime: result.processingTime || 0,
           smoothingRadius: smoothingRadius,
-          iterations: smoothingIterations
+          iterations: smoothingIterations,
         };
       } else {
         Log.Error('Tools', 'Point cloud smoothing failed', result.error);
@@ -207,8 +247,11 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
   };
 
   const handleRustWasmMainPointCloudSmoothing = async () => {
-    Log.Info('Tools', '=== Starting Rust WASM Main Thread Point Cloud Smoothing ===');
-    
+    Log.Info(
+      'Tools',
+      '=== Starting Rust WASM Main Thread Point Cloud Smoothing ==='
+    );
+
     if (!serviceManager?.toolsService) {
       Log.Error('Tools', 'Tools service not available');
       return;
@@ -225,29 +268,32 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
       Log.Info('Tools', 'Starting Rust WASM Main point cloud smoothing', {
         pointCount: pointCloudData.length / 3,
         smoothingRadius,
-        iterations: smoothingIterations
+        iterations: smoothingIterations,
       });
 
       serviceManager.pointService?.clearAllPointClouds();
       callbacks.onCurrentToolChange?.('smoothing');
 
-      const result = await serviceManager.toolsService.performPointCloudSmoothingRustWasmMain({
-        points: pointCloudData,
-        smoothingRadius,
-        iterations: smoothingIterations
-      });
+      const result =
+        await serviceManager.toolsService.performPointCloudSmoothingRustWasmMain(
+          {
+            points: pointCloudData,
+            smoothingRadius,
+            iterations: smoothingIterations,
+          }
+        );
 
       if (result.success && result.smoothedPoints) {
         const smoothedPoints = [];
         const pointCount = result.smoothedPoints.length / 3;
-        
+
         for (let i = 0; i < pointCount; i++) {
           const pointIndex = i * 3;
           smoothedPoints.push({
-            position: { 
-              x: result.smoothedPoints[pointIndex], 
-              y: result.smoothedPoints[pointIndex + 1], 
-              z: result.smoothedPoints[pointIndex + 2] 
+            position: {
+              x: result.smoothedPoints[pointIndex],
+              y: result.smoothedPoints[pointIndex + 1],
+              z: result.smoothedPoints[pointIndex + 2],
             },
             color: { r: 1, g: 0.4, b: 0.28 },
             intensity: 1,
@@ -261,16 +307,16 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
             name: 'Rust WASM Main Smoothed Point Cloud',
             totalPoints: smoothedPoints.length,
             bounds: {
-              min: { 
-                x: Math.min(...smoothedPoints.map(p => p.position.x)), 
-                y: Math.min(...smoothedPoints.map(p => p.position.y)), 
-                z: Math.min(...smoothedPoints.map(p => p.position.z)) 
+              min: {
+                x: Math.min(...smoothedPoints.map(p => p.position.x)),
+                y: Math.min(...smoothedPoints.map(p => p.position.y)),
+                z: Math.min(...smoothedPoints.map(p => p.position.z)),
               },
-              max: { 
-                x: Math.max(...smoothedPoints.map(p => p.position.x)), 
-                y: Math.max(...smoothedPoints.map(p => p.position.y)), 
-                z: Math.max(...smoothedPoints.map(p => p.position.z)) 
-              }
+              max: {
+                x: Math.max(...smoothedPoints.map(p => p.position.x)),
+                y: Math.max(...smoothedPoints.map(p => p.position.y)),
+                z: Math.max(...smoothedPoints.map(p => p.position.z)),
+              },
             },
             hasColor: true,
             hasIntensity: true,
@@ -279,12 +325,16 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
             smoothedCount: result.smoothedCount,
             smoothingRadius: smoothingRadius,
             iterations: smoothingIterations,
-            processingTime: result.processingTime || 0
+            processingTime: result.processingTime || 0,
           },
         };
 
         const rustWasmMainId = `rust_wasm_main_smoothed_${Date.now()}`;
-        await serviceManager.pointService?.loadPointCloud(rustWasmMainId, rustWasmMainPointCloud, false);
+        await serviceManager.pointService?.loadPointCloud(
+          rustWasmMainId,
+          rustWasmMainPointCloud,
+          false
+        );
 
         const endToEndTime = performance.now() - startTime;
         callbacks.onRustWasmMainResults?.({
@@ -292,10 +342,14 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
           smoothedCount: result.smoothedCount || 0,
           processingTime: endToEndTime,
           smoothingRadius: smoothingRadius,
-          iterations: smoothingIterations
+          iterations: smoothingIterations,
         });
       } else {
-        Log.Error('Tools', 'Rust WASM Main point cloud smoothing failed', result.error);
+        Log.Error(
+          'Tools',
+          'Rust WASM Main point cloud smoothing failed',
+          result.error
+        );
       }
     } catch (error) {
       Log.Error('Tools', 'Rust WASM Main point cloud smoothing error', error);
@@ -309,11 +363,11 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
     const startTime = performance.now();
     const results = await processPointCloudSmoothing('WASM');
     const endToEndTime = performance.now() - startTime;
-    
+
     if (results) {
       callbacks.onWasmResults?.({
         ...results,
-        processingTime: endToEndTime
+        processingTime: endToEndTime,
       });
     }
   };
@@ -322,11 +376,11 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
     const startTime = performance.now();
     const results = await processPointCloudSmoothing('WASM_CPP_MAIN');
     const endToEndTime = performance.now() - startTime;
-    
+
     if (results) {
       callbacks.onWasmCppMainResults?.({
         ...results,
-        processingTime: endToEndTime
+        processingTime: endToEndTime,
       });
     }
   };
@@ -335,11 +389,11 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
     const startTime = performance.now();
     const results = await processPointCloudSmoothing('WASM_RUST');
     const endToEndTime = performance.now() - startTime;
-    
+
     if (results) {
       callbacks.onWasmRustResults?.({
         ...results,
-        processingTime: endToEndTime
+        processingTime: endToEndTime,
       });
     }
   };
@@ -348,11 +402,11 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
     const startTime = performance.now();
     const results = await processPointCloudSmoothing('TS');
     const endToEndTime = performance.now() - startTime;
-    
+
     if (results) {
       callbacks.onTsResults?.({
         ...results,
-        processingTime: endToEndTime
+        processingTime: endToEndTime,
       });
     }
   };
@@ -361,11 +415,11 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
     const startTime = performance.now();
     const results = await processPointCloudSmoothing('BE');
     const endToEndTime = performance.now() - startTime;
-    
+
     if (results) {
       callbacks.onBeResults?.({
         ...results,
-        processingTime: endToEndTime
+        processingTime: endToEndTime,
       });
     }
   };
@@ -374,11 +428,11 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
     const startTime = performance.now();
     const results = await processPointCloudSmoothing('BE_RUST');
     const endToEndTime = performance.now() - startTime;
-    
+
     if (results) {
       callbacks.onBeRustResults?.({
         ...results,
-        processingTime: endToEndTime
+        processingTime: endToEndTime,
       });
     }
   };
@@ -387,11 +441,11 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
     const startTime = performance.now();
     const results = await processPointCloudSmoothing('BE_PYTHON');
     const endToEndTime = performance.now() - startTime;
-    
+
     if (results) {
       callbacks.onBePythonResults?.({
         ...results,
-        processingTime: endToEndTime
+        processingTime: endToEndTime,
       });
     }
   };
@@ -407,4 +461,3 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
     handleBePythonPointCloudSmoothing,
   };
 }
-

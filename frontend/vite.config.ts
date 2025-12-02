@@ -7,8 +7,8 @@ import topLevelAwait from 'vite-plugin-top-level-await';
 export default defineConfig({
   resolve: {
     alias: {
-      '@': '/src'
-    }
+      '@': '/src',
+    },
   },
   plugins: [
     wasm(),
@@ -21,16 +21,16 @@ export default defineConfig({
         // Force page reload for ANY file in services folder
         if (file.includes('/services/')) {
           server.ws.send({
-            type: 'full-reload'
+            type: 'full-reload',
           });
           return [];
         }
-      }
-    }
+      },
+    },
   ],
   worker: {
     plugins: () => [wasm(), topLevelAwait()],
-    format: 'es'
+    format: 'es',
   },
   server: {
     port: 3000,

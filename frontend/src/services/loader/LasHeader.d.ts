@@ -20,4 +20,3 @@ declare module 'las-header' {
   const lasHeader: LasHeaderModule;
   export default lasHeader;
 }
-

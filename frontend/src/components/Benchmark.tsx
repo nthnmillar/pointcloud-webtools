@@ -85,7 +85,18 @@ interface BenchmarkProps {
   currentTool?: 'voxel' | 'smoothing';
 }
 
-export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, tsResults, beResults, wasmRustResults, wasmCppMainResults, rustWasmMainResults, beRustResults, bePythonResults, currentTool = 'voxel' }) => {
+export const Benchmark: React.FC<BenchmarkProps> = ({
+  className,
+  wasmResults,
+  tsResults,
+  beResults,
+  wasmRustResults,
+  wasmCppMainResults,
+  rustWasmMainResults,
+  beRustResults,
+  bePythonResults,
+  currentTool = 'voxel',
+}) => {
   const [isVisible, setIsVisible] = useState(false);
 
   // Debug logging for WASM Rust results
@@ -96,8 +107,12 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
   }, [wasmRustResults]);
 
   // Determine if we're showing voxel downsampling or smoothing results
-  const isVoxelTool = currentTool === 'voxel' || (wasmResults && wasmResults.downsampledCount !== undefined);
-  const isSmoothingTool = currentTool === 'smoothing' || (wasmResults && wasmResults.smoothedCount !== undefined);
+  const isVoxelTool =
+    currentTool === 'voxel' ||
+    (wasmResults && wasmResults.downsampledCount !== undefined);
+  const isSmoothingTool =
+    currentTool === 'smoothing' ||
+    (wasmResults && wasmResults.smoothedCount !== undefined);
 
   return (
     <>
@@ -132,13 +147,17 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
                   <span className="metric-value">
-                    {tsResults ? `${tsResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                    {tsResults
+                      ? `${tsResults.processingTime.toFixed(0)} ms`
+                      : '-- ms'}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-label">Original Points:</span>
                   <span className="metric-value">
-                    {tsResults ? tsResults.originalCount.toLocaleString() : '--'}
+                    {tsResults
+                      ? tsResults.originalCount.toLocaleString()
+                      : '--'}
                   </span>
                 </div>
                 {isVoxelTool && (
@@ -146,19 +165,25 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Downsampled:</span>
                       <span className="metric-value">
-                        {tsResults ? tsResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                        {tsResults
+                          ? tsResults.downsampledCount?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
-                        {tsResults && tsResults.reductionRatio ? `${((tsResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                        {tsResults && tsResults.reductionRatio
+                          ? `${((tsResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Voxels:</span>
                       <span className="metric-value">
-                        {tsResults ? tsResults.voxelCount?.toLocaleString() || '--' : '--'}
+                        {tsResults
+                          ? tsResults.voxelCount?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -168,19 +193,25 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Smoothed:</span>
                       <span className="metric-value">
-                        {tsResults ? tsResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                        {tsResults
+                          ? tsResults.smoothedCount?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Radius:</span>
                       <span className="metric-value">
-                        {tsResults ? `${tsResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
+                        {tsResults
+                          ? `${tsResults.smoothingRadius?.toFixed(1) || '--'}m`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Iterations:</span>
                       <span className="metric-value">
-                        {tsResults ? tsResults.iterations?.toString() || '--' : '--'}
+                        {tsResults
+                          ? tsResults.iterations?.toString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -195,13 +226,17 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
                   <span className="metric-value">
-                    {wasmCppMainResults ? `${wasmCppMainResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                    {wasmCppMainResults
+                      ? `${wasmCppMainResults.processingTime.toFixed(0)} ms`
+                      : '-- ms'}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-label">Original Points:</span>
                   <span className="metric-value">
-                    {wasmCppMainResults ? wasmCppMainResults.originalCount.toLocaleString() : '--'}
+                    {wasmCppMainResults
+                      ? wasmCppMainResults.originalCount.toLocaleString()
+                      : '--'}
                   </span>
                 </div>
                 {isVoxelTool && (
@@ -209,19 +244,27 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Downsampled:</span>
                       <span className="metric-value">
-                        {wasmCppMainResults ? wasmCppMainResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                        {wasmCppMainResults
+                          ? wasmCppMainResults.downsampledCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
-                        {wasmCppMainResults && wasmCppMainResults.reductionRatio ? `${((wasmCppMainResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                        {wasmCppMainResults && wasmCppMainResults.reductionRatio
+                          ? `${((wasmCppMainResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Voxels:</span>
                       <span className="metric-value">
-                        {wasmCppMainResults ? wasmCppMainResults.voxelCount?.toLocaleString() || '--' : '--'}
+                        {wasmCppMainResults
+                          ? wasmCppMainResults.voxelCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -231,19 +274,26 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Smoothed:</span>
                       <span className="metric-value">
-                        {wasmCppMainResults ? wasmCppMainResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                        {wasmCppMainResults
+                          ? wasmCppMainResults.smoothedCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Radius:</span>
                       <span className="metric-value">
-                        {wasmCppMainResults ? `${wasmCppMainResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
+                        {wasmCppMainResults
+                          ? `${wasmCppMainResults.smoothingRadius?.toFixed(1) || '--'}m`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Iterations:</span>
                       <span className="metric-value">
-                        {wasmCppMainResults ? wasmCppMainResults.iterations || '--' : '--'}
+                        {wasmCppMainResults
+                          ? wasmCppMainResults.iterations || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -258,13 +308,17 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
                   <span className="metric-value">
-                    {rustWasmMainResults ? `${rustWasmMainResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                    {rustWasmMainResults
+                      ? `${rustWasmMainResults.processingTime.toFixed(0)} ms`
+                      : '-- ms'}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-label">Original Points:</span>
                   <span className="metric-value">
-                    {rustWasmMainResults ? rustWasmMainResults.originalCount.toLocaleString() : '--'}
+                    {rustWasmMainResults
+                      ? rustWasmMainResults.originalCount.toLocaleString()
+                      : '--'}
                   </span>
                 </div>
                 {isVoxelTool && (
@@ -272,19 +326,28 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Downsampled:</span>
                       <span className="metric-value">
-                        {rustWasmMainResults ? rustWasmMainResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                        {rustWasmMainResults
+                          ? rustWasmMainResults.downsampledCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
-                        {rustWasmMainResults && rustWasmMainResults.reductionRatio ? `${((rustWasmMainResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                        {rustWasmMainResults &&
+                        rustWasmMainResults.reductionRatio
+                          ? `${((rustWasmMainResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Voxels:</span>
                       <span className="metric-value">
-                        {rustWasmMainResults ? rustWasmMainResults.voxelCount?.toLocaleString() || '--' : '--'}
+                        {rustWasmMainResults
+                          ? rustWasmMainResults.voxelCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -294,19 +357,26 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Smoothed:</span>
                       <span className="metric-value">
-                        {rustWasmMainResults ? rustWasmMainResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                        {rustWasmMainResults
+                          ? rustWasmMainResults.smoothedCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Radius:</span>
                       <span className="metric-value">
-                        {rustWasmMainResults ? rustWasmMainResults.smoothingRadius || '--' : '--'}
+                        {rustWasmMainResults
+                          ? rustWasmMainResults.smoothingRadius || '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Iterations:</span>
                       <span className="metric-value">
-                        {rustWasmMainResults ? rustWasmMainResults.iterations || '--' : '--'}
+                        {rustWasmMainResults
+                          ? rustWasmMainResults.iterations || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -321,13 +391,17 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
                   <span className="metric-value">
-                    {wasmResults ? `${wasmResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                    {wasmResults
+                      ? `${wasmResults.processingTime.toFixed(0)} ms`
+                      : '-- ms'}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-label">Original Points:</span>
                   <span className="metric-value">
-                    {wasmResults ? wasmResults.originalCount.toLocaleString() : '--'}
+                    {wasmResults
+                      ? wasmResults.originalCount.toLocaleString()
+                      : '--'}
                   </span>
                 </div>
                 {isVoxelTool && (
@@ -335,19 +409,26 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Downsampled:</span>
                       <span className="metric-value">
-                        {wasmResults ? wasmResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                        {wasmResults
+                          ? wasmResults.downsampledCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
-                        {wasmResults && wasmResults.reductionRatio ? `${((wasmResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                        {wasmResults && wasmResults.reductionRatio
+                          ? `${((wasmResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Voxels:</span>
                       <span className="metric-value">
-                        {wasmResults ? wasmResults.voxelCount?.toLocaleString() || '--' : '--'}
+                        {wasmResults
+                          ? wasmResults.voxelCount?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -357,19 +438,25 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Smoothed:</span>
                       <span className="metric-value">
-                        {wasmResults ? wasmResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                        {wasmResults
+                          ? wasmResults.smoothedCount?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Radius:</span>
                       <span className="metric-value">
-                        {wasmResults ? `${wasmResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
+                        {wasmResults
+                          ? `${wasmResults.smoothingRadius?.toFixed(1) || '--'}m`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Iterations:</span>
                       <span className="metric-value">
-                        {wasmResults ? wasmResults.iterations?.toString() || '--' : '--'}
+                        {wasmResults
+                          ? wasmResults.iterations?.toString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -384,13 +471,17 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
                   <span className="metric-value">
-                    {wasmRustResults ? `${wasmRustResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                    {wasmRustResults
+                      ? `${wasmRustResults.processingTime.toFixed(0)} ms`
+                      : '-- ms'}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-label">Original Points:</span>
                   <span className="metric-value">
-                    {wasmRustResults ? wasmRustResults.originalCount.toLocaleString() : '--'}
+                    {wasmRustResults
+                      ? wasmRustResults.originalCount.toLocaleString()
+                      : '--'}
                   </span>
                 </div>
                 {isVoxelTool && (
@@ -398,19 +489,26 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Downsampled:</span>
                       <span className="metric-value">
-                        {wasmRustResults ? wasmRustResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                        {wasmRustResults
+                          ? wasmRustResults.downsampledCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
-                        {wasmRustResults && wasmRustResults.reductionRatio ? `${((wasmRustResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                        {wasmRustResults && wasmRustResults.reductionRatio
+                          ? `${((wasmRustResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Voxels:</span>
                       <span className="metric-value">
-                        {wasmRustResults ? wasmRustResults.voxelCount?.toLocaleString() || '--' : '--'}
+                        {wasmRustResults
+                          ? wasmRustResults.voxelCount?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -420,19 +518,26 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Smoothed:</span>
                       <span className="metric-value">
-                        {wasmRustResults ? wasmRustResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                        {wasmRustResults
+                          ? wasmRustResults.smoothedCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Radius:</span>
                       <span className="metric-value">
-                        {wasmRustResults ? `${wasmRustResults.smoothingRadius?.toFixed(2) || '--'}m` : '--'}
+                        {wasmRustResults
+                          ? `${wasmRustResults.smoothingRadius?.toFixed(2) || '--'}m`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Iterations:</span>
                       <span className="metric-value">
-                        {wasmRustResults ? wasmRustResults.iterations?.toLocaleString() || '--' : '--'}
+                        {wasmRustResults
+                          ? wasmRustResults.iterations?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -447,13 +552,17 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
                   <span className="metric-value">
-                    {beResults ? `${beResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                    {beResults
+                      ? `${beResults.processingTime.toFixed(0)} ms`
+                      : '-- ms'}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-label">Original Points:</span>
                   <span className="metric-value">
-                    {beResults ? beResults.originalCount.toLocaleString() : '--'}
+                    {beResults
+                      ? beResults.originalCount.toLocaleString()
+                      : '--'}
                   </span>
                 </div>
                 {isVoxelTool && (
@@ -461,19 +570,25 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Downsampled:</span>
                       <span className="metric-value">
-                        {beResults ? beResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                        {beResults
+                          ? beResults.downsampledCount?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
-                        {beResults && beResults.reductionRatio ? `${((beResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                        {beResults && beResults.reductionRatio
+                          ? `${((beResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Voxels:</span>
                       <span className="metric-value">
-                        {beResults ? beResults.voxelCount?.toLocaleString() || '--' : '--'}
+                        {beResults
+                          ? beResults.voxelCount?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -483,19 +598,25 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Smoothed:</span>
                       <span className="metric-value">
-                        {beResults ? beResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                        {beResults
+                          ? beResults.smoothedCount?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Radius:</span>
                       <span className="metric-value">
-                        {beResults ? `${beResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
+                        {beResults
+                          ? `${beResults.smoothingRadius?.toFixed(1) || '--'}m`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Iterations:</span>
                       <span className="metric-value">
-                        {beResults ? beResults.iterations?.toString() || '--' : '--'}
+                        {beResults
+                          ? beResults.iterations?.toString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -510,13 +631,17 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
                   <span className="metric-value">
-                    {beRustResults ? `${beRustResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                    {beRustResults
+                      ? `${beRustResults.processingTime.toFixed(0)} ms`
+                      : '-- ms'}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-label">Original Points:</span>
                   <span className="metric-value">
-                    {beRustResults ? beRustResults.originalCount.toLocaleString() : '--'}
+                    {beRustResults
+                      ? beRustResults.originalCount.toLocaleString()
+                      : '--'}
                   </span>
                 </div>
                 {isVoxelTool && (
@@ -524,19 +649,26 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Downsampled:</span>
                       <span className="metric-value">
-                        {beRustResults ? beRustResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                        {beRustResults
+                          ? beRustResults.downsampledCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
-                        {beRustResults && beRustResults.reductionRatio ? `${((beRustResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                        {beRustResults && beRustResults.reductionRatio
+                          ? `${((beRustResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Voxels:</span>
                       <span className="metric-value">
-                        {beRustResults ? beRustResults.voxelCount?.toLocaleString() || '--' : '--'}
+                        {beRustResults
+                          ? beRustResults.voxelCount?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -546,19 +678,26 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Smoothed:</span>
                       <span className="metric-value">
-                        {beRustResults ? beRustResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                        {beRustResults
+                          ? beRustResults.smoothedCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Radius:</span>
                       <span className="metric-value">
-                        {beRustResults ? `${beRustResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
+                        {beRustResults
+                          ? `${beRustResults.smoothingRadius?.toFixed(1) || '--'}m`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Iterations:</span>
                       <span className="metric-value">
-                        {beRustResults ? beRustResults.iterations?.toString() || '--' : '--'}
+                        {beRustResults
+                          ? beRustResults.iterations?.toString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -573,13 +712,17 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                 <div className="metric-item">
                   <span className="metric-label">Time Taken:</span>
                   <span className="metric-value">
-                    {bePythonResults ? `${bePythonResults.processingTime.toFixed(0)} ms` : '-- ms'}
+                    {bePythonResults
+                      ? `${bePythonResults.processingTime.toFixed(0)} ms`
+                      : '-- ms'}
                   </span>
                 </div>
                 <div className="metric-item">
                   <span className="metric-label">Original Points:</span>
                   <span className="metric-value">
-                    {bePythonResults ? bePythonResults.originalCount.toLocaleString() : '--'}
+                    {bePythonResults
+                      ? bePythonResults.originalCount.toLocaleString()
+                      : '--'}
                   </span>
                 </div>
                 {isVoxelTool && (
@@ -587,19 +730,26 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Downsampled:</span>
                       <span className="metric-value">
-                        {bePythonResults ? bePythonResults.downsampledCount?.toLocaleString() || '--' : '--'}
+                        {bePythonResults
+                          ? bePythonResults.downsampledCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
-                        {bePythonResults && bePythonResults.reductionRatio ? `${((bePythonResults.reductionRatio - 1) * 100).toFixed(1)}%` : '--'}
+                        {bePythonResults && bePythonResults.reductionRatio
+                          ? `${((bePythonResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Voxels:</span>
                       <span className="metric-value">
-                        {bePythonResults ? bePythonResults.voxelCount?.toLocaleString() || '--' : '--'}
+                        {bePythonResults
+                          ? bePythonResults.voxelCount?.toLocaleString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>
@@ -609,19 +759,26 @@ export const Benchmark: React.FC<BenchmarkProps> = ({ className, wasmResults, ts
                     <div className="metric-item">
                       <span className="metric-label">Smoothed:</span>
                       <span className="metric-value">
-                        {bePythonResults ? bePythonResults.smoothedCount?.toLocaleString() || '--' : '--'}
+                        {bePythonResults
+                          ? bePythonResults.smoothedCount?.toLocaleString() ||
+                            '--'
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Radius:</span>
                       <span className="metric-value">
-                        {bePythonResults ? `${bePythonResults.smoothingRadius?.toFixed(1) || '--'}m` : '--'}
+                        {bePythonResults
+                          ? `${bePythonResults.smoothingRadius?.toFixed(1) || '--'}m`
+                          : '--'}
                       </span>
                     </div>
                     <div className="metric-item">
                       <span className="metric-label">Iterations:</span>
                       <span className="metric-value">
-                        {bePythonResults ? bePythonResults.iterations?.toString() || '--' : '--'}
+                        {bePythonResults
+                          ? bePythonResults.iterations?.toString() || '--'
+                          : '--'}
                       </span>
                     </div>
                   </>

@@ -76,7 +76,6 @@ export class CameraService extends BaseService {
     this._camera.attachControl(canvas, true);
     this._camera.setTarget(Vector3.Zero());
 
-
     // Create target sphere
     this.createTargetSphere();
 
@@ -103,7 +102,6 @@ export class CameraService extends BaseService {
       this._scene
     );
 
-
     // Create material for the sphere
     const material = new StandardMaterial('targetMaterial', this._scene);
     material.diffuseColor = new Color3(1, 0, 0); // Red color
@@ -128,35 +126,43 @@ export class CameraService extends BaseService {
 
     // Apply controls to main camera
     this.applyCameraControls(this._camera);
-    
+
     // Also apply to debug camera if it exists
     if (this._debugCamera?.camera) {
       this.applyCameraControls(this._debugCamera.camera);
     }
   }
 
-  private applyCameraControls(camera: ArcRotateCamera | FreeCamera | Camera): void {
+  private applyCameraControls(
+    camera: ArcRotateCamera | FreeCamera | Camera
+  ): void {
     if (!camera) return;
 
     // Check camera type and apply appropriate controls
     if (camera.getClassName() === 'ArcRotateCamera') {
       // Type guard: narrow to ArcRotateCamera
       const arcCamera = camera as ArcRotateCamera;
-      
+
       // For ArcRotateCamera, use wheelPrecision for zoom sensitivity
       // Map 0.001-0.1 to 3.0-0.5 range (inverted: higher slider = lower wheelPrecision = more sensitive)
       // Using wider range to make zoom less sensitive overall
-      const newWheelPrecision = Math.max(0.5, Math.min(3.0, 3.0 - (this._zoomSensitivity - 0.001) * (2.5 / 0.099)));
+      const newWheelPrecision = Math.max(
+        0.5,
+        Math.min(3.0, 3.0 - (this._zoomSensitivity - 0.001) * (2.5 / 0.099))
+      );
       arcCamera.wheelPrecision = newWheelPrecision;
-      
+
       // Disable wheelDeltaPercentage to ensure equal zoom in/out behavior
       arcCamera.wheelDeltaPercentage = 0;
 
       // Update panning sensibility using the correct property name
       // Map 0.01-0.5 to 200-10 range (higher slider = lower panningSensibility = more sensitive)
-      const newPanningSensibility = Math.max(10, Math.min(200, 200 - (this._panningSensitivity - 0.01) * (190 / 0.49)));
+      const newPanningSensibility = Math.max(
+        10,
+        Math.min(200, 200 - (this._panningSensitivity - 0.01) * (190 / 0.49))
+      );
       arcCamera.panningSensibility = newPanningSensibility;
-      
+
       // Also set angularSensibilityX and angularSensibilityY for panning control
       if ('angularSensibilityX' in arcCamera) {
         arcCamera.angularSensibilityX = newPanningSensibility;
@@ -164,22 +170,30 @@ export class CameraService extends BaseService {
       if ('angularSensibilityY' in arcCamera) {
         arcCamera.angularSensibilityY = newPanningSensibility;
       }
-      
+
       // Ensure panning inertia is set for smooth movement
       arcCamera.panningInertia = 0.9;
     } else if (camera.getClassName() === 'FreeCamera') {
       // Type guard: narrow to FreeCamera
       const freeCamera = camera as FreeCamera;
-      
+
       // For FreeCamera, check if properties exist before setting
       if ('wheelPrecision' in freeCamera) {
-        const newWheelPrecision = Math.max(0.1, Math.min(2.0, 0.1 + (this._zoomSensitivity - 0.001) * (1.9 / 0.099)));
-        (freeCamera as { wheelPrecision: number }).wheelPrecision = newWheelPrecision;
+        const newWheelPrecision = Math.max(
+          0.1,
+          Math.min(2.0, 0.1 + (this._zoomSensitivity - 0.001) * (1.9 / 0.099))
+        );
+        (freeCamera as { wheelPrecision: number }).wheelPrecision =
+          newWheelPrecision;
       }
 
       if ('panningSensibility' in freeCamera) {
-        const newPanningSensibility = Math.max(0.1, Math.min(2.0, 0.1 + (this._panningSensitivity - 0.01) * (1.9 / 0.49)));
-        (freeCamera as { panningSensibility: number }).panningSensibility = newPanningSensibility;
+        const newPanningSensibility = Math.max(
+          0.1,
+          Math.min(2.0, 0.1 + (this._panningSensitivity - 0.01) * (1.9 / 0.49))
+        );
+        (freeCamera as { panningSensibility: number }).panningSensibility =
+          newPanningSensibility;
       }
     }
   }
@@ -250,8 +264,7 @@ export class CameraService extends BaseService {
    */
   setTarget(target: Vector3): void {
     if (!this._camera) return;
-    
-    
+
     this._camera.setTarget(target);
     this.updateTargetSphere();
   }
@@ -336,19 +349,19 @@ export class CameraService extends BaseService {
    */
   updateFrustumLines(): void {
     if (!this._frustumLines || !this._camera || !this._scene) return;
-    
+
     // For now, we'll recreate the lines but with throttling to avoid excessive updates
     // In a production app, you'd want to use a more efficient approach like:
     // - Using a single mesh with instanced geometry
     // - Using Babylon.js's built-in frustum visualization
     // - Implementing custom line updating
-    
+
     // Throttle updates to avoid excessive recreation
     if (this._lastFrustumUpdate && Date.now() - this._lastFrustumUpdate < 16) {
       return; // Skip if less than 16ms since last update (60fps max)
     }
     this._lastFrustumUpdate = Date.now();
-    
+
     // Dispose old lines and create new ones
     this._frustumLines.dispose();
     this.createFrustumLines();
@@ -370,17 +383,17 @@ export class CameraService extends BaseService {
   switchToMainCamera(): void {
     if (this._camera && this._scene) {
       const canvas = this._scene.getEngine().getRenderingCanvas();
-      
+
       // Detach controls from current camera
       if (this._scene.activeCamera && this._scene.activeCamera.detachControl) {
         this._scene.activeCamera.detachControl();
       }
-      
+
       // Deactivate debug camera first
       if (this._debugCamera) {
         this._debugCamera.deactivate();
       }
-      
+
       // Switch to main camera and attach controls
       this._scene.activeCamera = this._camera;
       this._camera.attachControl(canvas, true);
@@ -394,26 +407,25 @@ export class CameraService extends BaseService {
     if (!this._scene) {
       return;
     }
-    
+
     const canvas = this._scene.getEngine().getRenderingCanvas();
-    
+
     // Detach controls from current camera
     if (this._scene.activeCamera && this._scene.activeCamera.detachControl) {
       this._scene.activeCamera.detachControl();
     }
-    
+
     // Create debug camera if it doesn't exist
     if (!this._debugCamera) {
       this.createDebugCamera();
     }
-    
+
     if (this._debugCamera) {
       this._debugCamera.activate();
       // Attach controls to debug camera
       this._debugCamera.camera?.attachControl(canvas, true);
     }
   }
-
 
   /**
    * Create frustum wireframe lines
@@ -423,52 +435,62 @@ export class CameraService extends BaseService {
 
     // Create lines for frustum edges
     const points: Vector3[] = [];
-    
+
     // Get the camera's actual view matrix to extract correct frustum
     const viewMatrix = this._camera.getViewMatrix();
     const projectionMatrix = this._camera.getProjectionMatrix();
-    
+
     // Extract camera position and direction from view matrix
     const cameraPos = this._camera.position;
     const target = this._camera.getTarget();
-    
+
     // Calculate the actual camera direction (from camera to target)
     const direction = target.subtract(cameraPos).normalize();
-    
+
     // Calculate camera's right and up vectors using the view matrix
-    const right = new Vector3(viewMatrix.m[0], viewMatrix.m[4], viewMatrix.m[8]).normalize();
-    const up = new Vector3(viewMatrix.m[1], viewMatrix.m[5], viewMatrix.m[9]).normalize();
-    
+    const right = new Vector3(
+      viewMatrix.m[0],
+      viewMatrix.m[4],
+      viewMatrix.m[8]
+    ).normalize();
+    const up = new Vector3(
+      viewMatrix.m[1],
+      viewMatrix.m[5],
+      viewMatrix.m[9]
+    ).normalize();
+
     // Calculate frustum distances
     const nearDistance = this._camera.minZ || 0.1;
     const farDistance = this._camera.maxZ || 1000;
-    
+
     // Extract FOV from projection matrix (more accurate for ArcRotateCamera)
     const fov = 2 * Math.atan(1 / projectionMatrix.m[5]); // Extract FOV from projection matrix
     const aspect = this._scene.getEngine().getAspectRatio(this._camera);
-    
+
     // Calculate frustum dimensions at near and far planes
     const nearHeight = 2 * Math.tan(fov / 2) * nearDistance;
     const nearWidth = nearHeight * aspect;
     const farHeight = 2 * Math.tan(fov / 2) * farDistance;
     const farWidth = farHeight * aspect;
-    
+
     // Calculate near plane corners
     const nearCenter = cameraPos.add(direction.scale(nearDistance));
     const nearCorners = [
-      nearCenter.add(right.scale(-nearWidth/2)).add(up.scale(-nearHeight/2)),
-      nearCenter.add(right.scale(nearWidth/2)).add(up.scale(-nearHeight/2)),
-      nearCenter.add(right.scale(nearWidth/2)).add(up.scale(nearHeight/2)),
-      nearCenter.add(right.scale(-nearWidth/2)).add(up.scale(nearHeight/2))
+      nearCenter
+        .add(right.scale(-nearWidth / 2))
+        .add(up.scale(-nearHeight / 2)),
+      nearCenter.add(right.scale(nearWidth / 2)).add(up.scale(-nearHeight / 2)),
+      nearCenter.add(right.scale(nearWidth / 2)).add(up.scale(nearHeight / 2)),
+      nearCenter.add(right.scale(-nearWidth / 2)).add(up.scale(nearHeight / 2)),
     ];
-    
+
     // Calculate far plane corners
     const farCenter = cameraPos.add(direction.scale(farDistance));
     const farCorners = [
-      farCenter.add(right.scale(-farWidth/2)).add(up.scale(-farHeight/2)),
-      farCenter.add(right.scale(farWidth/2)).add(up.scale(-farHeight/2)),
-      farCenter.add(right.scale(farWidth/2)).add(up.scale(farHeight/2)),
-      farCenter.add(right.scale(-farWidth/2)).add(up.scale(farHeight/2))
+      farCenter.add(right.scale(-farWidth / 2)).add(up.scale(-farHeight / 2)),
+      farCenter.add(right.scale(farWidth / 2)).add(up.scale(-farHeight / 2)),
+      farCenter.add(right.scale(farWidth / 2)).add(up.scale(farHeight / 2)),
+      farCenter.add(right.scale(-farWidth / 2)).add(up.scale(farHeight / 2)),
     ];
 
     // Connect near plane
@@ -490,13 +512,13 @@ export class CameraService extends BaseService {
     }
 
     // Create lines mesh in world space
-    this._frustumLines = CreateLines("frustumLines", { points }, this._scene);
-    
+    this._frustumLines = CreateLines('frustumLines', { points }, this._scene);
+
     // Don't make it a child of the camera - keep it in world space
     // The frustum is already calculated in world coordinates
-    
+
     // Set material
-    const material = new StandardMaterial("frustumMaterial", this._scene);
+    const material = new StandardMaterial('frustumMaterial', this._scene);
     material.emissiveColor = new Color3(1, 0, 0); // Red color
     this._frustumLines.material = material;
   }

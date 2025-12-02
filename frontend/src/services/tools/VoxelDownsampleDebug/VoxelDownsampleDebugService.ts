@@ -41,9 +41,15 @@ export class VoxelDownsampleDebugService extends BaseService {
   constructor(serviceManager: ServiceManager) {
     super();
     this.voxelDownsampleDebugTS = new VoxelDownsampleDebugTS(serviceManager);
-    this.voxelDownsampleDebugWASMCPP = new VoxelDownsampleDebugWASMCPP(serviceManager);
-    this.voxelDownsampleDebugWASMRust = new VoxelDownsampleDebugWASMRust(serviceManager);
-    this.voxelDownsampleDebugBECPP = new VoxelDownsampleDebugBECPP(serviceManager);
+    this.voxelDownsampleDebugWASMCPP = new VoxelDownsampleDebugWASMCPP(
+      serviceManager
+    );
+    this.voxelDownsampleDebugWASMRust = new VoxelDownsampleDebugWASMRust(
+      serviceManager
+    );
+    this.voxelDownsampleDebugBECPP = new VoxelDownsampleDebugBECPP(
+      serviceManager
+    );
     this.voxelDownsampleDebugBERust = new VoxelDownsampleDebugBERust();
     this.voxelDownsampleDebugBEPython = new VoxelDownsampleDebugBEPython();
   }
@@ -55,62 +61,99 @@ export class VoxelDownsampleDebugService extends BaseService {
       this.voxelDownsampleDebugWASMRust.initialize(),
       this.voxelDownsampleDebugBECPP.initialize(),
       this.voxelDownsampleDebugBERust.initialize(),
-      this.voxelDownsampleDebugBEPython.initialize()
+      this.voxelDownsampleDebugBEPython.initialize(),
     ]);
     this.isInitialized = true;
   }
 
-  async generateVoxelCenters(params: VoxelDebugParams, implementation: 'TS' | 'WASM' | 'WASM_MAIN' | 'WASM_RUST' | 'RUST_WASM_MAIN' | 'BE' | 'BE_RUST' | 'BE_PYTHON'): Promise<VoxelDebugResult> {
+  async generateVoxelCenters(
+    params: VoxelDebugParams,
+    implementation:
+      | 'TS'
+      | 'WASM'
+      | 'WASM_MAIN'
+      | 'WASM_RUST'
+      | 'RUST_WASM_MAIN'
+      | 'BE'
+      | 'BE_RUST'
+      | 'BE_PYTHON'
+  ): Promise<VoxelDebugResult> {
     try {
-      Log.Info('VoxelDownsampleDebugService', `Routing to ${implementation} implementation`, {
-        implementation,
-        pointCount: params.pointCloudData.length / 3,
-        voxelSize: params.voxelSize
-      });
-      
+      Log.Info(
+        'VoxelDownsampleDebugService',
+        `Routing to ${implementation} implementation`,
+        {
+          implementation,
+          pointCount: params.pointCloudData.length / 3,
+          voxelSize: params.voxelSize,
+        }
+      );
+
       let result: VoxelDebugResult;
-      
+
       switch (implementation) {
         case 'TS':
-          result = await this.voxelDownsampleDebugTS.generateVoxelCenters(params);
+          result =
+            await this.voxelDownsampleDebugTS.generateVoxelCenters(params);
           break;
         case 'WASM':
-          result = await this.voxelDownsampleDebugWASMCPP.generateVoxelCenters(params);
+          result =
+            await this.voxelDownsampleDebugWASMCPP.generateVoxelCenters(params);
           break;
         case 'WASM_MAIN':
-          result = await this.voxelDownsampleDebugWASMCPP.generateVoxelCenters(params);
+          result =
+            await this.voxelDownsampleDebugWASMCPP.generateVoxelCenters(params);
           break;
         case 'WASM_RUST':
-          result = await this.voxelDownsampleDebugWASMRust.generateVoxelCenters(params);
+          result =
+            await this.voxelDownsampleDebugWASMRust.generateVoxelCenters(
+              params
+            );
           break;
         case 'RUST_WASM_MAIN':
-          result = await this.voxelDownsampleDebugWASMRust.generateVoxelCenters(params);
+          result =
+            await this.voxelDownsampleDebugWASMRust.generateVoxelCenters(
+              params
+            );
           break;
         case 'BE':
-          result = await this.voxelDownsampleDebugBECPP.generateVoxelCenters(params);
+          result =
+            await this.voxelDownsampleDebugBECPP.generateVoxelCenters(params);
           break;
         case 'BE_RUST':
-          result = await this.voxelDownsampleDebugBERust.generateVoxelCenters(params);
+          result =
+            await this.voxelDownsampleDebugBERust.generateVoxelCenters(params);
           break;
         case 'BE_PYTHON':
-          result = await this.voxelDownsampleDebugBEPython.generateVoxelCenters(params);
+          result =
+            await this.voxelDownsampleDebugBEPython.generateVoxelCenters(
+              params
+            );
           break;
         default:
           throw new Error(`Unknown implementation: ${implementation}`);
       }
 
-      Log.Info('VoxelDownsampleDebugService', `${implementation} voxel centers generated`, {
-        success: result.success,
-        voxelCount: result.voxelCount,
-        processingTime: result.processingTime?.toFixed(2) + 'ms'
-      });
+      Log.Info(
+        'VoxelDownsampleDebugService',
+        `${implementation} voxel centers generated`,
+        {
+          success: result.success,
+          voxelCount: result.voxelCount,
+          processingTime: result.processingTime?.toFixed(2) + 'ms',
+        }
+      );
 
       return result;
     } catch (error) {
-      Log.Error('VoxelDownsampleDebugService', `${implementation} voxel centers generation failed`, error);
+      Log.Error(
+        'VoxelDownsampleDebugService',
+        `${implementation} voxel centers generation failed`,
+        error
+      );
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }

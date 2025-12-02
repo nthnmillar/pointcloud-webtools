@@ -30,21 +30,21 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
   // Get point count from all loaded point clouds
   useEffect(() => {
     if (!serviceManager) return;
-    
+
     const updatePointCount = () => {
       if (!serviceManager.pointService) return;
-      
+
       // Get all point clouds and sum their point counts
       let totalPoints = 0;
       const pointCloudIds = serviceManager.pointCloudIds;
-      
+
       for (const id of pointCloudIds) {
         const pointCloud = serviceManager.getPointCloud(id);
         if (pointCloud?.metadata?.totalPoints) {
           totalPoints += pointCloud.metadata.totalPoints;
         }
       }
-      
+
       setPointCount(totalPoints);
     };
 
@@ -107,16 +107,26 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
     // Wait for service manager to be fully initialized
     if (!serviceManager.initialized) {
       if (retryCount >= 5) {
-        Log.Error('LoadPoints', 'Service manager still not initialized after 5 retries');
+        Log.Error(
+          'LoadPoints',
+          'Service manager still not initialized after 5 retries'
+        );
         return;
       }
-      Log.Info('LoadPoints', 'Service manager not fully initialized, waiting...', { retryCount });
+      Log.Info(
+        'LoadPoints',
+        'Service manager not fully initialized, waiting...',
+        { retryCount }
+      );
       // Wait a bit and try again
       setTimeout(() => {
         if (serviceManager && serviceManager.initialized) {
           loadSampleData(retryCount + 1);
         } else {
-          Log.Error('LoadPoints', 'Service manager still not initialized after waiting');
+          Log.Error(
+            'LoadPoints',
+            'Service manager still not initialized after waiting'
+          );
         }
       }, 200);
       return;
@@ -136,7 +146,6 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       }, 200);
       return;
     }
-
 
     try {
       onErrorChange(null);
@@ -198,7 +207,11 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
 
       // Load the file - batches will appear in scene as they load
       // batchLimit of 0 means unlimited
-      await serviceManager.loadFile(file, batchSize, batchLimit > 0 ? batchLimit : undefined);
+      await serviceManager.loadFile(
+        file,
+        batchSize,
+        batchLimit > 0 ? batchLimit : undefined
+      );
     } catch (err) {
       Log.Error('LoadPoints', 'Error loading file', err);
       onErrorChange(err instanceof Error ? err.message : 'Failed to load file');
@@ -214,7 +227,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
       // Cancel file loading
       serviceManager.cancelLoading();
       onLoadingChange(false);
-      
+
       // Cancel processing if it's running
       if (isVoxelProcessing && serviceManager.toolsService) {
         Log.Info('LoadPoints', 'Cancelling processing from LoadPoints...');
@@ -226,7 +239,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
   const handleClearScene = () => {
     if (serviceManager) {
       serviceManager.clearAllPointClouds();
-      
+
       // Also hide voxel debug when clearing the scene
       if (serviceManager.toolsService) {
         serviceManager.toolsService.hideVoxelDebug();
@@ -263,7 +276,9 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
             {/* Point Count Display - Always visible */}
             <div className="control-group">
               <label>Points Loaded:</label>
-              <span style={{ color: '#61dafb', fontWeight: 500, marginLeft: '8px' }}>
+              <span
+                style={{ color: '#61dafb', fontWeight: 500, marginLeft: '8px' }}
+              >
                 {pointCount.toLocaleString()}
               </span>
             </div>
@@ -288,7 +303,9 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
                 type="number"
                 min="0"
                 value={batchLimit}
-                onChange={e => setBatchLimit(Math.max(0, parseInt(e.target.value) || 0))}
+                onChange={e =>
+                  setBatchLimit(Math.max(0, parseInt(e.target.value) || 0))
+                }
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     e.currentTarget.blur();
@@ -327,20 +344,29 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
             </div>
 
             <div className="control-group">
-              <button onClick={() => loadSampleData()} disabled={isLoading || isVoxelProcessing}>
-                {isLoading ? 'Loading...' : isVoxelProcessing ? 'Processing...' : 'Load Sample Data'}
+              <button
+                onClick={() => loadSampleData()}
+                disabled={isLoading || isVoxelProcessing}
+              >
+                {isLoading
+                  ? 'Loading...'
+                  : isVoxelProcessing
+                    ? 'Processing...'
+                    : 'Load Sample Data'}
               </button>
-              <button 
-                onClick={handleCancelLoading} 
+              <button
+                onClick={handleCancelLoading}
                 disabled={!(isLoading || isVoxelProcessing)}
               >
                 {isVoxelProcessing ? 'Cancel Processing' : 'Cancel Loading'}
               </button>
-              <button onClick={handleClearScene} disabled={isLoading || isVoxelProcessing}>
+              <button
+                onClick={handleClearScene}
+                disabled={isLoading || isVoxelProcessing}
+              >
                 Clear Scene
               </button>
             </div>
-
           </div>
         </div>
       )}

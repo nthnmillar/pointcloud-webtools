@@ -18,7 +18,7 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
   const [zoomSensitivity, setZoomSensitivity] = useState(0.005);
   const [panningSensitivity, setPanningSensitivity] = useState(0.1);
   const [targetEnabled, setTargetEnabled] = useState(true);
-  
+
   // Debug camera state
   const [currentCamera, setCurrentCamera] = useState<'main' | 'debug'>('main');
   const [showFrustum, setShowFrustum] = useState(false);
@@ -70,7 +70,7 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
     }
 
     setTargetEnabled(enabled);
-    
+
     // Use CameraService to toggle target
     serviceManager.cameraService.targetEnabled = enabled;
   };
@@ -95,7 +95,6 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
       setCurrentCamera('debug');
     }
   };
-
 
   return (
     <>
@@ -167,7 +166,9 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
                 max="0.5"
                 step="0.01"
                 value={panningSensitivity}
-                onChange={e => handlePanningSensitivityChange(parseFloat(e.target.value))}
+                onChange={e =>
+                  handlePanningSensitivityChange(parseFloat(e.target.value))
+                }
                 style={{ width: '120px' }}
               />
               <span style={{ minWidth: '30px', textAlign: 'right' }}>
@@ -195,11 +196,14 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
                   style={{
                     padding: '4px 8px',
                     fontSize: '12px',
-                    backgroundColor: currentCamera === 'main' ? '#007bff' : 'rgba(255,255,255,0.1)',
+                    backgroundColor:
+                      currentCamera === 'main'
+                        ? '#007bff'
+                        : 'rgba(255,255,255,0.1)',
                     color: currentCamera === 'main' ? '#fff' : '#ccc',
                     border: '1px solid #444',
                     borderRadius: '4px',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
                   }}
                 >
                   Main
@@ -209,11 +213,14 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
                   style={{
                     padding: '4px 8px',
                     fontSize: '12px',
-                    backgroundColor: currentCamera === 'debug' ? '#007bff' : 'rgba(255,255,255,0.1)',
+                    backgroundColor:
+                      currentCamera === 'debug'
+                        ? '#007bff'
+                        : 'rgba(255,255,255,0.1)',
                     color: currentCamera === 'debug' ? '#fff' : '#ccc',
                     border: '1px solid #444',
                     borderRadius: '4px',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
                   }}
                 >
                   Debug
@@ -231,7 +238,6 @@ export const SceneControls: React.FC<SceneControlsProps> = ({
                 Show Frustum
               </label>
             </div>
-
           </div>
         </div>
       )}

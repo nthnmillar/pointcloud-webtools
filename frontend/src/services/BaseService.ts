@@ -62,7 +62,11 @@ export abstract class BaseService {
         try {
           callback(data);
         } catch (error) {
-          Log.Error('BaseService', `Error in event listener for ${eventType}`, error);
+          Log.Error(
+            'BaseService',
+            `Error in event listener for ${eventType}`,
+            error
+          );
         }
       });
     }

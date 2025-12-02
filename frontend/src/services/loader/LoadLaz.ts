@@ -87,7 +87,11 @@ export class LoadLaz {
     }
   }
 
-  async loadFromFile(file: File, batchSize: number = 500, batchLimit?: number): Promise<void> {
+  async loadFromFile(
+    file: File,
+    batchSize: number = 500,
+    batchLimit?: number
+  ): Promise<void> {
     // Cancel any existing loading process
     if (this.isProcessing) {
       Log.Info('LoadLaz', 'Cancelling previous loading process');
@@ -158,8 +162,14 @@ export class LoadLaz {
             // Process this batch immediately
             this.processBatch(data);
             // Check if we've reached the batch limit
-            if (this.batchLimit !== undefined && this.batchCount >= this.batchLimit) {
-              Log.Info('LoadLaz', `Reached batch limit of ${this.batchLimit}, stopping loading`);
+            if (
+              this.batchLimit !== undefined &&
+              this.batchCount >= this.batchLimit
+            ) {
+              Log.Info(
+                'LoadLaz',
+                `Reached batch limit of ${this.batchLimit}, stopping loading`
+              );
               this.worker!.removeEventListener('message', handleMessage);
               this.currentMessageHandler = null;
               this.isProcessing = false;
@@ -255,7 +265,10 @@ export class LoadLaz {
         }
       }
       this.calculatedCentroid = centroid;
-      Log.Info('LoadLaz', `Point cloud centroid: (${centroid.x.toFixed(2)}, ${centroid.y.toFixed(2)}, ${centroid.z.toFixed(2)})`);
+      Log.Info(
+        'LoadLaz',
+        `Point cloud centroid: (${centroid.x.toFixed(2)}, ${centroid.y.toFixed(2)}, ${centroid.z.toFixed(2)})`
+      );
     } else if (this.calculatedCentroid) {
       centroid = this.calculatedCentroid;
     }
@@ -279,7 +292,10 @@ export class LoadLaz {
     // Create individual batch mesh with unique ID
     const batchId = `${this.currentFileId}_batch_${this.batchCount + 1}`;
     this.totalPointsProcessed += pointCount;
-    Log.Info('LoadLaz', `Creating batch: ${batchId} (${pointCount} points, ${this.totalPointsProcessed} total processed)`);
+    Log.Info(
+      'LoadLaz',
+      `Creating batch: ${batchId} (${pointCount} points, ${this.totalPointsProcessed} total processed)`
+    );
 
     const pointCloudData: PointCloudData = {
       points: pointCloudPoints,

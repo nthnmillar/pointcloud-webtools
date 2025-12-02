@@ -65,7 +65,7 @@ async function initializeFile(
     if (!lazPerf) {
       throw new Error('lazPerf not initialized');
     }
-    
+
     // Read header
     currentHeader = await lasHeader.readFileObject({
       input: new File([fileBuffer], 'file.laz'),
@@ -120,7 +120,7 @@ async function processNextBatch() {
     if (!lazPerf) {
       throw new Error('lazPerf not initialized');
     }
-    
+
     // Create batch points array
     const batchPoints = new Float32Array(batchPointCount * 3);
     const pointBufferPtr = lazPerf._malloc(pointDataRecordLength);
@@ -222,7 +222,12 @@ async function processNextBatch() {
 }
 
 // Message handler
-self.onmessage = async function (e: MessageEvent<{ type: string; data?: { fileBuffer?: ArrayBuffer; batchSize?: number } }>) {
+self.onmessage = async function (
+  e: MessageEvent<{
+    type: string;
+    data?: { fileBuffer?: ArrayBuffer; batchSize?: number };
+  }>
+) {
   const { type, data } = e.data;
 
   try {

@@ -26,8 +26,14 @@ export interface COPCHeader {
 
 export interface COPCLoader {
   loadFromArrayBuffer(arrayBuffer: ArrayBuffer): boolean;
-  getPointsInBounds(minX: number, minY: number, minZ: number, 
-                   maxX: number, maxY: number, maxZ: number): Point3D[];
+  getPointsInBounds(
+    minX: number,
+    minY: number,
+    minZ: number,
+    maxX: number,
+    maxY: number,
+    maxZ: number
+  ): Point3D[];
   getAllPoints(): Point3D[];
   getHeader(): COPCHeader;
   loaded(): boolean;
@@ -38,7 +44,16 @@ export interface COPCLoader {
 
 export interface COPCModule {
   COPCLoader: new () => COPCLoader;
-  Point3D: new (x: number, y: number, z: number, r: number, g: number, b: number, intensity: number, classification: number) => Point3D;
+  Point3D: new (
+    x: number,
+    y: number,
+    z: number,
+    r: number,
+    g: number,
+    b: number,
+    intensity: number,
+    classification: number
+  ) => Point3D;
   COPCHeader: new () => COPCHeader;
 }
 

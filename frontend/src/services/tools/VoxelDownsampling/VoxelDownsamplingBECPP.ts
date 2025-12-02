@@ -1,7 +1,10 @@
 import { BaseService } from '../../BaseService';
 import type { ServiceManager } from '../../ServiceManager';
 import { Log } from '../../../utils/Log';
-import type { VoxelDownsampleParams, VoxelDownsampleResult } from '../ToolsService';
+import type {
+  VoxelDownsampleParams,
+  VoxelDownsampleResult,
+} from '../ToolsService';
 
 interface VoxelDownsampleResponseHeader {
   type: 'voxel_downsample_result';
@@ -16,11 +19,17 @@ interface VoxelDownsampleResponseHeader {
 }
 
 export class VoxelDownsamplingBECPP extends BaseService {
-  private ws: WebSocket | null = null
-  private pendingRequests = new Map<string, { resolve: (value: VoxelDownsampleResult) => void; reject: (reason?: unknown) => void }>()
-  private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
-  private pendingHeader: VoxelDownsampleResponseHeader | null = null // Track pending binary data header
+  private ws: WebSocket | null = null;
+  private pendingRequests = new Map<
+    string,
+    {
+      resolve: (value: VoxelDownsampleResult) => void;
+      reject: (reason?: unknown) => void;
+    }
+  >();
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private pendingHeader: VoxelDownsampleResponseHeader | null = null; // Track pending binary data header
 
   constructor(_serviceManager: ServiceManager) {
     super();
@@ -33,34 +42,46 @@ export class VoxelDownsamplingBECPP extends BaseService {
 
   private connect(): void {
     try {
-      Log.Info('VoxelDownsamplingBECPP', 'Connecting to WebSocket', { baseUrl: 'ws://localhost:3003' });
+      Log.Info('VoxelDownsamplingBECPP', 'Connecting to WebSocket', {
+        baseUrl: 'ws://localhost:3003',
+      });
       this.ws = new WebSocket('ws://localhost:3003');
-      
+
       this.ws.onopen = () => {
         Log.Info('VoxelDownsamplingBECPP', 'WebSocket connected');
         this.reconnectAttempts = 0;
       };
 
-      this.ws.onmessage = async (event) => {
+      this.ws.onmessage = async event => {
         try {
           // Check if this is binary data or JSON header
           if (event.data instanceof ArrayBuffer) {
             // This is binary data
-            if (this.pendingHeader && this.pendingHeader.type === 'voxel_downsample_result' && this.pendingHeader.success) {
+            if (
+              this.pendingHeader &&
+              this.pendingHeader.type === 'voxel_downsample_result' &&
+              this.pendingHeader.success
+            ) {
               // Create Float32Array directly from binary data (zero-copy!)
-              const downsampledPoints = new Float32Array(event.data, 0, this.pendingHeader.dataLength);
-              
-              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+              const downsampledPoints = new Float32Array(
+                event.data,
+                0,
+                this.pendingHeader.dataLength
+              );
+
+              const pending = this.pendingRequests.get(
+                this.pendingHeader.requestId
+              );
               if (pending) {
                 this.pendingRequests.delete(this.pendingHeader.requestId);
-                
+
                 const result: VoxelDownsampleResult = {
                   success: true,
                   downsampledPoints: downsampledPoints,
                   originalCount: this.pendingHeader.originalCount,
                   downsampledCount: this.pendingHeader.downsampledCount,
                   voxelCount: this.pendingHeader.voxelCount,
-                  processingTime: this.pendingHeader.processingTime
+                  processingTime: this.pendingHeader.processingTime,
                 };
                 pending.resolve(result);
               }
@@ -69,20 +90,30 @@ export class VoxelDownsamplingBECPP extends BaseService {
           } else if (event.data instanceof Blob) {
             // Convert Blob to ArrayBuffer
             const arrayBuffer = await event.data.arrayBuffer();
-            if (this.pendingHeader && this.pendingHeader.type === 'voxel_downsample_result' && this.pendingHeader.success) {
-              const downsampledPoints = new Float32Array(arrayBuffer, 0, this.pendingHeader.dataLength);
-              
-              const pending = this.pendingRequests.get(this.pendingHeader.requestId);
+            if (
+              this.pendingHeader &&
+              this.pendingHeader.type === 'voxel_downsample_result' &&
+              this.pendingHeader.success
+            ) {
+              const downsampledPoints = new Float32Array(
+                arrayBuffer,
+                0,
+                this.pendingHeader.dataLength
+              );
+
+              const pending = this.pendingRequests.get(
+                this.pendingHeader.requestId
+              );
               if (pending) {
                 this.pendingRequests.delete(this.pendingHeader.requestId);
-                
+
                 const result: VoxelDownsampleResult = {
                   success: true,
                   downsampledPoints: downsampledPoints,
                   originalCount: this.pendingHeader.originalCount,
                   downsampledCount: this.pendingHeader.downsampledCount,
                   voxelCount: this.pendingHeader.voxelCount,
-                  processingTime: this.pendingHeader.processingTime
+                  processingTime: this.pendingHeader.processingTime,
                 };
                 pending.resolve(result);
               }
@@ -91,7 +122,7 @@ export class VoxelDownsamplingBECPP extends BaseService {
           } else {
             // This is JSON header
             const message = JSON.parse(event.data as string);
-            
+
             if (message.type === 'voxel_downsample_result') {
               if (message.success && message.dataLength) {
                 // Store header and wait for binary data
@@ -108,23 +139,30 @@ export class VoxelDownsamplingBECPP extends BaseService {
             }
           }
         } catch (error) {
-          Log.Error('VoxelDownsamplingBECPP', 'Error parsing WebSocket message', error);
+          Log.Error(
+            'VoxelDownsamplingBECPP',
+            'Error parsing WebSocket message',
+            error
+          );
         }
       };
 
       this.ws.onclose = () => {
         Log.Info('VoxelDownsamplingBECPP', 'WebSocket disconnected');
         this.ws = null;
-        
+
         // Attempt to reconnect
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
-          Log.Info('VoxelDownsamplingBECPP', `Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+          Log.Info(
+            'VoxelDownsamplingBECPP',
+            `Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`
+          );
           setTimeout(() => this.connect(), 1000 * this.reconnectAttempts);
         }
       };
 
-      this.ws.onerror = (error) => {
+      this.ws.onerror = error => {
         Log.Error('VoxelDownsamplingBECPP', 'WebSocket error', error);
       };
     } catch (error) {
@@ -132,27 +170,33 @@ export class VoxelDownsamplingBECPP extends BaseService {
     }
   }
 
-  async voxelDownsample(params: VoxelDownsampleParams): Promise<VoxelDownsampleResult> {
-    Log.Info('VoxelDownsamplingBECPP', 'Starting backend voxel downsampling via WebSocket', {
-      pointCount: params.pointCloudData.length / 3,
-      voxelSize: params.voxelSize
-    });
-    
+  async voxelDownsample(
+    params: VoxelDownsampleParams
+  ): Promise<VoxelDownsampleResult> {
+    Log.Info(
+      'VoxelDownsamplingBECPP',
+      'Starting backend voxel downsampling via WebSocket',
+      {
+        pointCount: params.pointCloudData.length / 3,
+        voxelSize: params.voxelSize,
+      }
+    );
+
     // Wait for WebSocket to be connected (with timeout)
     const maxWaitTime = 5000; // 5 seconds
     const checkInterval = 100; // Check every 100ms
     const startWait = Date.now();
-    
+
     while (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       if (Date.now() - startWait > maxWaitTime) {
         throw new Error('WebSocket connection timeout');
       }
       await new Promise(resolve => setTimeout(resolve, checkInterval));
     }
-    
+
     return new Promise((resolve, reject) => {
       const requestId = `voxel_cpp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       // Store the promise resolvers
       this.pendingRequests.set(requestId, { resolve, reject });
 
@@ -162,12 +206,12 @@ export class VoxelDownsamplingBECPP extends BaseService {
         requestId,
         voxelSize: params.voxelSize,
         globalBounds: params.globalBounds,
-        dataLength: params.pointCloudData.length
+        dataLength: params.pointCloudData.length,
       };
 
       // Send header as JSON (small)
       this.ws!.send(JSON.stringify(header));
-      
+
       // Send binary data directly (fast - zero-copy!)
       this.ws!.send(params.pointCloudData.buffer);
 
@@ -188,4 +232,3 @@ export class VoxelDownsamplingBECPP extends BaseService {
     }
   }
 }
-

@@ -43,7 +43,11 @@ export class LoaderService extends BaseService {
     this.loadCOPC.cancelLoading();
   }
 
-  async loadFile(file: File, batchSize: number = 500, batchLimit?: number): Promise<void> {
+  async loadFile(
+    file: File,
+    batchSize: number = 500,
+    batchLimit?: number
+  ): Promise<void> {
     const fileExtension = file.name
       .toLowerCase()
       .substring(file.name.lastIndexOf('.'));
@@ -54,7 +58,10 @@ export class LoaderService extends BaseService {
 
     try {
       this.emit('loadingStarted', {
-        type: (fileExtension === '.copc' || fileExtension === '.copc.laz') ? 'COPC' : 'LAZ',
+        type:
+          fileExtension === '.copc' || fileExtension === '.copc.laz'
+            ? 'COPC'
+            : 'LAZ',
         fileName: file.name,
       });
 
@@ -67,13 +74,19 @@ export class LoaderService extends BaseService {
       }
 
       this.emit('loadingCompleted', {
-        type: (fileExtension === '.copc' || fileExtension === '.copc.laz') ? 'COPC' : 'LAZ',
+        type:
+          fileExtension === '.copc' || fileExtension === '.copc.laz'
+            ? 'COPC'
+            : 'LAZ',
         fileName: file.name,
         pointCloudData: null, // Batches are handled individually
       });
     } catch (error) {
       this.emit('loadingError', {
-        type: (fileExtension === '.copc' || fileExtension === '.copc.laz') ? 'COPC' : 'LAZ',
+        type:
+          fileExtension === '.copc' || fileExtension === '.copc.laz'
+            ? 'COPC'
+            : 'LAZ',
         fileName: file.name,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -82,7 +95,9 @@ export class LoaderService extends BaseService {
   }
 
   isSupportedFormat(extension: string): boolean {
-    return ['.laz', '.las', '.copc', '.copc.laz'].includes(extension.toLowerCase());
+    return ['.laz', '.las', '.copc', '.copc.laz'].includes(
+      extension.toLowerCase()
+    );
   }
 
   getSupportedFormats(): string[] {

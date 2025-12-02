@@ -56,3 +56,28 @@ This repository includes comprehensive benchmarking tools and results. See [docs
 
 - **LAZ/LAS**: Traditional point cloud formats
 <!-- - **COPC**: Cloud Optimized Point Cloud with LOD support -->
+
+## 🔍 Linting
+
+The project uses ESLint for code quality. Run linting from the root directory:
+
+```bash
+# Lint both frontend and backend
+yarn lint
+
+# Lint only frontend
+yarn lint:frontend
+
+# Lint only backend
+yarn lint:backend
+```
+
+Format code with Prettier:
+
+```bash
+# Format both frontend and backend
+yarn format
+
+# Check formatting without fixing
+yarn format:check
+```

@@ -35,14 +35,21 @@ export class WorkerManager {
       Log.Info('WorkerManager', 'Rust WASM worker initialized successfully');
       rustWorkerSuccess = true;
     } catch (error) {
-      Log.Error('WorkerManager', 'Rust WASM worker failed to initialize', error);
+      Log.Error(
+        'WorkerManager',
+        'Rust WASM worker failed to initialize',
+        error
+      );
       // Don't dispose, just mark as failed
     }
 
     // Check if at least one worker is working
     if (cppWorkerSuccess || rustWorkerSuccess) {
       this.isInitialized = true;
-      Log.Info('WorkerManager', `Workers initialized successfully (C++: ${cppWorkerSuccess}, Rust: ${rustWorkerSuccess})`);
+      Log.Info(
+        'WorkerManager',
+        `Workers initialized successfully (C++: ${cppWorkerSuccess}, Rust: ${rustWorkerSuccess})`
+      );
     } else {
       Log.Error('WorkerManager', 'All workers failed to initialize');
       this.cleanup();
@@ -54,7 +61,14 @@ export class WorkerManager {
     method: 'WASM_CPP' | 'WASM_RUST',
     pointCloudData: Float32Array,
     voxelSize: number,
-    globalBounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number }
+    globalBounds: {
+      minX: number;
+      minY: number;
+      minZ: number;
+      maxX: number;
+      maxY: number;
+      maxZ: number;
+    }
   ) {
     if (!this.isInitialized) {
       throw new Error('Workers not initialized');
@@ -65,13 +79,21 @@ export class WorkerManager {
         if (!this.cppWorker) {
           throw new Error('C++ WASM worker not available');
         }
-        return await this.cppWorker.processVoxelDownsampling(pointCloudData, voxelSize, globalBounds);
+        return await this.cppWorker.processVoxelDownsampling(
+          pointCloudData,
+          voxelSize,
+          globalBounds
+        );
 
       case 'WASM_RUST':
         if (!this.rustWorker) {
           throw new Error('Rust WASM worker not available');
         }
-        return await this.rustWorker.processVoxelDownsampling(pointCloudData, voxelSize, globalBounds);
+        return await this.rustWorker.processVoxelDownsampling(
+          pointCloudData,
+          voxelSize,
+          globalBounds
+        );
 
       default:
         throw new Error(`Unsupported method: ${method}`);
@@ -93,13 +115,21 @@ export class WorkerManager {
         if (!this.cppWorker) {
           throw new Error('C++ WASM worker not available');
         }
-        return await this.cppWorker.processPointCloudSmoothing(pointCloudData, smoothingRadius, iterations);
+        return await this.cppWorker.processPointCloudSmoothing(
+          pointCloudData,
+          smoothingRadius,
+          iterations
+        );
 
       case 'WASM_RUST':
         if (!this.rustWorker) {
           throw new Error('Rust WASM worker not available');
         }
-        return await this.rustWorker.processPointCloudSmoothing(pointCloudData, smoothingRadius, iterations);
+        return await this.rustWorker.processPointCloudSmoothing(
+          pointCloudData,
+          smoothingRadius,
+          iterations
+        );
 
       default:
         throw new Error(`Unsupported method: ${method}`);
@@ -110,7 +140,14 @@ export class WorkerManager {
     method: 'WASM_CPP' | 'WASM_RUST',
     pointCloudData: Float32Array,
     voxelSize: number,
-    globalBounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number }
+    globalBounds: {
+      minX: number;
+      minY: number;
+      minZ: number;
+      maxX: number;
+      maxY: number;
+      maxZ: number;
+    }
   ) {
     if (!this.isInitialized) {
       throw new Error('Workers not initialized');
@@ -121,13 +158,21 @@ export class WorkerManager {
         if (!this.cppWorker) {
           throw new Error('C++ WASM worker not available');
         }
-        return await this.cppWorker.processVoxelDebug(pointCloudData, voxelSize, globalBounds);
+        return await this.cppWorker.processVoxelDebug(
+          pointCloudData,
+          voxelSize,
+          globalBounds
+        );
 
       case 'WASM_RUST':
         if (!this.rustWorker) {
           throw new Error('Rust WASM worker not available');
         }
-        return await this.rustWorker.processVoxelDebug(pointCloudData, voxelSize, globalBounds);
+        return await this.rustWorker.processVoxelDebug(
+          pointCloudData,
+          voxelSize,
+          globalBounds
+        );
 
       default:
         throw new Error(`Unsupported method: ${method}`);
@@ -155,5 +200,3 @@ export class WorkerManager {
     return this.isInitialized;
   }
 }
-
-

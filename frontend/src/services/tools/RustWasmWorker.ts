@@ -2,7 +2,11 @@ import { Log } from '../../utils/Log';
 
 // Define types for Rust WASM worker
 export interface RustWasmWorkerMessage {
-  type: 'INITIALIZE' | 'VOXEL_DOWNSAMPLE' | 'POINT_CLOUD_SMOOTHING' | 'VOXEL_DEBUG';
+  type:
+    | 'INITIALIZE'
+    | 'VOXEL_DOWNSAMPLE'
+    | 'POINT_CLOUD_SMOOTHING'
+    | 'VOXEL_DEBUG';
   messageId: number;
   data?: {
     pointCloudData: Float32Array;
@@ -39,7 +43,14 @@ export interface RustWasmWorkerResponse {
 
 export class RustWasmWorker {
   private worker: Worker | null = null;
-  private messageCallbacks = new Map<number, { resolve: (response: RustWasmWorkerResponse) => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }>();
+  private messageCallbacks = new Map<
+    number,
+    {
+      resolve: (response: RustWasmWorkerResponse) => void;
+      reject: (error: Error) => void;
+      timeout: NodeJS.Timeout;
+    }
+  >();
   private nextMessageId = 0;
   public isInitialized = false;
 
@@ -65,22 +76,28 @@ export class RustWasmWorker {
 
     Log.Info('RustWasmWorker', 'Initializing worker...');
     const messageId = this.nextMessageId++;
-    const initPromise = new Promise<RustWasmWorkerResponse>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.messageCallbacks.delete(messageId);
-        reject(new Error('Worker initialization timed out'));
-      }, 30000);
+    const initPromise = new Promise<RustWasmWorkerResponse>(
+      (resolve, reject) => {
+        const timeout = setTimeout(() => {
+          this.messageCallbacks.delete(messageId);
+          reject(new Error('Worker initialization timed out'));
+        }, 30000);
 
-      this.messageCallbacks.set(messageId, { resolve, reject, timeout });
-      this.worker?.postMessage({ type: 'INITIALIZE', messageId });
-    });
+        this.messageCallbacks.set(messageId, { resolve, reject, timeout });
+        this.worker?.postMessage({ type: 'INITIALIZE', messageId });
+      }
+    );
 
     const response = await initPromise;
     if (response.type === 'SUCCESS') {
       this.isInitialized = true;
       Log.Info('RustWasmWorker', 'Worker initialized successfully');
     } else {
-      Log.Error('RustWasmWorker', 'Worker initialization failed:', response.error);
+      Log.Error(
+        'RustWasmWorker',
+        'Worker initialization failed:',
+        response.error
+      );
       this.isInitialized = false;
       throw new Error(response.error || 'Worker initialization failed');
     }
@@ -89,7 +106,14 @@ export class RustWasmWorker {
   async processVoxelDownsampling(
     pointCloudData: Float32Array,
     voxelSize: number,
-    globalBounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number }
+    globalBounds: {
+      minX: number;
+      minY: number;
+      minZ: number;
+      maxX: number;
+      maxY: number;
+      maxZ: number;
+    }
   ): Promise<RustWasmWorkerResponse> {
     if (!this.isInitialized || !this.worker) {
       throw new Error('Worker not initialized');
@@ -99,7 +123,7 @@ export class RustWasmWorker {
     const message: RustWasmWorkerMessage = {
       type: 'VOXEL_DOWNSAMPLE',
       messageId,
-      data: { pointCloudData, voxelSize, globalBounds }
+      data: { pointCloudData, voxelSize, globalBounds },
     };
 
     return this.sendMessageToWorker(message);
@@ -118,7 +142,7 @@ export class RustWasmWorker {
     const message: RustWasmWorkerMessage = {
       type: 'POINT_CLOUD_SMOOTHING',
       messageId,
-      data: { pointCloudData, smoothingRadius, iterations }
+      data: { pointCloudData, smoothingRadius, iterations },
     };
 
     return this.sendMessageToWorker(message);
@@ -127,7 +151,14 @@ export class RustWasmWorker {
   async processVoxelDebug(
     pointCloudData: Float32Array,
     voxelSize: number,
-    globalBounds: { minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number }
+    globalBounds: {
+      minX: number;
+      minY: number;
+      minZ: number;
+      maxX: number;
+      maxY: number;
+      maxZ: number;
+    }
   ): Promise<RustWasmWorkerResponse> {
     if (!this.isInitialized || !this.worker) {
       throw new Error('Worker not initialized');
@@ -137,25 +168,40 @@ export class RustWasmWorker {
     const message: RustWasmWorkerMessage = {
       type: 'VOXEL_DEBUG',
       messageId,
-      data: { pointCloudData, voxelSize, globalBounds }
+      data: { pointCloudData, voxelSize, globalBounds },
     };
 
     return this.sendMessageToWorker(message);
   }
 
-  private sendMessageToWorker(message: RustWasmWorkerMessage): Promise<RustWasmWorkerResponse> {
+  private sendMessageToWorker(
+    message: RustWasmWorkerMessage
+  ): Promise<RustWasmWorkerResponse> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.messageCallbacks.delete(message.messageId);
-        reject(new Error(`Worker message ${message.type} (ID: ${message.messageId}) timed out`));
+        reject(
+          new Error(
+            `Worker message ${message.type} (ID: ${message.messageId}) timed out`
+          )
+        );
       }, 30000);
 
-      this.messageCallbacks.set(message.messageId, { resolve, reject, timeout });
-      this.worker?.postMessage(message, message.data?.pointCloudData ? [message.data.pointCloudData.buffer] : []);
+      this.messageCallbacks.set(message.messageId, {
+        resolve,
+        reject,
+        timeout,
+      });
+      this.worker?.postMessage(
+        message,
+        message.data?.pointCloudData ? [message.data.pointCloudData.buffer] : []
+      );
     });
   }
 
-  private handleWorkerMessage(event: MessageEvent<RustWasmWorkerResponse>): void {
+  private handleWorkerMessage(
+    event: MessageEvent<RustWasmWorkerResponse>
+  ): void {
     const { messageId, type, error } = event.data;
     const callback = this.messageCallbacks.get(messageId);
 
@@ -169,7 +215,11 @@ export class RustWasmWorker {
         callback.reject(new Error(error || 'Worker error'));
       }
     } else {
-      Log.Warn('RustWasmWorker', 'Received message for unknown messageId:', messageId);
+      Log.Warn(
+        'RustWasmWorker',
+        'Received message for unknown messageId:',
+        messageId
+      );
     }
   }
 
@@ -197,6 +247,3 @@ export class RustWasmWorker {
     }
   }
 }
-
-
-

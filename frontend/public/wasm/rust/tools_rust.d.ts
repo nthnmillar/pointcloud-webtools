@@ -12,9 +12,9 @@ export class PointCloudToolsRust {
    * Direct pointer-based voxel downsampling for zero-copy input access
    * JavaScript allocates memory, copies input data, calls this function,
    * then reads results from output buffer
-   * 
+   *
    * Pointers are passed as usize (byte offsets into WASM linear memory)
-   * 
+   *
    * # Safety
    * This function uses `unsafe` Rust code to access memory directly via raw pointers.
    * Rust cannot automatically verify that these pointers are valid, so we must ensure safety manually.
@@ -22,33 +22,80 @@ export class PointCloudToolsRust {
    * - input_ptr points to valid WASM memory with at least point_count * 3 floats
    * - output_ptr points to valid WASM memory with at least point_count * 3 floats
    * - Both pointers are properly aligned (4-byte boundaries for floats)
-   * 
+   *
    * When used correctly, this function is safe. The `unsafe` keyword is required because
    * Rust's compiler cannot automatically verify memory safety with raw pointers.
    */
-  static voxel_downsample_direct_static(input_ptr: number, point_count: number, voxel_size: number, min_x: number, min_y: number, min_z: number, output_ptr: number): number;
+  static voxel_downsample_direct_static(
+    input_ptr: number,
+    point_count: number,
+    voxel_size: number,
+    min_x: number,
+    min_y: number,
+    min_z: number,
+    output_ptr: number
+  ): number;
   /**
    * Point cloud smoothing implementation in Rust
    * This matches the algorithm used in TS, WASM C++, and BE C++
    */
-  point_cloud_smooth(points: Float32Array, smoothing_radius: number, iterations: number): Float32Array;
+  point_cloud_smooth(
+    points: Float32Array,
+    smoothing_radius: number,
+    iterations: number
+  ): Float32Array;
   /**
    * Generate voxel centers for debug visualization
    * Returns unique voxel center positions for rendering wireframe cubes
    */
-  generate_voxel_centers(points: Float32Array, voxel_size: number, min_x: number, min_y: number, min_z: number): Float32Array;
+  generate_voxel_centers(
+    points: Float32Array,
+    voxel_size: number,
+    min_x: number,
+    min_y: number,
+    min_z: number
+  ): Float32Array;
 }
 
-export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
+export type InitInput =
+  | RequestInfo
+  | URL
+  | Response
+  | BufferSource
+  | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_pointcloudtoolsrust_free: (a: number, b: number) => void;
   readonly pointcloudtoolsrust_new: () => number;
   readonly pointcloudtoolsrust_get_memory: (a: number) => number;
-  readonly pointcloudtoolsrust_voxel_downsample_direct_static: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
-  readonly pointcloudtoolsrust_point_cloud_smooth: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-  readonly pointcloudtoolsrust_generate_voxel_centers: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+  readonly pointcloudtoolsrust_voxel_downsample_direct_static: (
+    a: number,
+    b: number,
+    c: number,
+    d: number,
+    e: number,
+    f: number,
+    g: number
+  ) => number;
+  readonly pointcloudtoolsrust_point_cloud_smooth: (
+    a: number,
+    b: number,
+    c: number,
+    d: number,
+    e: number,
+    f: number
+  ) => void;
+  readonly pointcloudtoolsrust_generate_voxel_centers: (
+    a: number,
+    b: number,
+    c: number,
+    d: number,
+    e: number,
+    f: number,
+    g: number,
+    h: number
+  ) => void;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_export_0: (a: number, b: number) => number;
   readonly __wbindgen_export_1: (a: number, b: number, c: number) => void;
@@ -56,21 +103,28 @@ export interface InitOutput {
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;
 /**
-* Instantiates the given `module`, which can either be bytes or
-* a precompiled `WebAssembly.Module`.
-*
-* @param {{ module: SyncInitInput }} module - Passing `SyncInitInput` directly is deprecated.
-*
-* @returns {InitOutput}
-*/
-export function initSync(module: { module: SyncInitInput } | SyncInitInput): InitOutput;
+ * Instantiates the given `module`, which can either be bytes or
+ * a precompiled `WebAssembly.Module`.
+ *
+ * @param {{ module: SyncInitInput }} module - Passing `SyncInitInput` directly is deprecated.
+ *
+ * @returns {InitOutput}
+ */
+export function initSync(
+  module: { module: SyncInitInput } | SyncInitInput
+): InitOutput;
 
 /**
-* If `module_or_path` is {RequestInfo} or {URL}, makes a request and
-* for everything else, calls `WebAssembly.instantiate` directly.
-*
-* @param {{ module_or_path: InitInput | Promise<InitInput> }} module_or_path - Passing `InitInput` directly is deprecated.
-*
-* @returns {Promise<InitOutput>}
-*/
-export default function __wbg_init (module_or_path?: { module_or_path: InitInput | Promise<InitInput> } | InitInput | Promise<InitInput>): Promise<InitOutput>;
+ * If `module_or_path` is {RequestInfo} or {URL}, makes a request and
+ * for everything else, calls `WebAssembly.instantiate` directly.
+ *
+ * @param {{ module_or_path: InitInput | Promise<InitInput> }} module_or_path - Passing `InitInput` directly is deprecated.
+ *
+ * @returns {Promise<InitOutput>}
+ */
+export default function __wbg_init(
+  module_or_path?:
+    | { module_or_path: InitInput | Promise<InitInput> }
+    | InitInput
+    | Promise<InitInput>
+): Promise<InitOutput>;

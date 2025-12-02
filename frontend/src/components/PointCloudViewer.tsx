@@ -26,7 +26,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
   const [serviceManager, setServiceManager] = useState<ServiceManager | null>(
     null
   );
-  
+
   // Benchmark results state
   const [wasmResults, setWasmResults] = useState<{
     originalCount: number;
@@ -48,7 +48,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     smoothingRadius?: number;
     iterations?: number;
   } | null>(null);
-  
+
   const [rustWasmMainResults, setRustWasmMainResults] = useState<{
     originalCount: number;
     downsampledCount?: number;
@@ -59,7 +59,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     smoothingRadius?: number;
     iterations?: number;
   } | null>(null);
-  
+
   const [tsResults, setTsResults] = useState<{
     originalCount: number;
     downsampledCount?: number;
@@ -70,7 +70,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     smoothingRadius?: number;
     iterations?: number;
   } | null>(null);
-  
+
   const [beResults, setBeResults] = useState<{
     originalCount: number;
     downsampledCount?: number;
@@ -81,7 +81,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     smoothingRadius?: number;
     iterations?: number;
   } | null>(null);
-  
+
   const [beRustResults, setBeRustResults] = useState<{
     originalCount: number;
     downsampledCount?: number;
@@ -92,7 +92,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     smoothingRadius?: number;
     iterations?: number;
   } | null>(null);
-  
+
   const [bePythonResults, setBePythonResults] = useState<{
     originalCount: number;
     downsampledCount?: number;
@@ -103,7 +103,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
     smoothingRadius?: number;
     iterations?: number;
   } | null>(null);
-  
+
   const [wasmRustResults, setWasmRustResults] = useState<{
     originalCount: number;
     downsampledCount?: number;
@@ -121,17 +121,19 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
       // Debug logging can be added here if needed
     }
   }, [wasmRustResults]);
-  const [currentTool, setCurrentTool] = useState<'voxel' | 'smoothing'>('voxel');
+  const [currentTool, setCurrentTool] = useState<'voxel' | 'smoothing'>(
+    'voxel'
+  );
 
   // Initialize service manager
   useEffect(() => {
     if (!canvasRef.current) return;
-    
+
     // Prevent multiple initializations
     if (initializationRef.current) {
       return;
     }
-    
+
     initializationRef.current = true;
 
     try {
@@ -161,7 +163,11 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
           setServiceManager(serviceManager);
         })
         .catch(err => {
-          Log.Error('PointCloudViewer', 'Failed to initialize service manager', err);
+          Log.Error(
+            'PointCloudViewer',
+            'Failed to initialize service manager',
+            err
+          );
         });
 
       // No cleanup function in development mode to prevent disposal
@@ -234,11 +240,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
 
       {/* Top Controls Bar */}
       <div className="top-controls-bar">
-        {serviceManager && (
-          <SceneControls
-            serviceManager={serviceManager}
-          />
-        )}
+        {serviceManager && <SceneControls serviceManager={serviceManager} />}
       </div>
 
       <LoadPoints
@@ -247,7 +249,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         onLoadingChange={setIsLoading}
         onErrorChange={setError}
       />
-      <Benchmark 
+      <Benchmark
         wasmResults={wasmResults}
         tsResults={tsResults}
         beResults={beResults}
@@ -258,7 +260,7 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
         rustWasmMainResults={rustWasmMainResults}
         currentTool={currentTool}
       />
-      <Tools 
+      <Tools
         serviceManager={serviceManager}
         onWasmResults={setWasmResults}
         onTsResults={setTsResults}

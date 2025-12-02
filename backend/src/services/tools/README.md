@@ -36,6 +36,7 @@ tools/
 ## Building
 
 ### Rust
+
 ```bash
 cd rust
 cargo build --release
@@ -44,6 +45,7 @@ cargo build --release
 ```
 
 ### C++
+
 ```bash
 cd cpp/voxel_downsample
 ./build_cpp.sh
@@ -51,6 +53,7 @@ cd cpp/voxel_downsample
 ```
 
 ### Python/Cython
+
 ```bash
 cd python/voxel_downsample
 ./build_cython.sh
@@ -60,8 +63,8 @@ cd python/voxel_downsample
 ## Executable Paths
 
 All executables are referenced from the `build/` directory:
+
 - C++: `build/voxel_downsample`, `build/voxel_debug`, `build/point_smooth_cpp`
 - Rust: `build/voxel_downsample_rust`, `build/voxel_debug_rust`, `build/point_smooth_rust`
 - Python: `python/*/` (scripts)
 - Cython: `build/*.so` (shared libraries)
-

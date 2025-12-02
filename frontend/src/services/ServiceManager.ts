@@ -40,21 +40,25 @@ export class ServiceManager extends BaseService {
     try {
       // Initialize services - ensure scene service is ready first
       await this._sceneService.initialize(canvas);
-      
+
       // Get the scene
       const scene = this._sceneService.scene;
-      
+
       // Initialize camera service with the scene
       if (scene) {
         await this._cameraService.initialize(scene, canvas);
         // Don't show frustum by default - let user choose
       }
-      
+
       await Promise.all([
         this._renderService.initialize(),
         this._loaderService.initialize(),
         this._toolsService.initialize().catch(err => {
-          Log.Error('ServiceManager', 'ToolsService initialization failed, continuing without it:', err);
+          Log.Error(
+            'ServiceManager',
+            'ToolsService initialization failed, continuing without it:',
+            err
+          );
           return null;
         }),
       ]);
@@ -88,9 +92,12 @@ export class ServiceManager extends BaseService {
     this.removeAllObservers();
   }
 
-
   // Point Service Methods
-  async loadPointCloud(id: string, data: PointCloudData, autoPositionCamera: boolean = true): Promise<void> {
+  async loadPointCloud(
+    id: string,
+    data: PointCloudData,
+    autoPositionCamera: boolean = true
+  ): Promise<void> {
     return this._pointService.loadPointCloud(id, data, autoPositionCamera);
   }
 
@@ -138,7 +145,7 @@ export class ServiceManager extends BaseService {
   clearAllPointClouds(): void {
     this._pointService.clearAllPointClouds();
     this._renderService.clearScene();
-    
+
     // Emit event to notify components that scene was cleared via button
     this.emit('sceneClearedByUser', {});
   }
@@ -162,7 +169,11 @@ export class ServiceManager extends BaseService {
   }
 
   // Loader Service Methods
-  async loadFile(file: File, batchSize: number = 500, batchLimit?: number): Promise<void> {
+  async loadFile(
+    file: File,
+    batchSize: number = 500,
+    batchLimit?: number
+  ): Promise<void> {
     // Loading file
     return this._loaderService.loadFile(file, batchSize, batchLimit);
   }

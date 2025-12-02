@@ -1,4 +1,10 @@
-import { Engine, Scene, HemisphericLight, Vector3, Color4 } from '@babylonjs/core';
+import {
+  Engine,
+  Scene,
+  HemisphericLight,
+  Vector3,
+  Color4,
+} from '@babylonjs/core';
 import { BaseService } from '../BaseService';
 
 export class SceneService extends BaseService {
@@ -11,21 +17,24 @@ export class SceneService extends BaseService {
     super();
   }
 
-
   async initialize(canvas: HTMLCanvasElement): Promise<void> {
     // Create engine
     this._engine = new Engine(canvas, true);
 
     // Create scene
     this._scene = new Scene(this._engine);
-    
+
     // Set background color
     this._scene.clearColor = new Color4(0.1, 0.1, 0.1, 1.0); // Dark gray background
 
     // Camera will be created by CameraService
 
     // Create light
-    this._light = new HemisphericLight("light", new Vector3(0, 1, 0), this._scene);
+    this._light = new HemisphericLight(
+      'light',
+      new Vector3(0, 1, 0),
+      this._scene
+    );
     this._light.intensity = 0.7;
 
     // Start render loop
@@ -55,8 +64,6 @@ export class SceneService extends BaseService {
     return this._scene;
   }
 
-
-
   get isWebGLReady(): boolean {
     return this._isWebGLReady;
   }
@@ -66,12 +73,12 @@ export class SceneService extends BaseService {
       this._scene.dispose();
       this._scene = null;
     }
-    
+
     if (this._engine) {
       this._engine.dispose();
       this._engine = null;
     }
-    
+
     this._camera = null;
     this._light = null;
     this._isWebGLReady = false;

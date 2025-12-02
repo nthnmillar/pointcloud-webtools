@@ -7,10 +7,10 @@ export const LogLevel = {
   DEBUG: 0,
   INFO: 1,
   WARN: 2,
-  ERROR: 3
+  ERROR: 3,
 } as const;
 
-export type LogLevel = typeof LogLevel[keyof typeof LogLevel];
+export type LogLevel = (typeof LogLevel)[keyof typeof LogLevel];
 
 export interface LogEntry {
   timestamp: Date;
@@ -78,7 +78,12 @@ export class LogClass {
   /**
    * Internal method to add log entry
    */
-  private addLog(level: LogLevel, tag: string, message: string, data?: unknown): void {
+  private addLog(
+    level: LogLevel,
+    tag: string,
+    message: string,
+    data?: unknown
+  ): void {
     // Only log if level is above current threshold
     if (level < this.currentLevel) {
       return;
@@ -89,7 +94,7 @@ export class LogClass {
       level,
       tag,
       message,
-      data
+      data,
     };
 
     // Add to internal logs
@@ -154,7 +159,12 @@ export class LogClass {
   /**
    * Log with automatic tag detection (for classes)
    */
-  public log(instance: object, level: LogLevel, message: string, data?: unknown): void {
+  public log(
+    instance: object,
+    level: LogLevel,
+    message: string,
+    data?: unknown
+  ): void {
     const tag = instance.constructor?.name || 'Unknown';
     this.addLog(level, tag, message, data);
   }
