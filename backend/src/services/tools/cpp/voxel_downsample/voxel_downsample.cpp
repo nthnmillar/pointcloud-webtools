@@ -24,11 +24,11 @@ struct FastHash {
     }
 };
 
-// Binary protocol for fast I/O (replaces JSON)
+// Binary protocol for fast I/O
 // Input format: [uint32_t pointCount][float voxelSize][float minX][float minY][float minZ][float maxX][float maxY][float maxZ][float* pointData]
 // Output format: [uint32_t outputCount][float* downsampledPoints]
 
-// OPTIMIZATION: Use struct instead of tuple for better cache locality (matches WASM implementation)
+// Use struct instead of tuple for better cache locality
 struct Voxel {
     int count;
     float sumX, sumY, sumZ;
@@ -38,11 +38,11 @@ struct Voxel {
 };
 
 int main() {
-    // OPTIMIZATION: Read binary input instead of JSON (much faster!)
+    // Read binary input for fast I/O
     // Binary format: [uint32_t pointCount][float voxelSize][float minX][float minY][float minZ][float maxX][float maxY][float maxZ][float* pointData]
     
     // Read binary header in one read (32 bytes: 4 for uint32 + 7*4 for floats)
-    // OPTIMIZATION: Single read is much faster than 8 separate reads
+    // Single read is more efficient than multiple separate reads
     // Use aligned storage to avoid potential alignment issues
     alignas(4) char header[32];
     if (!std::cin.read(header, 32) || std::cin.gcount() != 32) {
@@ -86,7 +86,7 @@ int main() {
     // OPTIMIZED C++ voxel downsampling - use contiguous memory for cache efficiency
     float invVoxelSize = 1.0f / voxelSize;
     
-    // OPTIMIZATION 1: Use std::unordered_map with FastHash (matches C++ WASM exactly)
+    // Use std::unordered_map with FastHash for fast integer key hashing
     // Use FastHash for integer keys (matches Rust FxHashMap)
     // Estimate: ~1% of points become voxels (rough estimate based on typical downsampling)
     int estimatedVoxels = pointCount / 100;
@@ -115,7 +115,7 @@ int main() {
                                (static_cast<uint64_t>(voxelY) << 16) |
                                static_cast<uint64_t>(voxelZ);
             
-            // OPTIMIZATION 2: Use try_emplace with struct initializer (matches WASM)
+            // Use try_emplace with struct initializer for efficient insertion
             // This is more efficient than default-constructing then assigning
             auto [it, inserted] = voxelMap.try_emplace(voxelKey, 1, x, y, z);
             if (!inserted) {
@@ -129,7 +129,7 @@ int main() {
         }
     }
     
-    // OPTIMIZATION 3: Pre-allocate output vector and write directly (matches WASM exactly)
+    // Pre-allocate output vector and write directly for efficiency
     // This avoids push_back reallocation overhead
     int outputCount = voxelMap.size();
     std::vector<float> downsampledPoints;
@@ -151,7 +151,7 @@ int main() {
     // Write processing time to stderr for debugging (doesn't interfere with binary output)
     std::cerr << "C++ BE computation time: " << processingTime << " ms" << std::endl;
     
-    // OPTIMIZATION: Write binary output instead of JSON (much faster!)
+    // Write binary output for fast I/O
     // Binary format: [uint32_t outputCount][float* downsampledPoints]
     
     // Write output count (4 bytes)

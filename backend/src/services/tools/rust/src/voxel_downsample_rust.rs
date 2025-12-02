@@ -1,11 +1,11 @@
 use std::io::{self, Read, Write};
 use rustc_hash::FxHashMap;
 
-// Binary protocol for fast I/O (replaces JSON)
+// Binary protocol for fast I/O
 // Input format: [u32 pointCount][f32 voxelSize][f32 minX][f32 minY][f32 minZ][f32 maxX][f32 maxY][f32 maxZ][f32* pointData]
 // Output format: [u32 outputCount][f32* downsampledPoints]
 
-// OPTIMIZATION: Use struct instead of tuple for better cache locality (matches WASM implementation)
+// Use struct instead of tuple for better cache locality
 #[derive(Clone, Copy)]
 struct Voxel {
     count: i32,
@@ -15,7 +15,7 @@ struct Voxel {
 }
 
 fn main() {
-    // OPTIMIZATION: Read binary input instead of JSON (much faster!)
+    // Read binary input for fast I/O
     // Binary format: [u32 pointCount][f32 voxelSize][f32 minX][f32 minY][f32 minZ][f32 maxX][f32 maxY][f32 maxZ][f32* pointData]
     
     let mut stdin = io::stdin();
@@ -72,7 +72,7 @@ fn main() {
         min_z,
     );
     
-    // OPTIMIZATION: Write binary output instead of JSON (much faster!)
+    // Write binary output for fast I/O
     // Binary format: [u32 outputCount][f32* downsampledPoints]
     
     let mut stdout = io::stdout();
@@ -105,7 +105,7 @@ fn voxel_downsample_internal(
     // OPTIMIZATION 1: Pre-calculate inverse voxel size to avoid division
     let inv_voxel_size = 1.0 / voxel_size;
     
-    // OPTIMIZATION 2: Use FxHashMap (much faster hash for integer keys) with struct for better cache locality
+    // Use FxHashMap for fast integer key hashing with struct for better cache locality
     // Pre-allocate with estimated capacity to avoid reallocations
     let estimated_voxels = (point_count / 100).min(100_000);
     let mut voxel_map: FxHashMap<u64, Voxel> = FxHashMap::with_capacity_and_hasher(estimated_voxels, Default::default());
@@ -146,7 +146,7 @@ fn voxel_downsample_internal(
         }
     }
     
-    // OPTIMIZATION 7: Pre-allocate output vector and write directly using indexing (matches C++ BE)
+    // Pre-allocate output vector and write directly using indexing for efficiency
     // Use direct indexing instead of push() for better performance (like C++ does)
     let output_count = voxel_map.len();
     let mut downsampled_points = vec![0.0f32; output_count * 3];

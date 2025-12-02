@@ -1,11 +1,11 @@
 use std::io::{self, Read, Write};
 
-// Binary protocol for fast I/O (replaces JSON)
+// Binary protocol for fast I/O
 // Input format: [u32 pointCount][f32 smoothingRadius][f32 iterations][f32* pointData]
 // Output format: [u32 pointCount][f32* smoothedPoints]
 
 fn main() {
-    // OPTIMIZATION: Read binary input instead of JSON (much faster!)
+    // Read binary input for fast I/O
     // Binary format: [u32 pointCount][f32 smoothingRadius][f32 iterations][f32* pointData]
     
     let mut stdin = io::stdin();
@@ -53,7 +53,7 @@ fn main() {
         iterations,
     );
     
-    // OPTIMIZATION: Write binary output instead of JSON (much faster!)
+    // Write binary output for fast I/O
     // Binary format: [u32 pointCount][f32* smoothedPoints]
     
     let mut stdout = io::stdout();

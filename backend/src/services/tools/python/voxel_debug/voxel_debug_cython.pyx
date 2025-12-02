@@ -42,14 +42,14 @@ def generate_voxel_centers(list points, float voxel_size, dict global_bounds):
     if (math.isnan(min_x) or math.isnan(min_y) or math.isnan(min_z)):
         raise ValueError("Invalid bounds detected")
     
-    # OPTIMIZATION 1: Pre-calculate ALL constants at the start (like Rust/C++ does)
+    # Pre-calculate constants at the start for efficiency
     cdef float inv_voxel_size = 1.0 / voxel_size
     cdef float half_voxel_size = voxel_size * 0.5
     cdef float offset_x = min_x + half_voxel_size
     cdef float offset_y = min_y + half_voxel_size
     cdef float offset_z = min_z + half_voxel_size
     
-    # OPTIMIZATION 2: Use dict with integer keys (faster than set with tuples)
+    # Use dict with integer keys for fast lookup
     # Python dict is faster than set for integer keys in Cython
     cdef dict voxel_keys = {}
     
@@ -80,7 +80,7 @@ def generate_voxel_centers(list points, float voxel_size, dict global_bounds):
             voxel_y = <int>floor((y - min_y) * inv_voxel_size)
             voxel_z = <int>floor((z - min_z) * inv_voxel_size)
             
-            # OPTIMIZATION: Use integer hash key (same as Rust/C++ - much faster than tuple!)
+            # Use integer hash key for fast lookup
             voxel_key = (<long long>voxel_x << 32) | (<long long>voxel_y << 16) | <long long>voxel_z
             
             # OPTIMIZATION: Use dict with integer keys (faster than set with tuples in Cython)
@@ -97,7 +97,7 @@ def generate_voxel_centers(list points, float voxel_size, dict global_bounds):
     
     # OPTIMIZATION: Iterate with explicit type casts and direct calculation
     for voxel_key in voxel_keys:
-        # Extract voxel coordinates from integer key (same as Rust/C++)
+        # Extract voxel coordinates from integer key
         voxel_x_out = <int>(voxel_key >> 32)
         voxel_y_out = <int>((voxel_key >> 16) & 0xFFFF)
         # Sign-extend 16-bit to int (handle negative coordinates)

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Ultra-Optimized Python Backend Voxel Downsampling Tool
+Optimized Python Backend Voxel Downsampling Tool
 Reduces point cloud density by averaging points within voxel grid cells.
-Optimized to match Rust BE performance using spatial hashing and chunked processing.
+Optimized using spatial hashing and chunked processing for high performance.
 """
 
 import sys
@@ -110,7 +110,7 @@ def voxel_downsample(points: List[float], voxel_size: float, global_bounds: Dict
 def main():
     """Main function to process voxel downsampling request."""
     try:
-        # OPTIMIZATION: Read binary input instead of JSON (much faster!)
+        # Read binary input for fast I/O
         # Binary format: [u32 pointCount][f32 voxelSize][f32 minX][f32 minY][f32 minZ][f32 maxX][f32 maxY][f32 maxZ][f32* pointData]
         
         # Read binary header (32 bytes: 4 for u32 + 7*4 for floats)
@@ -134,7 +134,7 @@ def main():
             print(f"Error: point_count {point_count} exceeds maximum {MAX_POINTS}", file=sys.stderr)
             sys.exit(1)
         
-        # Read point data directly (binary, no JSON parsing!)
+        # Read point data directly as binary
         float_count = point_count * 3
         bytes_to_read = float_count * 4
         if bytes_to_read > 2_000_000_000:  # 2GB max
@@ -163,7 +163,7 @@ def main():
         downsampled_points, voxel_count = voxel_downsample(points, voxel_size, global_bounds)
         processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
         
-        # OPTIMIZATION: Write binary output instead of JSON (much faster!)
+        # Write binary output for fast I/O
         # Binary format: [u32 outputCount][f32* downsampledPoints]
         
         output_count = len(downsampled_points) // 3
@@ -171,7 +171,7 @@ def main():
         # Write output count (4 bytes)
         sys.stdout.buffer.write(struct.pack('<I', output_count))
         
-        # Write downsampled points directly (binary, no JSON serialization!)
+        # Write downsampled points directly as binary
         if output_count > 0:
             sys.stdout.buffer.write(struct.pack(f'<{len(downsampled_points)}f', *downsampled_points))
         

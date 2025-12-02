@@ -16,12 +16,12 @@ struct FastHash {
     }
 };
 
-// Binary protocol for fast I/O (replaces text I/O)
+// Binary protocol for fast I/O
 // Input format: [uint32_t pointCount][float voxelSize][float minX][float minY][float minZ][float maxX][float maxY][float maxZ][float* pointData]
 // Output format: [uint32_t voxelCount][float* voxelGridPositions]
 
 int main() {
-    // OPTIMIZATION: Read binary input instead of text (much faster!)
+    // Read binary input for fast I/O
     // Binary format: [uint32_t pointCount][float voxelSize][float minX][float minY][float minZ][float maxX][float maxY][float maxZ][float* pointData]
     
     // Read binary header (32 bytes: 4 for uint32 + 7*4 for floats)
@@ -72,19 +72,19 @@ int main() {
     
     float* inputData = pointCloudData.data();
     
-    // ULTRA OPTIMIZED C++ voxel debug algorithm - matches WASM version
-    // OPTIMIZATION 1: Pre-calculate ALL constants at the start (like Rust/WASM does)
+    // Optimized voxel debug algorithm
+    // Pre-calculate constants at the start for efficiency
     float invVoxelSize = 1.0f / voxelSize;
     float halfVoxelSize = voxelSize * 0.5f;
     float offsetX = minX + halfVoxelSize;
     float offsetY = minY + halfVoxelSize;
     float offsetZ = minZ + halfVoxelSize;
     
-    // OPTIMIZATION 2: Use ankerl::unordered_dense::set with FastHash (fast hash set, matches Rust FxHash performance)
-    // Don't reserve - let it grow naturally like Rust/WASM (reserve can cause overhead if estimate is wrong)
+    // Use ankerl::unordered_dense::set with FastHash for fast integer key hashing
+    // Let it grow naturally (reserve can cause overhead if estimate is wrong)
     ankerl::unordered_dense::set<uint64_t, FastHash> voxelKeys;
     
-    // OPTIMIZATION 3: Process points in chunks for better cache locality
+    // Process points in chunks for better cache locality
     const int CHUNK_SIZE = 1024;
     for (uint32_t chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
         uint32_t chunkEnd = std::min(chunkStart + CHUNK_SIZE, pointCount);
@@ -100,12 +100,12 @@ int main() {
             int voxelY = static_cast<int>(std::floor((y - minY) * invVoxelSize));
             int voxelZ = static_cast<int>(std::floor((z - minZ) * invVoxelSize));
             
-            // OPTIMIZATION 5: Create integer hash key (same as WASM)
+            // Create integer hash key for fast lookup
             uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
                                (static_cast<uint64_t>(voxelY) << 16) |
                                static_cast<uint64_t>(voxelZ);
             
-            // OPTIMIZATION 6: Store unique voxel keys only (same as WASM)
+            // Store unique voxel keys only
             // Use emplace to avoid copy (construct in-place)
             voxelKeys.emplace(voxelKey);
         }
@@ -115,7 +115,7 @@ int main() {
     std::vector<float> voxelGridPositions;
     voxelGridPositions.resize(voxelKeys.size() * 3); // Pre-allocate exact size
     
-    // OPTIMIZATION 8: Single pass conversion with pointer arithmetic (like WASM)
+    // Single pass conversion with pointer arithmetic for efficiency
     // Use pointer arithmetic for maximum performance (like optimized voxel downsampling)
     float* outputPtr = voxelGridPositions.data();
     
@@ -132,7 +132,7 @@ int main() {
         *outputPtr++ = offsetZ + static_cast<float>(voxelZ) * voxelSize;
     }
     
-    // OPTIMIZATION 10: Write binary output instead of text (much faster!)
+    // Write binary output for fast I/O
     // Binary format: [uint32_t voxelCount][float* voxelGridPositions]
     uint32_t voxelCount = static_cast<uint32_t>(voxelKeys.size());
     std::cout.write(reinterpret_cast<const char*>(&voxelCount), sizeof(uint32_t));

@@ -1,12 +1,12 @@
 use std::io::{self, Read, Write};
 use rustc_hash::FxHashSet;
 
-// Binary protocol for fast I/O (replaces JSON)
+// Binary protocol for fast I/O
 // Input format: [u32 pointCount][f32 voxelSize][f32 minX][f32 minY][f32 minZ][f32 maxX][f32 maxY][f32 maxZ][f32* pointData]
 // Output format: [u32 voxelCount][f32* voxelGridPositions]
 
 fn main() {
-    // OPTIMIZATION: Read binary input instead of JSON (much faster!)
+    // Read binary input for fast I/O
     // Binary format: [u32 pointCount][f32 voxelSize][f32 minX][f32 minY][f32 minZ][f32 maxX][f32 maxY][f32 maxZ][f32* pointData]
     
     let mut stdin = io::stdin();
@@ -76,7 +76,7 @@ fn main() {
         min_z,
     );
     
-    // OPTIMIZATION: Write binary output instead of JSON (much faster!)
+    // Write binary output for fast I/O
     // Binary format: [u32 voxelCount][f32* voxelGridPositions]
     
     let mut stdout = io::stdout();
@@ -106,20 +106,20 @@ fn generate_voxel_centers(
     min_y: f32,
     min_z: f32,
 ) -> Vec<f32> {
-    // OPTIMIZATION 1: Pre-calculate ALL constants at the start (like downsampling)
+    // Pre-calculate constants at the start for efficiency
     let inv_voxel_size = 1.0 / voxel_size;
     let half_voxel_size = voxel_size * 0.5;
     let offset_x = min_x + half_voxel_size;
     let offset_y = min_y + half_voxel_size;
     let offset_z = min_z + half_voxel_size;
     
-    // OPTIMIZATION 2: Use FxHashSet with integer keys (much faster than tuple keys!)
+    // Use FxHashSet with integer keys for fast hashing
     // Integer keys are faster to hash than tuples (same optimization as downsampling)
     // Pre-allocate with estimated capacity to avoid reallocations (same as downsampling)
     let estimated_voxels = (point_count / 100).min(100_000);
     let mut voxel_keys: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(estimated_voxels, Default::default());
     
-    // OPTIMIZATION 3: Process points in chunks for better cache locality (same as downsampling)
+    // Process points in chunks for better cache locality
     const CHUNK_SIZE: usize = 1024;
     
     for chunk_start in (0..point_count).step_by(CHUNK_SIZE) {
@@ -136,7 +136,7 @@ fn generate_voxel_centers(
             let voxel_y = ((y - min_y) * inv_voxel_size).floor() as i32;
             let voxel_z = ((z - min_z) * inv_voxel_size).floor() as i32;
             
-            // OPTIMIZATION 5: Use integer hash key (same as downsampling - much faster than tuple!)
+            // Use integer hash key for fast lookup
             let voxel_key = ((voxel_x as u64) << 32) | ((voxel_y as u64) << 16) | (voxel_z as u64);
             
             voxel_keys.insert(voxel_key);

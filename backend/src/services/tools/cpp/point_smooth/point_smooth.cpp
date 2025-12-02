@@ -5,11 +5,11 @@
 #include <cstdint>
 #include <algorithm>
 
-// Binary protocol for fast I/O (replaces JSON)
+// Binary protocol for fast I/O
 // Input format: [uint32_t pointCount][float smoothingRadius][float iterations][float* pointData]
 // Output format: [uint32_t pointCount][float* smoothedPoints]
 
-// Ultra-optimized point cloud smoothing using direct memory management (same as C++ WASM)
+// Optimized point cloud smoothing using direct memory management
 void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCount, float smoothingRadius, int iterations) {
     if (!inputData || !outputData || pointCount <= 0 || smoothingRadius <= 0 || iterations <= 0) {
         return;
@@ -49,7 +49,7 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
     int gridWidth = static_cast<int>((maxX - minX) * invCellSize) + 1;
     int gridHeight = static_cast<int>((maxY - minY) * invCellSize) + 1;
     int gridDepth = static_cast<int>((maxZ - minZ) * invCellSize) + 1;
-    int gridSize = gridWidth * gridHeight * gridDepth; // Pre-compute (same as Rust)
+    int gridSize = gridWidth * gridHeight * gridDepth; // Pre-compute for efficiency
     
     // OPTIMIZATION: Use flat array structure for better cache locality
     // Instead of vector<vector<int>> (separate allocations), use:
@@ -62,7 +62,7 @@ void pointCloudSmoothingDirect(float* inputData, float* outputData, int pointCou
     std::vector<int> gridOffsets(gridSize + 1); // +1 for end marker
     std::vector<int> gridCounts(gridSize, 0);
     
-    // Hash function to get grid index (same as C++ WASM - truncate toward zero)
+    // Hash function to get grid index (truncate toward zero)
     auto getGridIndex = [&](float x, float y, float z) -> int {
         int gx = static_cast<int>((x - minX) * invCellSize);
         int gy = static_cast<int>((y - minY) * invCellSize);
@@ -193,7 +193,7 @@ int main() {
     std::ios_base::sync_with_stdio(false);
     std::cin.tie(nullptr);
     
-    // OPTIMIZATION: Read binary input instead of JSON (much faster!)
+    // Read binary input for fast I/O
     // Binary format: [uint32_t pointCount][float smoothingRadius][float iterations][float* pointData]
     
     // Read binary header in one read (12 bytes: 4 for uint32 + 4 for float + 4 for float)
@@ -230,10 +230,10 @@ int main() {
     // Allocate output buffer
     std::vector<float> outputData(floatCount);
     
-    // Call ultra-optimized smoothing function
+    // Call optimized smoothing function
     pointCloudSmoothingDirect(inputData.data(), outputData.data(), pointCount, smoothingRadius, iterationsInt);
     
-    // OPTIMIZATION: Write binary output instead of JSON (much faster!)
+    // Write binary output for fast I/O
     // Binary format: [uint32_t pointCount][float* smoothedPoints]
     
     // Write output count (4 bytes)

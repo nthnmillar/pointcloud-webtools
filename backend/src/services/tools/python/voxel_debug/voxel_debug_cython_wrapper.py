@@ -2,7 +2,7 @@
 """
 Cython-optimized voxel debug backend.
 Uses compiled Cython extension for maximum performance.
-Uses binary protocol for fast I/O (replaces JSON).
+Uses binary protocol for fast I/O.
 """
 
 import sys
@@ -22,7 +22,7 @@ from voxel_debug_cython import generate_voxel_centers
 def main():
     """Main function to process voxel debug request."""
     try:
-        # OPTIMIZATION: Read binary input instead of JSON (much faster!)
+        # Read binary input for fast I/O
         # Binary format: [u32 pointCount][f32 voxelSize][f32 minX][f32 minY][f32 minZ][f32 maxX][f32 maxY][f32 maxZ][f32* pointData]
         
         # Read binary header (32 bytes: 4 for u32 + 7*4 for floats)
@@ -46,7 +46,7 @@ def main():
             print(f"Error: point_count {point_count} exceeds maximum {MAX_POINTS}", file=sys.stderr)
             sys.exit(1)
         
-        # Read point data directly (binary, no JSON parsing!)
+        # Read point data directly as binary
         float_count = point_count * 3
         bytes_to_read = float_count * 4
         if bytes_to_read > 2_000_000_000:  # 2GB max
@@ -75,7 +75,7 @@ def main():
         voxel_grid_positions = generate_voxel_centers(points, voxel_size, global_bounds)
         processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
         
-        # OPTIMIZATION: Write binary output instead of JSON (much faster!)
+        # Write binary output for fast I/O
         # Binary format: [u32 voxelCount][f32* voxelGridPositions]
         
         voxel_count = len(voxel_grid_positions) // 3
@@ -83,7 +83,7 @@ def main():
         # Write voxel count (4 bytes)
         sys.stdout.buffer.write(struct.pack('<I', voxel_count))
         
-        # Write voxel grid positions directly (binary, no JSON serialization!)
+        # Write voxel grid positions directly as binary
         if voxel_count > 0:
             sys.stdout.buffer.write(struct.pack(f'<{len(voxel_grid_positions)}f', *voxel_grid_positions))
         
