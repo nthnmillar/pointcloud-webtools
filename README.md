@@ -7,6 +7,7 @@
 This project provides a platform for building and testing point cloud processing tools across different implementations and execution environments. It supports benchmarking, testing, and development of point cloud algorithms.
 
 **Current Implementations:**
+
 - Voxel Downsampling
 - Voxel Debug Visualization
 - Point Cloud Smoothing
@@ -22,6 +23,7 @@ yarn dev
 ```
 
 ### Prerequisites
+
 - **Node.js 18+** and yarn
 - **Emscripten** (`emcc`) - Required for building C++ WASM modules (frontend auto-builds on startup)
 - **Rust** (cargo) - Required for building Rust WASM modules and backend executables (`wasm-pack` auto-installs if missing)
@@ -30,6 +32,7 @@ yarn dev
 - **C/C++ Compiler** (clang++ or g++) - Required for building C++ backend executables and compiling Cython extensions
 
 **Note**: If WASM compilation fails, ensure `frontend/compile_wasm.sh` is executable:
+
 ```bash
 chmod +x frontend/compile_wasm.sh
 ```
@@ -41,16 +44,17 @@ This repository includes comprehensive benchmarking tools and results. See [docs
 ## 🏗️ Architecture
 
 ### Frontend
+
 - **Framework**: React + TypeScript
 - **Rendering**: Babylon.js for 3D visualization
 - **WASM**: Emscripten (C++) and wasm-bindgen (Rust)
 - **Workers**: Web Workers for parallel WASM execution
 
 ### Backend
+
 - **Server**: Node.js + Express
 - **WebSocket**: Real-time communication for backend processing
 - **Executables**: Standalone C++/Rust/Python binaries
-
 
 ## 📝 Supported Formats
 
