@@ -25,6 +25,16 @@
     "format:check": "yarn format:check:frontend && yarn format:check:backend",
     "format:check:frontend": "cd frontend && yarn format:check",
     "format:check:backend": "cd backend && yarn format:check",
+    "test": "yarn test:frontend && yarn test:backend && yarn test:rust",
+    "test:frontend": "cd frontend && yarn test --run",
+    "test:backend": "cd backend && yarn test --run",
+    "test:rust": "cd backend/src/services/tools/rust && cargo test",
+    "test:watch": "yarn test:frontend:watch & yarn test:backend:watch",
+    "test:frontend:watch": "cd frontend && yarn test:watch",
+    "test:backend:watch": "cd backend && yarn test:watch",
+    "test:coverage": "yarn test:frontend:coverage && yarn test:backend:coverage",
+    "test:frontend:coverage": "cd frontend && yarn test:coverage",
+    "test:backend:coverage": "cd backend && yarn test:coverage",
     "install:all": "yarn install && cd frontend && yarn install && cd ../backend && yarn install"
   },
   "devDependencies": {

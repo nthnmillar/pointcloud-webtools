@@ -85,3 +85,23 @@ yarn format
 # Check formatting without fixing
 yarn format:check
 ```
+
+## 🧪 Testing
+
+Tests are colocated next to source files (e.g., `BaseService.ts` → `BaseService.test.ts`).
+
+```bash
+# Run all tests
+yarn test
+
+# Run specific tests
+yarn test:frontend    # Frontend (Vitest)
+yarn test:backend     # Backend (Vitest)
+yarn test:rust        # Rust (cargo test)
+
+# Watch mode
+yarn test:watch
+
+# Coverage
+yarn test:coverage
+```

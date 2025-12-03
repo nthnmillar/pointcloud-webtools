@@ -94,7 +94,7 @@ fn main() {
     }
 }
 
-fn voxel_downsample_internal(
+pub(crate) fn voxel_downsample_internal(
     points: &[f32],
     point_count: usize,
     voxel_size: f32,
@@ -162,4 +162,63 @@ fn voxel_downsample_internal(
     }
     
     downsampled_points
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_voxel_downsample_simple() {
+        // Simple test: 4 points forming a square, should downsample to 1 point
+        let points = vec![
+            0.0, 0.0, 0.0,  // Point 1
+            1.0, 0.0, 0.0,  // Point 2
+            0.0, 1.0, 0.0,  // Point 3
+            1.0, 1.0, 0.0,  // Point 4
+        ];
+        let point_count = 4;
+        let voxel_size = 2.0; // Large enough to contain all points
+        let min_x = 0.0;
+        let min_y = 0.0;
+        let min_z = 0.0;
+
+        let result = voxel_downsample_internal(&points, point_count, voxel_size, min_x, min_y, min_z);
+
+        // Should produce 1 voxel (all points in same voxel)
+        assert_eq!(result.len(), 3);
+        // Average should be (0.5, 0.5, 0.0)
+        assert!((result[0] - 0.5).abs() < 0.001);
+        assert!((result[1] - 0.5).abs() < 0.001);
+        assert!((result[2] - 0.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_voxel_downsample_empty() {
+        let points = vec![];
+        let result = voxel_downsample_internal(&points, 0, 1.0, 0.0, 0.0, 0.0);
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_voxel_downsample_single_point() {
+        let points = vec![1.0, 2.0, 3.0];
+        let result = voxel_downsample_internal(&points, 1, 1.0, 0.0, 0.0, 0.0);
+        assert_eq!(result.len(), 3);
+        assert!((result[0] - 1.0).abs() < 0.001);
+        assert!((result[1] - 2.0).abs() < 0.001);
+        assert!((result[2] - 3.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_voxel_downsample_separate_voxels() {
+        // Two points in separate voxels
+        let points = vec![
+            0.0, 0.0, 0.0,  // Voxel (0,0,0)
+            2.0, 0.0, 0.0,  // Voxel (2,0,0) - different voxel
+        ];
+        let result = voxel_downsample_internal(&points, 2, 1.0, 0.0, 0.0, 0.0);
+        // Should produce 2 voxels
+        assert_eq!(result.len(), 6);
+    }
 }
