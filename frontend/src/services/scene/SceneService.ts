@@ -17,9 +17,14 @@ export class SceneService extends BaseService {
     super();
   }
 
-  async initialize(canvas: HTMLCanvasElement): Promise<void> {
-    // Create engine
-    this._engine = new Engine(canvas, true);
+  async initialize(canvas?: HTMLCanvasElement, engine?: Engine): Promise<void> {
+    if (engine) {
+      this._engine = engine;
+    } else if (canvas) {
+      this._engine = new Engine(canvas, true);
+    } else {
+      throw new Error('Either canvas or engine must be provided');
+    }
 
     // Create scene
     this._scene = new Scene(this._engine);
@@ -79,7 +84,6 @@ export class SceneService extends BaseService {
       this._engine = null;
     }
 
-    this._camera = null;
     this._light = null;
     this._isWebGLReady = false;
     this.isInitialized = false;
