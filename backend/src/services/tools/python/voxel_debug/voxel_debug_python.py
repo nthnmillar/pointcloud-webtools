@@ -9,8 +9,7 @@ import sys
 import json
 import time
 import math
-from typing import List, Dict, Any
-from collections import defaultdict
+from typing import List, Dict
 
 def generate_voxel_centers(points: List[float], voxel_size: float, global_bounds: Dict[str, float]) -> List[float]:
     """

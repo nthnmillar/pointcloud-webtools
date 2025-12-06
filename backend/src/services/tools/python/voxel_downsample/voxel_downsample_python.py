@@ -9,7 +9,7 @@ import sys
 import struct
 import time
 import math
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict
 
 def voxel_downsample(points: List[float], voxel_size: float, global_bounds: Dict[str, float]) -> Tuple[List[float], int]:
     """
