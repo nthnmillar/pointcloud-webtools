@@ -404,6 +404,8 @@
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
 .benchmark-header {
@@ -444,8 +446,9 @@
 
 .benchmark-content {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(8, minmax(140px, 1fr));
   gap: 0.8rem;
+  min-width: fit-content;
 }
 
 .benchmark-column h4 {
@@ -515,6 +518,11 @@
     width: calc(100vw - 40px);
     right: 20px;
     left: 20px;
+    max-width: calc(100vw - 40px);
+  }
+
+  .benchmark-content {
+    grid-template-columns: repeat(8, minmax(120px, 1fr));
   }
 
   .benchmark-content {

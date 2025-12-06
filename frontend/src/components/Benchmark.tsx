@@ -174,7 +174,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
                         {tsResults && tsResults.reductionRatio
-                          ? `${((tsResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          ? `${((1 - tsResults.reductionRatio) * 100).toFixed(1)}%`
                           : '--'}
                       </span>
                     </div>
@@ -254,7 +254,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
                         {wasmCppMainResults && wasmCppMainResults.reductionRatio
-                          ? `${((wasmCppMainResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          ? `${((1 - wasmCppMainResults.reductionRatio) * 100).toFixed(1)}%`
                           : '--'}
                       </span>
                     </div>
@@ -337,7 +337,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({
                       <span className="metric-value">
                         {rustWasmMainResults &&
                         rustWasmMainResults.reductionRatio
-                          ? `${((rustWasmMainResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          ? `${((1 - rustWasmMainResults.reductionRatio) * 100).toFixed(1)}%`
                           : '--'}
                       </span>
                     </div>
@@ -419,7 +419,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
                         {wasmResults && wasmResults.reductionRatio
-                          ? `${((wasmResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          ? `${((1 - wasmResults.reductionRatio) * 100).toFixed(1)}%`
                           : '--'}
                       </span>
                     </div>
@@ -499,7 +499,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
                         {wasmRustResults && wasmRustResults.reductionRatio
-                          ? `${((wasmRustResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          ? `${((1 - wasmRustResults.reductionRatio) * 100).toFixed(1)}%`
                           : '--'}
                       </span>
                     </div>
@@ -579,7 +579,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
                         {beResults && beResults.reductionRatio
-                          ? `${((beResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          ? `${((1 - beResults.reductionRatio) * 100).toFixed(1)}%`
                           : '--'}
                       </span>
                     </div>
@@ -659,7 +659,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
                         {beRustResults && beRustResults.reductionRatio
-                          ? `${((beRustResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          ? `${((1 - beRustResults.reductionRatio) * 100).toFixed(1)}%`
                           : '--'}
                       </span>
                     </div>
@@ -740,7 +740,7 @@ export const Benchmark: React.FC<BenchmarkProps> = ({
                       <span className="metric-label">Reduction:</span>
                       <span className="metric-value">
                         {bePythonResults && bePythonResults.reductionRatio
-                          ? `${((bePythonResults.reductionRatio - 1) * 100).toFixed(1)}%`
+                          ? `${((1 - bePythonResults.reductionRatio) * 100).toFixed(1)}%`
                           : '--'}
                       </span>
                     </div>

@@ -194,8 +194,8 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
           processingTime: endToEndTime,
           reductionRatio:
             originalCount > 0 && downsampledCount > 0
-              ? originalCount / downsampledCount
-              : 1,
+              ? downsampledCount / originalCount
+              : 0,
           voxelCount: downsampledCount,
         });
       }
@@ -257,8 +257,8 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
           processingTime: endToEndTime,
           reductionRatio:
             originalCount > 0 && downsampledCount > 0
-              ? originalCount / downsampledCount
-              : 1,
+              ? downsampledCount / originalCount
+              : 0,
           voxelCount: downsampledCount,
         });
       } else {
@@ -443,8 +443,8 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
           processingTime: endToEndTime,
           reductionRatio:
             originalCount > 0 && downsampledCount > 0
-              ? originalCount / downsampledCount
-              : 1,
+              ? downsampledCount / originalCount
+              : 0,
           voxelCount: downsampledCount,
         });
       } else {
@@ -512,8 +512,8 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         const downsampledCount = result.downsampledCount || 0;
         const reductionRatio =
           originalCount > 0 && downsampledCount > 0
-            ? originalCount / downsampledCount
-            : 1;
+            ? downsampledCount / originalCount
+            : 0;
 
         callbacks.onWasmCppMainResults?.({
           originalCount,
@@ -626,8 +626,8 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
           processingTime: endToEndTime,
           reductionRatio:
             originalCount > 0 && downsampledCount > 0
-              ? originalCount / downsampledCount
-              : 1,
+              ? downsampledCount / originalCount
+              : 0,
           voxelCount: downsampledCount,
         });
       }
