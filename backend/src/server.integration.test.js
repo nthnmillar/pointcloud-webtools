@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect } from 'vitest';
 
 /**
  * Integration tests for backend server endpoints
@@ -19,7 +19,7 @@ describe('Backend Server Integration', () => {
         const data = await response.json();
         expect(data).toHaveProperty('status');
         expect(data.status).toBe('OK');
-      } catch (error) {
+      } catch {
         // Skip if server not running
         console.warn('Server not running, skipping integration test');
       }
@@ -35,7 +35,7 @@ describe('Backend Server Integration', () => {
           body: JSON.stringify({}),
         });
         expect(response.status).toBeGreaterThanOrEqual(400);
-      } catch (error) {
+      } catch {
         console.warn('Server not running, skipping integration test');
       }
     });
@@ -60,7 +60,7 @@ describe('Backend Server Integration', () => {
         });
         // Should either succeed or fail with proper error, not crash
         expect([200, 400, 500]).toContain(response.status);
-      } catch (error) {
+      } catch {
         console.warn('Server not running, skipping integration test');
       }
     });
@@ -75,7 +75,7 @@ describe('Backend Server Integration', () => {
           body: JSON.stringify({}),
         });
         expect(response.status).toBeGreaterThanOrEqual(400);
-      } catch (error) {
+      } catch {
         console.warn('Server not running, skipping integration test');
       }
     });
@@ -90,7 +90,7 @@ describe('Backend Server Integration', () => {
           body: JSON.stringify({}),
         });
         expect(response.status).toBeGreaterThanOrEqual(400);
-      } catch (error) {
+      } catch {
         console.warn('Server not running, skipping integration test');
       }
     });

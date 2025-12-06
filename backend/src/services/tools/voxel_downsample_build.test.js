@@ -176,7 +176,7 @@ function runTool(executable, input) {
       chunks.push(chunk);
     });
 
-    process.stderr.on('data', chunk => {
+    process.stderr.on('data', _chunk => {
       // Suppress stderr for cleaner test output
     });
 
