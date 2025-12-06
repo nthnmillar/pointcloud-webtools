@@ -330,7 +330,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
               </label>
             </div>
 
-            <div className="control-group">
+            {/* <div className="control-group">
               <label>
                 Load COPC File:
                 <input
@@ -341,7 +341,7 @@ export const LoadPoints: React.FC<LoadPointsProps> = ({
                   style={{ marginLeft: '8px' }}
                 />
               </label>
-            </div>
+            </div> */}
 
             <div className="control-group">
               <button
