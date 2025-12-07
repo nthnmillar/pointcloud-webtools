@@ -15,6 +15,7 @@ All tools are implemented across the same execution environments:
 - **Point Cloud Smoothing** - Applies Gaussian filtering to smooth point cloud data
 
 **Implementations per tool:**
+
 - TypeScript (TS)
 - C++ WASM (Main Thread & Worker)
 - Rust WASM (Main Thread & Worker)
@@ -40,7 +41,7 @@ All implementations use **identical algorithms** to ensure fair comparison:
 
 - **Coordinate Calculation**: All use `floor()` for consistent coordinate conversion (e.g., `Math.floor()` in TypeScript, `std::floor()` in C++, `.floor()` in Rust)
 - **Bounds**: Pre-calculated `globalBounds` passed as parameters (not computed inside algorithms) - ensures identical coordinate space across all implementations
-- **Hashing Strategy**: 
+- **Hashing Strategy**:
   - **C++/Rust/Python**: Integer-based hashing with bit shifting `(voxelX << 32) | (voxelY << 16) | voxelZ` - packs three coordinates into one 64-bit integer key for maximum performance
   - **TypeScript**: String-based keys (`"${voxelX},${voxelY},${voxelZ}"`) due to JavaScript's 32-bit integer limitations - works correctly but slower than integer keys
 - **Result Verification**: All implementations produce identical outputs (same point counts, positions within floating-point precision)
@@ -53,7 +54,7 @@ All implementations use production-level optimizations:
 - **Chunked processing**: Processes data in chunks (typically 1024 items) for better CPU cache locality
 - **Direct memory access**: Minimizes data copying overhead
 - **Binary protocol**: Backend implementations use WebSocket with binary I/O instead of JSON (eliminates serialization overhead)
-- **Compiler optimizations**: 
+- **Compiler optimizations**:
   - C++/Rust: `-O3 -march=native -ffast-math -flto` (maximum optimization, CPU-specific, link-time optimization)
   - Python (Cython): Compiled to C with same optimization flags
 
@@ -77,6 +78,7 @@ All tools are implemented across the same execution environments:
 ### Timing Methodology
 
 All implementations measure **end-to-end processing time** including:
+
 - Data preparation and copying
 - Algorithm execution
 - Result formatting and transfer
@@ -84,13 +86,27 @@ All implementations measure **end-to-end processing time** including:
 
 This provides realistic performance comparisons reflecting actual user experience, not just algorithm execution time.
 
+### Performance Variance
+
+Benchmark results may vary between test runs due to several factors:
+
+- **System load**: Background processes, other applications, and system services can affect CPU availability
+- **CPU state**: Thermal throttling, power management, and turbo boost can cause performance fluctuations
+- **Cache effects**: Cold vs warm cache, memory allocation patterns, and JIT compilation warmup
+- **Hardware differences**: CPU model, RAM speed, storage type, and system configuration
+- **OS scheduling**: Process priority, context switching, and thread scheduling variations
+
+**Expected variance**: Results typically vary within ±5-10% between runs on the same machine. Larger variations may occur on the first run due to JIT warmup or cache effects.
+
+**Interpretation**: Focus on **relative performance comparisons** (e.g., "C++ is 30% faster than Rust") rather than absolute numbers. The relative differences between implementations are more consistent than absolute timings. Results are machine-specific and should be interpreted in the context of the test environment.
+
 ## 🧪 Testing
 
 Each tool can be tested individually through the web interface:
+
 1. Load a point cloud file (LAZ/LAS)
 2. Select a tool (Voxel Downsampling, Smoothing, etc.)
 3. Run all implementations
 4. View benchmark results in real-time
 
 See the [Summary](benchmark-summary.md) for detailed performance analysis and platform recommendations.
-
