@@ -1,5 +1,9 @@
 # Benchmarking
 
+![Point Cloud Web Tools Preview](../../images/benchmark-pointcloud-tools-_thumb.png)
+
+[📹 Watch Demo Video](https://youtu.be/nZjpiuyGGBQ)
+
 This project provides comprehensive benchmarks comparing point cloud processing tools across multiple languages (TypeScript, C++, Rust, Python) and execution environments (browser WASM, backend servers). The goal is to provide fair, accurate performance comparisons to inform technology choices for point cloud processing applications.
 
 ## Purpose

@@ -1,6 +1,8 @@
 # Point Cloud Web Tools
 
-![Point Cloud Web Tools Preview](images/pointcloud-webtools-preview.png)
+![Point Cloud Web Tools Preview](images/benchmark-pointcloud-tools-_thumb.png)
+
+[📹 Watch Demo Video](https://youtu.be/nZjpiuyGGBQ)
 
 ## Overview
 
