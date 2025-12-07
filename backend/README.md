@@ -13,19 +13,19 @@ This is a Node.js backend server for point cloud processing operations, specific
 2. Install dependencies:
 
    ```bash
-   npm install
+   yarn install
    ```
 
 3. Start the server:
 
    ```bash
-   npm start
+   yarn start
    ```
 
    Or for development with auto-restart:
 
    ```bash
-   npm run dev
+   yarn dev
    ```
 
 The server will start on port 3001 by default.
