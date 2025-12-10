@@ -4,6 +4,10 @@
 
 set -e
 
+# Get the directory where this script is located (project root)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 RUST_SRC_DIR="backend/src/services/tools/rust"
 CPP_DIR="backend/src/services/tools/cpp"
 PYTHON_DIR="backend/src/services/tools/python"
@@ -35,8 +39,8 @@ if [ "$NEED_REBUILD_RUST" = true ]; then
         exit 1
     }
     # Verify binaries were created
-    if [ ! -f "$BUILD_DIR/voxel_downsample_rust" ] && [ ! -f "$BUILD_DIR/voxel_debug_rust" ] && [ ! -f "$BUILD_DIR/point_smooth_rust" ]; then
-        echo "❌ Rust binaries were not created"
+    if [ ! -f "$SCRIPT_DIR/$BUILD_DIR/voxel_downsample_rust" ] && [ ! -f "$SCRIPT_DIR/$BUILD_DIR/voxel_debug_rust" ] && [ ! -f "$SCRIPT_DIR/$BUILD_DIR/point_smooth_rust" ]; then
+        echo "❌ Rust binaries were not created in $SCRIPT_DIR/$BUILD_DIR"
         exit 1
     fi
     echo "✅ Rust binaries built"
@@ -65,8 +69,8 @@ if command -v clang++ &> /dev/null; then
             echo "❌ Failed to build C++ voxel_downsample"
             exit 1
         fi
-        if [ ! -f "$BUILD_DIR/voxel_downsample" ]; then
-            echo "❌ C++ binary voxel_downsample was not created"
+        if [ ! -f "$SCRIPT_DIR/$BUILD_DIR/voxel_downsample" ]; then
+            echo "❌ C++ binary voxel_downsample was not created at $SCRIPT_DIR/$BUILD_DIR/voxel_downsample"
             exit 1
         fi
         
@@ -76,8 +80,8 @@ if command -v clang++ &> /dev/null; then
             echo "❌ Failed to build C++ voxel_debug"
             exit 1
         fi
-        if [ ! -f "$BUILD_DIR/voxel_debug" ]; then
-            echo "❌ C++ binary voxel_debug was not created"
+        if [ ! -f "$SCRIPT_DIR/$BUILD_DIR/voxel_debug" ]; then
+            echo "❌ C++ binary voxel_debug was not created at $SCRIPT_DIR/$BUILD_DIR/voxel_debug"
             exit 1
         fi
         
@@ -87,8 +91,8 @@ if command -v clang++ &> /dev/null; then
             echo "❌ Failed to build C++ point_smooth"
             exit 1
         fi
-        if [ ! -f "$BUILD_DIR/point_smooth_cpp" ]; then
-            echo "❌ C++ binary point_smooth_cpp was not created"
+        if [ ! -f "$SCRIPT_DIR/$BUILD_DIR/point_smooth_cpp" ]; then
+            echo "❌ C++ binary point_smooth_cpp was not created at $SCRIPT_DIR/$BUILD_DIR/point_smooth_cpp"
             exit 1
         fi
         
