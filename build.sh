@@ -8,10 +8,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-RUST_SRC_DIR="backend/src/services/tools/rust"
-CPP_DIR="backend/src/services/tools/cpp"
-PYTHON_DIR="backend/src/services/tools/python"
-BUILD_DIR="backend/src/services/tools/build"
+RUST_SRC_DIR="$SCRIPT_DIR/backend/src/services/tools/rust"
+CPP_DIR="$SCRIPT_DIR/backend/src/services/tools/cpp"
+PYTHON_DIR="$SCRIPT_DIR/backend/src/services/tools/python"
+BUILD_DIR="$SCRIPT_DIR/backend/src/services/tools/build"
 
 # Build Rust binaries
 RUST_BINARY="$BUILD_DIR/voxel_downsample_rust"
@@ -58,7 +58,6 @@ if [ "$NEED_REBUILD_RUST" = true ]; then
     fi
     
     # Verify binaries were created in build directory
-    cd "$SCRIPT_DIR"
     if [ ! -f "$BUILD_DIR/voxel_downsample_rust" ] || [ ! -f "$BUILD_DIR/voxel_debug_rust" ] || [ ! -f "$BUILD_DIR/point_smooth_rust" ]; then
         echo "❌ Rust binaries were not copied to $BUILD_DIR"
         echo "   Looking for: $BUILD_DIR/voxel_downsample_rust"
@@ -68,6 +67,7 @@ if [ "$NEED_REBUILD_RUST" = true ]; then
         exit 1
     fi
     echo "✅ Rust binaries built and copied"
+    cd "$SCRIPT_DIR"
 fi
 
 # Build C++ binaries
@@ -92,8 +92,8 @@ if command -v clang++ &> /dev/null; then
             echo "❌ Failed to build C++ voxel_downsample"
             exit 1
         fi
-        if [ ! -f "$SCRIPT_DIR/$BUILD_DIR/voxel_downsample" ]; then
-            echo "❌ C++ binary voxel_downsample was not created at $SCRIPT_DIR/$BUILD_DIR/voxel_downsample"
+        if [ ! -f "$BUILD_DIR/voxel_downsample" ]; then
+            echo "❌ C++ binary voxel_downsample was not created at $BUILD_DIR/voxel_downsample"
             exit 1
         fi
         
@@ -103,8 +103,8 @@ if command -v clang++ &> /dev/null; then
             echo "❌ Failed to build C++ voxel_debug"
             exit 1
         fi
-        if [ ! -f "$SCRIPT_DIR/$BUILD_DIR/voxel_debug" ]; then
-            echo "❌ C++ binary voxel_debug was not created at $SCRIPT_DIR/$BUILD_DIR/voxel_debug"
+        if [ ! -f "$BUILD_DIR/voxel_debug" ]; then
+            echo "❌ C++ binary voxel_debug was not created at $BUILD_DIR/voxel_debug"
             exit 1
         fi
         
@@ -114,8 +114,8 @@ if command -v clang++ &> /dev/null; then
             echo "❌ Failed to build C++ point_smooth"
             exit 1
         fi
-        if [ ! -f "$SCRIPT_DIR/$BUILD_DIR/point_smooth_cpp" ]; then
-            echo "❌ C++ binary point_smooth_cpp was not created at $SCRIPT_DIR/$BUILD_DIR/point_smooth_cpp"
+        if [ ! -f "$BUILD_DIR/point_smooth_cpp" ]; then
+            echo "❌ C++ binary point_smooth_cpp was not created at $BUILD_DIR/point_smooth_cpp"
             exit 1
         fi
         
@@ -129,7 +129,15 @@ fi
 # Build Cython extensions
 if python3 -c "import Cython" 2>/dev/null; then
     for module in voxel_downsample voxel_debug point_smooth; do
-        CYTHON_SRC="$PYTHON_DIR/$module/${module}_cython.pyx"
+        CYTHON_MODULE_DIR="$PYTHON_DIR/$module"
+        CYTHON_SRC="$CYTHON_MODULE_DIR/${module}_cython.pyx"
+        
+        # Check if module directory exists
+        if [ ! -d "$CYTHON_MODULE_DIR" ]; then
+            echo "❌ Cython ${module} directory not found: $CYTHON_MODULE_DIR"
+            exit 1
+        fi
+        
         NEED_REBUILD_CYTHON=false
         
         CYTHON_SO=$(ls "$BUILD_DIR/${module}_cython.cpython-"*.so 2>/dev/null | head -1)
@@ -143,14 +151,28 @@ if python3 -c "import Cython" 2>/dev/null; then
         fi
         
         if [ "$NEED_REBUILD_CYTHON" = true ]; then
-            cd "$PYTHON_DIR/$module"
+            cd "$CYTHON_MODULE_DIR" || {
+                echo "❌ Failed to cd to $CYTHON_MODULE_DIR"
+                exit 1
+            }
+            if [ ! -f "build_cython.sh" ]; then
+                echo "❌ build_cython.sh not found for ${module}"
+                exit 1
+            fi
             chmod +x build_cython.sh 2>/dev/null || true
-            ./build_cython.sh 2>/dev/null || echo "⚠️  Cython ${module} skipped"
-            cd ../../../../..
+            if ! ./build_cython.sh; then
+                echo "❌ Failed to build Cython ${module}"
+                exit 1
+            fi
+            cd "$SCRIPT_DIR" || {
+                echo "❌ Failed to cd back to $SCRIPT_DIR"
+                exit 1
+            }
         fi
     done
 else
-    echo "⚠️  Cython not found, skipping Cython builds"
+    echo "❌ Cython not found - Cython extensions are required"
+    exit 1
 fi
 
 # Build frontend if --frontend flag is passed
