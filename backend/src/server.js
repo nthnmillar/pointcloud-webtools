@@ -3,6 +3,7 @@ import cors from 'cors';
 import multer from 'multer';
 import { spawn } from 'child_process';
 import path from 'path';
+import { existsSync } from 'fs';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 
@@ -13,6 +14,14 @@ class ProcessPool {
     this.poolSize = poolSize;
     this.available = [];
     this.busy = new Set();
+
+    // Check if binary exists before initializing
+    if (!existsSync(executablePath)) {
+      console.error(`❌ Binary not found: ${executablePath}`);
+      console.error(`   Run './build.sh' to build native binaries`);
+      throw new Error(`Required binary not found: ${executablePath}`);
+    }
+
     this.initialize();
   }
 

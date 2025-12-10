@@ -34,6 +34,11 @@ if [ "$NEED_REBUILD_RUST" = true ]; then
         echo "❌ Failed to copy Rust binaries"
         exit 1
     }
+    # Verify binaries were created
+    if [ ! -f "$BUILD_DIR/voxel_downsample_rust" ] && [ ! -f "$BUILD_DIR/voxel_debug_rust" ] && [ ! -f "$BUILD_DIR/point_smooth_rust" ]; then
+        echo "❌ Rust binaries were not created"
+        exit 1
+    fi
     echo "✅ Rust binaries built"
     cd ../../../../..
 fi
@@ -60,6 +65,10 @@ if command -v clang++ &> /dev/null; then
             echo "❌ Failed to build C++ voxel_downsample"
             exit 1
         fi
+        if [ ! -f "$BUILD_DIR/voxel_downsample" ]; then
+            echo "❌ C++ binary voxel_downsample was not created"
+            exit 1
+        fi
         
         cd ../voxel_debug
         chmod +x build_cpp.sh 2>/dev/null || true
@@ -67,11 +76,19 @@ if command -v clang++ &> /dev/null; then
             echo "❌ Failed to build C++ voxel_debug"
             exit 1
         fi
+        if [ ! -f "$BUILD_DIR/voxel_debug" ]; then
+            echo "❌ C++ binary voxel_debug was not created"
+            exit 1
+        fi
         
         cd ../point_smooth
         chmod +x build_cpp.sh 2>/dev/null || true
         if ! ./build_cpp.sh; then
             echo "❌ Failed to build C++ point_smooth"
+            exit 1
+        fi
+        if [ ! -f "$BUILD_DIR/point_smooth_cpp" ]; then
+            echo "❌ C++ binary point_smooth_cpp was not created"
             exit 1
         fi
         
