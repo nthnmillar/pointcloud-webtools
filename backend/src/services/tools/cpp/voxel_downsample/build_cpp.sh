@@ -27,11 +27,8 @@ fi
 # -ffast-math: Aggressive floating-point optimizations
 # -flto: Link-time optimization
 # -std=c++17: C++17 standard
-# -stdlib=libc++: Use libc++ (LLVM's standard library) to match Emscripten!
-# This should make C++ BE performance match C++ WASM performance
 clang++ \
     -std=c++17 \
-    -stdlib=libc++ \
     -O3 \
     -march=native \
     -ffast-math \
