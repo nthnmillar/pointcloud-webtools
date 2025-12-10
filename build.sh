@@ -34,17 +34,40 @@ if [ "$NEED_REBUILD_RUST" = true ]; then
         exit 1
     fi
     mkdir -p ../build
-    cp target/release/*_rust ../build/ || {
-        echo "❌ Failed to copy Rust binaries"
-        exit 1
-    }
-    # Verify binaries were created
-    if [ ! -f "$SCRIPT_DIR/$BUILD_DIR/voxel_downsample_rust" ] && [ ! -f "$SCRIPT_DIR/$BUILD_DIR/voxel_debug_rust" ] && [ ! -f "$SCRIPT_DIR/$BUILD_DIR/point_smooth_rust" ]; then
-        echo "❌ Rust binaries were not created in $SCRIPT_DIR/$BUILD_DIR"
+    
+    # Copy each binary explicitly
+    if [ -f "target/release/voxel_downsample_rust" ]; then
+        cp target/release/voxel_downsample_rust ../build/
+    else
+        echo "❌ voxel_downsample_rust binary not found in target/release/"
         exit 1
     fi
-    echo "✅ Rust binaries built"
-    cd ../../../../..
+    
+    if [ -f "target/release/voxel_debug_rust" ]; then
+        cp target/release/voxel_debug_rust ../build/
+    else
+        echo "❌ voxel_debug_rust binary not found in target/release/"
+        exit 1
+    fi
+    
+    if [ -f "target/release/point_smooth_rust" ]; then
+        cp target/release/point_smooth_rust ../build/
+    else
+        echo "❌ point_smooth_rust binary not found in target/release/"
+        exit 1
+    fi
+    
+    # Verify binaries were created in build directory
+    cd "$SCRIPT_DIR"
+    if [ ! -f "$BUILD_DIR/voxel_downsample_rust" ] || [ ! -f "$BUILD_DIR/voxel_debug_rust" ] || [ ! -f "$BUILD_DIR/point_smooth_rust" ]; then
+        echo "❌ Rust binaries were not copied to $BUILD_DIR"
+        echo "   Looking for: $BUILD_DIR/voxel_downsample_rust"
+        echo "   Looking for: $BUILD_DIR/voxel_debug_rust"
+        echo "   Looking for: $BUILD_DIR/point_smooth_rust"
+        ls -la "$BUILD_DIR/" || echo "   Build directory doesn't exist"
+        exit 1
+    fi
+    echo "✅ Rust binaries built and copied"
 fi
 
 # Build C++ binaries
