@@ -25,13 +25,16 @@ fi
 
 if [ "$NEED_REBUILD_RUST" = true ]; then
     cd "$RUST_SRC_DIR"
-    if cargo build --release 2>/dev/null; then
-        mkdir -p ../build
-        cp target/release/*_rust ../build/ 2>/dev/null || true
-        echo "✅ Rust binaries built"
-    else
+    if ! cargo build --release; then
         echo "❌ Rust binaries failed to build"
+        exit 1
     fi
+    mkdir -p ../build
+    cp target/release/*_rust ../build/ || {
+        echo "❌ Failed to copy Rust binaries"
+        exit 1
+    }
+    echo "✅ Rust binaries built"
     cd ../../../../..
 fi
 
@@ -53,20 +56,30 @@ if command -v clang++ &> /dev/null; then
     if [ "$NEED_REBUILD_CPP" = true ]; then
         cd "$CPP_DIR/voxel_downsample"
         chmod +x build_cpp.sh 2>/dev/null || true
-        ./build_cpp.sh 2>/dev/null || echo "⚠️  C++ voxel_downsample skipped"
+        if ! ./build_cpp.sh; then
+            echo "❌ Failed to build C++ voxel_downsample"
+            exit 1
+        fi
         
         cd ../voxel_debug
         chmod +x build_cpp.sh 2>/dev/null || true
-        ./build_cpp.sh 2>/dev/null || echo "⚠️  C++ voxel_debug skipped"
+        if ! ./build_cpp.sh; then
+            echo "❌ Failed to build C++ voxel_debug"
+            exit 1
+        fi
         
         cd ../point_smooth
         chmod +x build_cpp.sh 2>/dev/null || true
-        ./build_cpp.sh 2>/dev/null || echo "⚠️  C++ point_smooth skipped"
+        if ! ./build_cpp.sh; then
+            echo "❌ Failed to build C++ point_smooth"
+            exit 1
+        fi
         
         cd ../../../../..
     fi
 else
-    echo "⚠️  clang++ not found, skipping C++ builds"
+    echo "❌ clang++ not found - C++ binaries are required"
+    exit 1
 fi
 
 # Build Cython extensions
