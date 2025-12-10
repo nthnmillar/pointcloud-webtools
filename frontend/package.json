@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "yarn build-wasm && vite",
-    "build": "tsc -b && vite build",
+    "build": "yarn build-wasm && tsc -b && vite build",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",

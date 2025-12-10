@@ -9,13 +9,18 @@
     "backend"
   ],
   "scripts": {
-    "dev": "concurrently \"yarn dev:frontend\" \"yarn dev:backend\"",
+    "postinstall": "chmod +x build.sh && ./build.sh",
+    "dev": "./build.sh && concurrently \"yarn dev:frontend\" \"yarn dev:backend\" \"yarn dev:watch-native\" \"yarn dev:watch-wasm\"",
+    "dev:watch-native": "chokidar \"backend/src/services/tools/**/*.{rs,cpp,pyx}\" -c \"./build.sh\" --initial || echo \"⚠️  Native file watching not available\"",
+    "dev:watch-wasm": "chokidar \"frontend/src/wasm/**/*.{cpp,rs}\" -c \"cd frontend && yarn build-wasm\" --initial || echo \"⚠️  WASM file watching not available\"",
     "dev:clean": "bash -c 'pkill -f \"node.*server.js\" 2>/dev/null || echo \"No existing backend processes found\"'",
     "dev:frontend": "cd frontend && yarn dev",
     "dev:backend": "cd backend && yarn dev",
-    "build": "yarn build:frontend && yarn build:backend",
+    "deploy": "yarn install && yarn build",
+    "build": "chmod +x build.sh && ./build.sh --frontend",
+    "build:native": "bash -c 'cd backend/src/services/tools/rust && cargo build --release 2>/dev/null && mkdir -p ../build && cp target/release/*_rust ../build/ 2>/dev/null || exit 0'",
     "build:frontend": "cd frontend && yarn build",
-    "build:backend": "cd backend && yarn build",
+    "build:backend": "echo \"Backend runs directly - no build needed\"",
     "lint": "yarn lint:frontend && yarn lint:backend",
     "lint:frontend": "cd frontend && yarn lint",
     "lint:backend": "cd backend && yarn lint",
@@ -38,7 +43,7 @@
     "install:all": "yarn install && cd frontend && yarn install && cd ../backend && yarn install"
   },
   "devDependencies": {
+    "chokidar-cli": "^3.0.0",
     "concurrently": "^8.2.2"
   }
 }
-

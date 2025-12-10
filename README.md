@@ -8,40 +8,42 @@
 
 This project provides a platform for building and testing point cloud processing tools across different implementations and execution environments. It supports benchmarking, testing, and development of point cloud algorithms.
 
+## 📊 Benchmarking
+
+This repository includes comprehensive benchmarking tools and results comparing performance across:
+
+- **WASM implementations** (C++ and Rust compiled to WebAssembly)
+- **Backend implementations** (C++, Rust, Python/Cython)
+- **Execution environments** (Browser vs Server)
+
 **Current Implementations:**
 
 - Voxel Downsampling
 - Voxel Debug Visualization
 - Point Cloud Smoothing
 
+See [docs/benchmarking/benchmark.md](docs/benchmarking/benchmark.md) for detailed methodology and results.
+
 ## 🚀 Quick Start
 
 ```bash
-# Install dependencies
-yarn
+# Install dependencies (builds native binaries automatically)
+yarn install
 
 # Start development server (frontend + backend)
 yarn dev
 ```
 
+`yarn dev` automatically builds native binaries (Rust, C++, Cython), WASM modules, and starts both frontend and backend servers with file watching enabled.
+
 ### Prerequisites
 
 - **Node.js 18+** and yarn
-- **Emscripten** (`emcc`) - Required for building C++ WASM modules (frontend auto-builds on startup)
+- **Emscripten** (`emcc`) - Required for building C++ WASM modules (WASM auto-built on `yarn dev`)
 - **Rust** (cargo) - Required for building Rust WASM modules and backend executables (`wasm-pack` auto-installs if missing)
 - **Python 3.x** - Required for Python backend tools (Cython implementations)
 - **Cython** - Required for Python Cython backend tools
 - **C/C++ Compiler** (clang++ or g++) - Required for building C++ backend executables and compiling Cython extensions
-
-**Note**: If WASM compilation fails, ensure `frontend/compile_wasm.sh` is executable:
-
-```bash
-chmod +x frontend/compile_wasm.sh
-```
-
-## 📊 Benchmarking
-
-This repository includes comprehensive benchmarking tools and results. See [docs/benchmarking/benchmark.md](docs/benchmarking/benchmark.md) for details.
 
 ## 🏗️ Architecture
 
