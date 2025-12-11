@@ -1,14 +1,15 @@
+#!/usr/bin/env python3
+"""
+Setup script to compile Cython extension for voxel debug.
+"""
+
 from setuptools import setup, Extension
 from Cython.Build import cythonize
-import os
-
-# Get the directory where this script is located
-script_dir = os.path.dirname(os.path.abspath(__file__))
 
 extensions = [
     Extension(
         "voxel_debug_cython",
-        [os.path.join(script_dir, "..", "..", "build", "voxel_debug_cython.cpython-312-x86_64-linux-gnu.so")],
+        ["voxel_debug_cython.pyx"],
         extra_compile_args=['-O3', '-march=native', '-ffast-math'],
         extra_link_args=['-O3'],
         language="c"
@@ -27,7 +28,7 @@ setup(
             'initializedcheck': False,
             'nonecheck': False,
         },
-        annotate=False
+        annotate=False  # Set to True to generate HTML annotation
     ),
     zip_safe=False,
 )
