@@ -28,7 +28,8 @@ dist-ssr
 *.sw?
 
 # WebAssembly compiled files and build artifacts
-public/wasm/
+**/public/wasm/
+frontend/public/wasm/
 src/build/
 **/build/
 **/target/
