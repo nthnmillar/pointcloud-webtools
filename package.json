@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "postinstall": "chmod +x build.sh && ./build.sh",
-    "dev": "chmod +x build.sh && ./build.sh && concurrently \"yarn dev:frontend\" \"yarn dev:backend\" \"yarn dev:watch-native\" \"yarn dev:watch-wasm\"",
+    "dev": "chmod +x build.sh && ./build.sh && yarn dev:clean && concurrently --kill-others-on-fail --kill-others \"yarn dev:frontend\" \"yarn dev:backend\" \"yarn dev:watch-native\" \"yarn dev:watch-wasm\"",
     "dev:watch-native": "chokidar \"backend/src/services/tools/**/*.{rs,cpp,pyx}\" -c \"./build.sh\" --initial || echo \"⚠️  Native file watching not available\"",
     "dev:watch-wasm": "chokidar \"frontend/src/wasm/**/*.{cpp,rs}\" -c \"cd frontend && yarn build-wasm\" --initial || echo \"⚠️  WASM file watching not available\"",
     "dev:clean": "bash -c 'pkill -f \"node.*server.js\" 2>/dev/null || echo \"No existing backend processes found\"'",
