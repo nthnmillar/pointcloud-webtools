@@ -1,5 +1,6 @@
 import { Log } from '../../../utils/Log';
 import { BaseService } from '../../BaseService';
+import { BACKEND_WS_URL } from '../../../config';
 
 export interface PointCloudSmoothingBERustParams {
   pointCloudData: Float32Array;
@@ -46,7 +47,7 @@ export class PointCloudSmoothingBERust extends BaseService {
 
   private baseUrl: string;
 
-  constructor(baseUrl: string = 'ws://localhost:3003') {
+  constructor(baseUrl: string = BACKEND_WS_URL) {
     super();
     this.baseUrl = baseUrl;
     this.connect();

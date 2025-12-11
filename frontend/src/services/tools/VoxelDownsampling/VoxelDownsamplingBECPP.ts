@@ -1,6 +1,7 @@
 import { BaseService } from '../../BaseService';
 import type { ServiceManager } from '../../ServiceManager';
 import { Log } from '../../../utils/Log';
+import { BACKEND_WS_URL } from '../../../config';
 import type {
   VoxelDownsampleParams,
   VoxelDownsampleResult,
@@ -43,9 +44,9 @@ export class VoxelDownsamplingBECPP extends BaseService {
   private connect(): void {
     try {
       Log.Info('VoxelDownsamplingBECPP', 'Connecting to WebSocket', {
-        baseUrl: 'ws://localhost:3003',
+        baseUrl: BACKEND_WS_URL,
       });
-      this.ws = new WebSocket('ws://localhost:3003');
+      this.ws = new WebSocket(BACKEND_WS_URL);
 
       this.ws.onopen = () => {
         Log.Info('VoxelDownsamplingBECPP', 'WebSocket connected');

@@ -1,5 +1,6 @@
 import { Log } from '../../../utils/Log';
 import { BaseService } from '../../BaseService';
+import { BACKEND_WS_URL } from '../../../config';
 
 export interface PointCloudSmoothingBEPythonParams {
   pointCloudData: Float32Array;
@@ -59,10 +60,10 @@ export class PointCloudSmoothingBEPython extends BaseService {
   private connect(): void {
     try {
       Log.Info('PointCloudSmoothingBEPython', 'Connecting to WebSocket', {
-        baseUrl: 'ws://localhost:3003',
+        baseUrl: BACKEND_WS_URL,
       });
 
-      this.ws = new WebSocket('ws://localhost:3003');
+      this.ws = new WebSocket(BACKEND_WS_URL);
 
       this.ws.onopen = () => {
         Log.Info('PointCloudSmoothingBEPython', 'WebSocket connected');

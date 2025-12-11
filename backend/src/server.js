@@ -1870,6 +1870,10 @@ app.use(
       'http://localhost:5173',
       'http://localhost:3000',
       'http://localhost:8080',
+      'http://44.203.227.35:3000',
+      'http://44.203.227.35',
+      /^http:\/\/.*\.amazonaws\.com/,
+      /^http:\/\/.*\.lightsail\.aws/,
     ],
     credentials: true,
   })
@@ -2832,7 +2836,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Start server
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`🔧 Backend server running on port ${PORT}`);
   console.log(`🔧 WebSocket server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
