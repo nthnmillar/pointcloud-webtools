@@ -13,12 +13,26 @@ mkdir -p "$FRONTEND_DIR/public/wasm/rust"
 # Copy laz-perf.wasm from node_modules to wasm folder (optional)
 # Get the frontend directory (where this script is located)
 FRONTEND_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ -f "$FRONTEND_DIR/node_modules/laz-perf/lib/laz-perf.wasm" ]; then
-    cp "$FRONTEND_DIR/node_modules/laz-perf/lib/laz-perf.wasm" "$FRONTEND_DIR/public/wasm/"
-    echo "Copied laz-perf.wasm to public/wasm/"
+PROJECT_ROOT="$(cd "$FRONTEND_DIR/.." && pwd)"
+
+# Check for laz-perf.wasm in root node_modules (yarn workspaces) or frontend node_modules
+LAZ_PERF_WASM=""
+if [ -f "$PROJECT_ROOT/node_modules/laz-perf/lib/web/laz-perf.wasm" ]; then
+    LAZ_PERF_WASM="$PROJECT_ROOT/node_modules/laz-perf/lib/web/laz-perf.wasm"
+elif [ -f "$FRONTEND_DIR/node_modules/laz-perf/lib/web/laz-perf.wasm" ]; then
+    LAZ_PERF_WASM="$FRONTEND_DIR/node_modules/laz-perf/lib/web/laz-perf.wasm"
+elif [ -f "$PROJECT_ROOT/node_modules/laz-perf/lib/laz-perf.wasm" ]; then
+    LAZ_PERF_WASM="$PROJECT_ROOT/node_modules/laz-perf/lib/laz-perf.wasm"
+elif [ -f "$FRONTEND_DIR/node_modules/laz-perf/lib/laz-perf.wasm" ]; then
+    LAZ_PERF_WASM="$FRONTEND_DIR/node_modules/laz-perf/lib/laz-perf.wasm"
+fi
+
+if [ -n "$LAZ_PERF_WASM" ]; then
+    cp "$LAZ_PERF_WASM" "$FRONTEND_DIR/public/wasm/laz-perf.wasm"
+    echo "✅ Copied laz-perf.wasm to public/wasm/"
 else
     # Silently skip if laz-perf is not available (optional dependency)
-    echo "Warning: laz-perf.wasm not found in node_modules. Run 'yarn install' first."
+    echo "⚠️  Warning: laz-perf.wasm not found in node_modules. Run 'yarn install' first."
 fi
 
 # Compile unified tools WASM module
