@@ -32,6 +32,13 @@ export default defineConfig({
     plugins: () => [wasm(), topLevelAwait()],
     format: 'es',
   },
+  build: {
+    outDir: 'dist',
+  },
+  preview: {
+    port: 3000,
+    host: '0.0.0.0', // Listen on all interfaces for public access
+  },
   server: {
     port: 3000,
     host: '0.0.0.0', // Listen on all interfaces for public access

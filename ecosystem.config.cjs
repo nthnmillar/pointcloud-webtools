@@ -4,7 +4,7 @@ module.exports = {
       name: 'pointcloud-frontend',
       cwd: './frontend',
       script: 'node_modules/.bin/vite',
-      args: 'preview --host 0.0.0.0 --port 3000',
+      args: 'preview --host 0.0.0.0 --port 3000 --outDir dist',
       env: {
         NODE_ENV: 'production',
       },
