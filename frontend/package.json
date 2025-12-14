@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "yarn build-wasm && vite",
-    "build": "NODE_OPTIONS='--max-old-space-size=700' yarn build-wasm && NODE_OPTIONS='--max-old-space-size=700' tsc -b && NODE_OPTIONS='--max-old-space-size=700' vite build",
+    "build": "NODE_OPTIONS='--max-old-space-size=${NODE_MEMORY_LIMIT:-4096}' yarn build-wasm && NODE_OPTIONS='--max-old-space-size=${NODE_MEMORY_LIMIT:-4096}' tsc -b && NODE_OPTIONS='--max-old-space-size=${NODE_MEMORY_LIMIT:-4096}' vite build",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",

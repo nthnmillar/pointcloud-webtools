@@ -179,7 +179,7 @@ fi
 if [ "$1" = "--frontend" ]; then
     echo "📦 Building frontend..."
     cd frontend
-    NODE_OPTIONS='--max-old-space-size=700' yarn build
+    NODE_OPTIONS='--max-old-space-size=4096' yarn build
     cd ..
 fi
 

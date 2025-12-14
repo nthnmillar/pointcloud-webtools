@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'pointcloud-frontend',
       cwd: './frontend',
-      script: 'yarn',
+      script: 'node_modules/.bin/vite',
       args: 'preview --host 0.0.0.0 --port 3000',
       env: {
         NODE_ENV: 'production',
@@ -19,8 +19,7 @@ module.exports = {
     {
       name: 'pointcloud-backend',
       cwd: './backend',
-      script: 'yarn',
-      args: 'start',
+      script: 'src/server.js',
       env: {
         NODE_ENV: 'production',
         PORT: 3003,
