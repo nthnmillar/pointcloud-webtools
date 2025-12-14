@@ -109,3 +109,7 @@ yarn test:watch
 # Coverage
 yarn test:coverage
 ```
+
+## 🚢 Deployment
+
+For updating the deployed site, see the [Deployment Guide](DEPLOYMENT.md).
