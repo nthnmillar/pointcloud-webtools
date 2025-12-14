@@ -85,6 +85,7 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
         'VoxelDownsampleDebugWASMCPP',
         'window.ToolsModule not found, attempting dynamic import'
       );
+      // @ts-ignore - TypeScript cannot resolve relative path module declarations for WASM files
       const ToolsModuleNs = (await import(
         '../../../../public/wasm/cpp/tools_cpp.js'
       )) as {
