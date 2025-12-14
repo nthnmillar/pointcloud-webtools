@@ -30,7 +30,7 @@
     "live": "yarn dev",
     "build": "chmod +x build.sh && ./build.sh --frontend",
     "build:native": "bash -c 'cd backend/src/services/tools/rust && cargo build --release 2>/dev/null && mkdir -p ../build && cp target/release/*_rust ../build/ 2>/dev/null || exit 0'",
-    "build:frontend": "cd frontend && yarn build",
+    "build:frontend": "cd frontend && NODE_OPTIONS='--max-old-space-size=400' yarn build",
     "build:backend": "echo \"Backend runs directly - no build needed\"",
     "lint": "yarn lint:frontend && yarn lint:backend",
     "lint:frontend": "cd frontend && yarn lint",

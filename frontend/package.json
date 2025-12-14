@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "yarn build-wasm && vite",
-    "build": "yarn build-wasm && tsc -b && vite build",
+    "build": "NODE_OPTIONS='--max-old-space-size=400' yarn build-wasm && NODE_OPTIONS='--max-old-space-size=400' tsc -b && NODE_OPTIONS='--max-old-space-size=400' vite build",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
