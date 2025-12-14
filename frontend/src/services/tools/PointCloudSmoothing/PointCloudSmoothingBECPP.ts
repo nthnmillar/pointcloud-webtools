@@ -71,12 +71,14 @@ export class PointCloudSmoothingBECPP extends BaseService {
         this.reconnectAttempts = 0;
 
         // Send a test message to verify connection
-        this.ws.send(
-          JSON.stringify({
-            type: 'test',
-            message: 'Hello from C++ BE frontend',
-          })
-        );
+        if (this.ws) {
+          this.ws.send(
+            JSON.stringify({
+              type: 'test',
+              message: 'Hello from C++ BE frontend',
+            })
+          );
+        }
       };
 
       this.ws.onmessage = async event => {
@@ -248,10 +250,12 @@ export class PointCloudSmoothingBECPP extends BaseService {
       };
 
       // Send header as JSON (small)
-      this.ws.send(JSON.stringify(header));
+      if (this.ws) {
+        this.ws.send(JSON.stringify(header));
 
-      // Send binary data directly (fast)
-      this.ws.send(params.pointCloudData.buffer);
+        // Send binary data directly (fast)
+        this.ws.send(params.pointCloudData.buffer);
+      }
 
       // Set a timeout
       setTimeout(() => {

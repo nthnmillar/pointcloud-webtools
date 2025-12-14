@@ -150,11 +150,11 @@ export const PointCloudViewer: React.FC<PointCloudViewerProps> = ({
       serviceManager.on('initialized', handleInitialized);
       serviceManager.on('pointCloudLoaded', handlePointCloudLoaded);
       serviceManager.on('pointCloudLoading', handlePointCloudLoading);
-      serviceManager.on('pointCloudError', handlePointCloudError);
+      serviceManager.on('pointCloudError', handlePointCloudError as (data: unknown) => void);
       serviceManager.on('pointCloudRendered', handlePointCloudRendered);
       serviceManager.on('fileLoadingStarted', handleFileLoadingStarted);
       serviceManager.on('fileLoadingCompleted', handleFileLoadingCompleted);
-      serviceManager.on('fileLoadingError', handleFileLoadingError);
+      serviceManager.on('fileLoadingError', handleFileLoadingError as (data: unknown) => void);
 
       // Initialize the service manager
       serviceManager

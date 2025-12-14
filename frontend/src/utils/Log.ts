@@ -108,7 +108,9 @@ export class LogClass {
     // Also output to console in development
     if (import.meta.env.DEV) {
       const timestamp = logEntry.timestamp.toISOString();
-      const levelName = LogLevel[level];
+      const levelName = Object.keys(LogLevel).find(
+        key => LogLevel[key as keyof typeof LogLevel] === level
+      ) || 'UNKNOWN';
       const prefix = `[${timestamp}] [${levelName}] [${tag}]`;
 
       switch (level) {

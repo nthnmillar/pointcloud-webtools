@@ -86,7 +86,6 @@ export class VoxelDownsampleDebugWASMCPP extends BaseService {
         'window.ToolsModule not found, attempting dynamic import'
       );
       // Note: this file is one directory deeper than WasmFirstService, so we need an extra '../'
-      // @ts-expect-error - tools_cpp.js doesn't have type definitions
       const ToolsModuleNs = (await import(
         '../../../../public/wasm/cpp/tools_cpp.js'
       )) as {

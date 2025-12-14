@@ -1,5 +1,6 @@
 import { BaseService } from '../../BaseService';
 import { Log } from '../../../utils/Log';
+import { BACKEND_WS_URL } from '../../../config';
 import type {
   VoxelDebugParams,
   VoxelDebugResult,

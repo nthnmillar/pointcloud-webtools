@@ -1,5 +1,6 @@
 import { Log } from '../../../utils/Log';
 import { BaseService } from '../../BaseService';
+import { BACKEND_WS_URL } from '../../../config';
 
 export interface VoxelDownsamplingBERustParams {
   pointCloudData: Float32Array;
@@ -76,9 +77,11 @@ export class VoxelDownsamplingBERust extends BaseService {
         this.reconnectAttempts = 0;
 
         // Send a test message to verify connection
-        this.ws.send(
-          JSON.stringify({ type: 'test', message: 'Hello from frontend' })
-        );
+        if (this.ws) {
+          this.ws.send(
+            JSON.stringify({ type: 'test', message: 'Hello from frontend' })
+          );
+        }
       };
 
       this.ws.onmessage = async event => {
@@ -258,10 +261,12 @@ export class VoxelDownsamplingBERust extends BaseService {
       };
 
       // Send header as JSON (small)
-      this.ws.send(JSON.stringify(header));
+      if (this.ws) {
+        this.ws.send(JSON.stringify(header));
 
-      // Send binary data directly (fast)
-      this.ws.send(params.pointCloudData.buffer);
+        // Send binary data directly (fast)
+        this.ws.send(params.pointCloudData.buffer);
+      }
 
       // Set a timeout
       setTimeout(() => {

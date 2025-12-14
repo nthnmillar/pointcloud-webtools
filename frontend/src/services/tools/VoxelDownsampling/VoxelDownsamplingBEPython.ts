@@ -1,5 +1,6 @@
 import { Log } from '../../../utils/Log';
 import { BaseService } from '../../BaseService';
+import { BACKEND_WS_URL } from '../../../config';
 
 export interface VoxelDownsamplingBEPythonParams {
   pointCloudData: Float32Array;
@@ -56,7 +57,7 @@ export class VoxelDownsamplingBEPython extends BaseService {
     this.connect();
   }
 
-  public initialize(): void {
+  async initialize(): Promise<void> {
     // Initialize if needed
   }
 
@@ -106,7 +107,7 @@ export class VoxelDownsamplingBEPython extends BaseService {
                   originalCount: this.pendingHeader.originalCount,
                   downsampledCount: this.pendingHeader.downsampledCount,
                   processingTime: this.pendingHeader.processingTime,
-                  voxelSize: this.pendingHeader.voxelSize,
+                  voxelSize: this.pendingHeader.voxelSize ?? 0,
                   voxelCount: this.pendingHeader.voxelCount,
                 };
                 pending.resolve(result);
@@ -139,7 +140,7 @@ export class VoxelDownsamplingBEPython extends BaseService {
                   originalCount: this.pendingHeader.originalCount,
                   downsampledCount: this.pendingHeader.downsampledCount,
                   processingTime: this.pendingHeader.processingTime,
-                  voxelSize: this.pendingHeader.voxelSize,
+                  voxelSize: this.pendingHeader.voxelSize ?? 0,
                   voxelCount: this.pendingHeader.voxelCount,
                 };
                 pending.resolve(result);

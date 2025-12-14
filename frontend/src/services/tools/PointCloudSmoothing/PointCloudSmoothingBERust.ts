@@ -57,6 +57,10 @@ export class PointCloudSmoothingBERust extends BaseService {
     // WebSocket connection is handled in constructor
   }
 
+  dispose(): void {
+    this.destroy();
+  }
+
   private connect(): void {
     try {
       Log.Info('PointCloudSmoothingBERust', 'Connecting to WebSocket', {
@@ -239,10 +243,12 @@ export class PointCloudSmoothingBERust extends BaseService {
       };
 
       // Send header as JSON (small)
-      this.ws.send(JSON.stringify(header));
+      if (this.ws) {
+        this.ws.send(JSON.stringify(header));
 
-      // Send binary data directly (fast)
-      this.ws.send(params.pointCloudData.buffer);
+        // Send binary data directly (fast)
+        this.ws.send(params.pointCloudData.buffer);
+      }
 
       // Set a timeout
       setTimeout(() => {

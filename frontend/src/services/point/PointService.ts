@@ -8,7 +8,7 @@ import type {
   RenderOptions,
 } from './PointCloud';
 import { Log } from '../../utils/Log';
-import { Vector3, Scene } from '@babylonjs/core';
+import { Vector3, Scene, ArcRotateCamera } from '@babylonjs/core';
 import type { ServiceManager } from '../ServiceManager';
 
 /**
@@ -32,7 +32,7 @@ export class PointService extends BaseService {
     }
 
     this.scene = scene;
-    this.serviceManager = serviceManager;
+    this.serviceManager = serviceManager ?? null;
     this.pointMesh = new PointMesh(scene);
     this.isInitialized = true;
     this.emit('initialized');
@@ -83,9 +83,15 @@ export class PointService extends BaseService {
         if (this.scene && this.scene.activeCamera) {
           Log.Info('PointService', 'Camera position after auto-positioning', {
             cameraPosition: this.scene.activeCamera.position,
-            cameraTarget: this.scene.activeCamera.getTarget(),
+            cameraTarget:
+              this.scene.activeCamera instanceof ArcRotateCamera
+                ? this.scene.activeCamera.target
+                : null,
             cameraType: this.scene.activeCamera.getClassName(),
-            cameraRadius: this.scene.activeCamera.radius,
+            cameraRadius:
+              this.scene.activeCamera instanceof ArcRotateCamera
+                ? this.scene.activeCamera.radius
+                : null,
             pointCloudCenter: {
               x: (data.metadata.bounds.min.x + data.metadata.bounds.max.x) / 2,
               y: (data.metadata.bounds.min.y + data.metadata.bounds.max.y) / 2,
@@ -269,7 +275,9 @@ export class PointService extends BaseService {
     if (this.pointMesh) {
       this.pointMesh.dispose();
       // Recreate the pointMesh for future use
-      this.pointMesh = new PointMesh(this.scene);
+      if (this.scene) {
+        this.pointMesh = new PointMesh(this.scene);
+      }
     }
 
     // Clear the point clouds map
@@ -412,7 +420,9 @@ export class PointService extends BaseService {
         hasActiveCamera: !!this.scene.activeCamera,
         sceneMeshes: this.scene.meshes.length,
         sceneMeshNames: this.scene.meshes.map(m => m.name),
-        sceneChildren: this.scene.children ? this.scene.children.length : 0,
+        sceneChildren: (this.scene as any).children
+          ? (this.scene as any).children.length
+          : 0,
         sceneId: this.scene.uid || 'no-uid',
         sceneConstructor: this.scene.constructor.name,
       });

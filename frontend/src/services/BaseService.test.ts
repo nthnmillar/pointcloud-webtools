@@ -10,6 +10,14 @@ describe('BaseService', () => {
     public getName(): string {
       return 'TestService';
     }
+
+    async initialize(): Promise<void> {
+      // Test implementation
+    }
+
+    dispose(): void {
+      // Test implementation
+    }
   }
 
   let service: TestService;
@@ -32,7 +40,11 @@ describe('BaseService', () => {
       expect(data).toEqual(testData);
     });
 
-    service.emit('test-event', testData);
+    // Access protected emit method for testing
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (
+      service as unknown as { emit: (event: string, data?: unknown) => void }
+    ).emit('test-event', testData);
     expect(eventReceived).toBe(true);
   });
 
@@ -47,7 +59,10 @@ describe('BaseService', () => {
       count++;
     });
 
-    service.emit('test-event', {});
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (
+      service as unknown as { emit: (event: string, data?: unknown) => void }
+    ).emit('test-event', {});
     expect(count).toBe(2);
   });
 });
