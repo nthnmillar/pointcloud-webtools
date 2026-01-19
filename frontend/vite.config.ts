@@ -38,6 +38,12 @@ export default defineConfig({
   preview: {
     port: 3000,
     host: '0.0.0.0', // Listen on all interfaces for public access
+    allowedHosts: [
+      'pointcloud-webtools.nathanmillar.net',
+      'www.pointcloud-webtools.nathanmillar.net',
+      'localhost',
+      '.nathanmillar.net', // Allow all subdomains
+    ],
   },
   server: {
     port: 3000,
