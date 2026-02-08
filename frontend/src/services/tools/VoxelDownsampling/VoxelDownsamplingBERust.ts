@@ -4,6 +4,9 @@ import { BACKEND_WS_URL } from '../../../config';
 
 export interface VoxelDownsamplingBERustParams {
   pointCloudData: Float32Array;
+  colors?: Float32Array;
+  intensities?: Float32Array;
+  classifications?: Uint8Array;
   voxelSize: number;
   globalBounds: {
     minX: number;
@@ -18,6 +21,9 @@ export interface VoxelDownsamplingBERustParams {
 export interface VoxelDownsamplingBERustResult {
   success: boolean;
   downsampledPoints: Float32Array;
+  downsampledColors?: Float32Array;
+  downsampledIntensities?: Float32Array;
+  downsampledClassifications?: Uint8Array;
   originalCount: number;
   downsampledCount: number;
   processingTime: number;
@@ -34,6 +40,9 @@ interface VoxelDownsampleRustResponseHeader {
   voxelCount: number;
   processingTime: number;
   dataLength: number;
+  colorsLength?: number;
+  intensitiesLength?: number;
+  classificationsLength?: number;
   error?: string;
 }
 
@@ -88,76 +97,102 @@ export class VoxelDownsamplingBERust extends BaseService {
         try {
           // Check if this is binary data or JSON header
           if (event.data instanceof ArrayBuffer) {
-            // This is binary data
             if (
               this.pendingHeader &&
               this.pendingHeader.type === 'voxel_downsample_rust_result' &&
               this.pendingHeader.success
             ) {
-              // Create Float32Array directly from binary data (zero-copy!)
-              const downsampledPoints = new Float32Array(
-                event.data,
-                0,
-                this.pendingHeader.dataLength
-              );
+              const h = this.pendingHeader;
+              const buf = event.data;
+              const posLen = h.dataLength;
+              const posBytes = posLen * 4;
+              const downsampledPoints = new Float32Array(buf, 0, posLen);
+              let offset = posBytes;
+              const colorsLength = h.colorsLength ?? 0;
+              const intensitiesLength = h.intensitiesLength ?? 0;
+              const classificationsLength = h.classificationsLength ?? 0;
+              const downsampledColors =
+                colorsLength > 0
+                  ? new Float32Array(buf, offset, colorsLength)
+                  : undefined;
+              offset += colorsLength * 4;
+              const downsampledIntensities =
+                intensitiesLength > 0
+                  ? new Float32Array(buf, offset, intensitiesLength)
+                  : undefined;
+              offset += intensitiesLength * 4;
+              const downsampledClassifications =
+                classificationsLength > 0
+                  ? new Uint8Array(buf, offset, classificationsLength)
+                  : undefined;
 
-              const pending = this.pendingRequests.get(
-                this.pendingHeader.requestId
-              );
+              const pending = this.pendingRequests.get(h.requestId);
               if (pending) {
-                this.pendingRequests.delete(this.pendingHeader.requestId);
-
-                const result: VoxelDownsamplingBERustResult = {
+                this.pendingRequests.delete(h.requestId);
+                pending.resolve({
                   success: true,
-                  downsampledPoints: downsampledPoints,
-                  originalCount: this.pendingHeader.originalCount,
-                  downsampledCount: this.pendingHeader.downsampledCount,
-                  processingTime: this.pendingHeader.processingTime,
-                  reductionRatio:
-                    this.pendingHeader.originalCount /
-                    this.pendingHeader.downsampledCount,
-                  voxelCount:
-                    this.pendingHeader.voxelCount ||
-                    this.pendingHeader.downsampledCount,
-                };
-                pending.resolve(result);
+                  downsampledPoints,
+                  downsampledColors,
+                  downsampledIntensities,
+                  downsampledClassifications,
+                  originalCount: h.originalCount,
+                  downsampledCount: h.downsampledCount,
+                  processingTime: h.processingTime,
+                  reductionRatio: h.originalCount / h.downsampledCount,
+                  voxelCount: h.voxelCount ?? h.downsampledCount,
+                });
               }
               this.pendingHeader = null;
             }
           } else if (event.data instanceof Blob) {
-            // Convert Blob to ArrayBuffer
             const arrayBuffer = await event.data.arrayBuffer();
             if (
               this.pendingHeader &&
               this.pendingHeader.type === 'voxel_downsample_rust_result' &&
               this.pendingHeader.success
             ) {
+              const h = this.pendingHeader;
+              const posLen = h.dataLength;
+              const posBytes = posLen * 4;
               const downsampledPoints = new Float32Array(
                 arrayBuffer,
                 0,
-                this.pendingHeader.dataLength
+                posLen
               );
+              let offset = posBytes;
+              const colorsLength = h.colorsLength ?? 0;
+              const intensitiesLength = h.intensitiesLength ?? 0;
+              const classificationsLength = h.classificationsLength ?? 0;
+              const downsampledColors =
+                colorsLength > 0
+                  ? new Float32Array(arrayBuffer, offset, colorsLength)
+                  : undefined;
+              offset += colorsLength * 4;
+              const downsampledIntensities =
+                intensitiesLength > 0
+                  ? new Float32Array(arrayBuffer, offset, intensitiesLength)
+                  : undefined;
+              offset += intensitiesLength * 4;
+              const downsampledClassifications =
+                classificationsLength > 0
+                  ? new Uint8Array(arrayBuffer, offset, classificationsLength)
+                  : undefined;
 
-              const pending = this.pendingRequests.get(
-                this.pendingHeader.requestId
-              );
+              const pending = this.pendingRequests.get(h.requestId);
               if (pending) {
-                this.pendingRequests.delete(this.pendingHeader.requestId);
-
-                const result: VoxelDownsamplingBERustResult = {
+                this.pendingRequests.delete(h.requestId);
+                pending.resolve({
                   success: true,
-                  downsampledPoints: downsampledPoints,
-                  originalCount: this.pendingHeader.originalCount,
-                  downsampledCount: this.pendingHeader.downsampledCount,
-                  processingTime: this.pendingHeader.processingTime,
-                  reductionRatio:
-                    this.pendingHeader.originalCount /
-                    this.pendingHeader.downsampledCount,
-                  voxelCount:
-                    this.pendingHeader.voxelCount ||
-                    this.pendingHeader.downsampledCount,
-                };
-                pending.resolve(result);
+                  downsampledPoints,
+                  downsampledColors,
+                  downsampledIntensities,
+                  downsampledClassifications,
+                  originalCount: h.originalCount,
+                  downsampledCount: h.downsampledCount,
+                  processingTime: h.processingTime,
+                  reductionRatio: h.originalCount / h.downsampledCount,
+                  voxelCount: h.voxelCount ?? h.downsampledCount,
+                });
               }
               this.pendingHeader = null;
             }
@@ -251,21 +286,89 @@ export class VoxelDownsamplingBERust extends BaseService {
       // Store the promise resolvers
       this.pendingRequests.set(requestId, { resolve, reject });
 
-      // Send binary data directly - no JSON serialization of points!
+      const hasColors =
+        params.colors != null && params.colors.length === params.pointCloudData.length;
+      const hasIntensity =
+        params.intensities != null &&
+        params.intensities.length === params.pointCloudData.length / 3;
+      const hasClassification =
+        params.classifications != null &&
+        params.classifications.length === params.pointCloudData.length / 3;
+
       const header = {
         type: 'voxel_downsample_rust',
         requestId,
         voxelSize: params.voxelSize,
         globalBounds: params.globalBounds,
         dataLength: params.pointCloudData.length,
+        hasColors: hasColors || undefined,
+        hasIntensity: hasIntensity || undefined,
+        hasClassification: hasClassification || undefined,
       };
 
-      // Send header as JSON (small)
       if (this.ws) {
         this.ws.send(JSON.stringify(header));
 
-        // Send binary data directly (fast)
-        this.ws.send(params.pointCloudData.buffer);
+        if (!hasColors && !hasIntensity && !hasClassification) {
+          this.ws.send(
+            params.pointCloudData.buffer.slice(
+              params.pointCloudData.byteOffset,
+              params.pointCloudData.byteOffset + params.pointCloudData.byteLength
+            )
+          );
+        } else {
+          const pointCount = params.pointCloudData.length / 3;
+          const posBytes = params.pointCloudData.byteLength;
+          const colorBytes = hasColors ? pointCount * 3 * 4 : 0;
+          const intensityBytes = hasIntensity ? pointCount * 4 : 0;
+          const classBytes = hasClassification ? pointCount : 0;
+          const total = posBytes + colorBytes + intensityBytes + classBytes;
+          const combined = new ArrayBuffer(total);
+          const u8 = new Uint8Array(combined);
+          let off = 0;
+          u8.set(
+            new Uint8Array(
+              params.pointCloudData.buffer,
+              params.pointCloudData.byteOffset,
+              posBytes
+            ),
+            off
+          );
+          off += posBytes;
+          if (hasColors && params.colors) {
+            u8.set(
+              new Uint8Array(
+                params.colors.buffer,
+                params.colors.byteOffset,
+                params.colors.byteLength
+              ),
+              off
+            );
+            off += params.colors.byteLength;
+          }
+          if (hasIntensity && params.intensities) {
+            u8.set(
+              new Uint8Array(
+                params.intensities.buffer,
+                params.intensities.byteOffset,
+                params.intensities.byteLength
+              ),
+              off
+            );
+            off += params.intensities.byteLength;
+          }
+          if (hasClassification && params.classifications) {
+            u8.set(
+              new Uint8Array(
+                params.classifications.buffer,
+                params.classifications.byteOffset,
+                params.classifications.byteLength
+              ),
+              off
+            );
+          }
+          this.ws.send(combined);
+        }
       }
 
       // Set a timeout

@@ -239,9 +239,9 @@ wss.on('connection', (ws, req) => {
             firstFewPointsAlt: Array.from(pointsAlt.slice(0, 10)),
           });
 
-          // For voxel_downsample, pointCount from header when present (extended binary = positions + attributes)
+          // For voxel_downsample / voxel_downsample_rust, pointCount from header when present (extended binary = positions + attributes)
           const pointCount =
-            type === 'voxel_downsample' &&
+            (type === 'voxel_downsample' || type === 'voxel_downsample_rust') &&
             pendingHeader.dataLength != null &&
             pendingHeader.dataLength > 0
               ? Math.floor(pendingHeader.dataLength / 3)
@@ -416,7 +416,14 @@ wss.on('connection', (ws, req) => {
             cppProcess.stdin.write(inputBuffer);
             cppProcess.stdin.end();
           } else if (type === 'voxel_downsample_rust') {
-            // Use Rust backend with binary protocol (no JSON serialization!)
+            const hasColors = Boolean(pendingHeader.hasColors);
+            const hasIntensity = Boolean(pendingHeader.hasIntensity);
+            const hasClassification = Boolean(pendingHeader.hasClassification);
+            const flags =
+              (hasColors ? 1 : 0) |
+              (hasIntensity ? 2 : 0) |
+              (hasClassification ? 4 : 0);
+
             const rustExecutable = path.join(
               __dirname,
               'services',
@@ -441,8 +448,7 @@ wss.on('connection', (ws, req) => {
               return;
             }
 
-            // Create binary header buffer (32 bytes: 4 for u32 + 7*4 for floats)
-            const headerBuffer = Buffer.allocUnsafe(32);
+            const headerBuffer = Buffer.allocUnsafe(36);
             headerBuffer.writeUInt32LE(pointCount, 0);
             headerBuffer.writeFloatLE(voxelSize, 4);
             headerBuffer.writeFloatLE(globalBounds.minX, 8);
@@ -451,15 +457,13 @@ wss.on('connection', (ws, req) => {
             headerBuffer.writeFloatLE(globalBounds.maxX, 20);
             headerBuffer.writeFloatLE(globalBounds.maxY, 24);
             headerBuffer.writeFloatLE(globalBounds.maxZ, 28);
+            headerBuffer.writeUInt32LE(flags, 32);
 
-            // Convert Float32Array to Buffer for point data (binary, no JSON!)
             const pointDataBuffer = Buffer.from(
-              points.buffer,
-              points.byteOffset,
-              points.byteLength
+              data.buffer,
+              data.byteOffset,
+              data.byteLength
             );
-
-            // Combine header + data
             const inputBuffer = Buffer.concat([headerBuffer, pointDataBuffer]);
 
             let outputBuffer = Buffer.alloc(0);
@@ -500,8 +504,6 @@ wss.on('connection', (ws, req) => {
               }
 
               try {
-                // Read binary output (no JSON parsing!)
-                // Binary format: [u32 outputCount][f32* downsampledPoints]
                 if (outputBuffer.length < 4) {
                   throw new Error(
                     `Invalid binary output: too short (${outputBuffer.length} bytes, expected at least 4)`
@@ -509,29 +511,47 @@ wss.on('connection', (ws, req) => {
                 }
 
                 const outputCount = outputBuffer.readUInt32LE(0);
-                const expectedSize = 4 + outputCount * 3 * 4;
-
-                if (outputBuffer.length < expectedSize) {
+                let offset = 4;
+                const posSize = outputCount * 3 * 4;
+                if (outputBuffer.length < offset + posSize) {
                   throw new Error(
-                    `Invalid binary output: expected ${expectedSize} bytes, got ${outputBuffer.length}`
+                    `Invalid binary output: expected at least ${offset + posSize} bytes, got ${outputBuffer.length}`
+                  );
+                }
+                const positionsSlice = outputBuffer.slice(offset, offset + posSize);
+                offset += posSize;
+
+                const colorsSize = hasColors ? outputCount * 3 * 4 : 0;
+                const intensitiesSize = hasIntensity ? outputCount * 4 : 0;
+                const classificationsSize = hasClassification ? outputCount : 0;
+                if (
+                  outputBuffer.length <
+                  offset + colorsSize + intensitiesSize + classificationsSize
+                ) {
+                  throw new Error(
+                    `Invalid binary output: expected attributes, got ${outputBuffer.length} bytes`
                   );
                 }
 
-                // Extract downsampled points (skip 4-byte header)
-                const downsampledPointsBuffer = outputBuffer.slice(
-                  4,
-                  expectedSize
-                );
-                const _downsampledPoints = new Float32Array(
-                  downsampledPointsBuffer.buffer,
-                  downsampledPointsBuffer.byteOffset,
-                  outputCount * 3
-                );
+                const parts = [positionsSlice];
+                if (hasColors) {
+                  parts.push(outputBuffer.slice(offset, offset + colorsSize));
+                  offset += colorsSize;
+                }
+                if (hasIntensity) {
+                  parts.push(
+                    outputBuffer.slice(offset, offset + intensitiesSize)
+                  );
+                  offset += intensitiesSize;
+                }
+                if (hasClassification) {
+                  parts.push(
+                    outputBuffer.slice(offset, offset + classificationsSize)
+                  );
+                }
+                const responseBinary = Buffer.concat(parts);
 
                 const processingTime = Date.now() - startTime;
-
-                // Send binary response directly (no JSON conversion overhead!)
-                // Format: JSON header with metadata, then binary data
                 const responseHeader = {
                   type: 'voxel_downsample_rust_result',
                   requestId,
@@ -541,13 +561,13 @@ wss.on('connection', (ws, req) => {
                   voxelCount: outputCount,
                   processingTime,
                   dataLength: outputCount * 3,
+                  colorsLength: hasColors ? outputCount * 3 : 0,
+                  intensitiesLength: hasIntensity ? outputCount : 0,
+                  classificationsLength: hasClassification ? outputCount : 0,
                 };
 
-                // Send header as JSON
                 ws.send(JSON.stringify(responseHeader));
-
-                // Send binary data directly - use the sliced buffer, not the Float32Array's buffer
-                ws.send(downsampledPointsBuffer);
+                ws.send(responseBinary);
               } catch (parseError) {
                 console.error('Rust Binary protocol error:', parseError);
                 ws.send(
@@ -561,7 +581,6 @@ wss.on('connection', (ws, req) => {
               }
             });
 
-            // Send binary input to Rust process (no JSON serialization!)
             rustProcess.stdin.write(inputBuffer);
             rustProcess.stdin.end();
           } else if (type === 'point_smooth_rust') {

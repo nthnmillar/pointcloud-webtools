@@ -137,6 +137,7 @@ describe('Voxel Downsampling Tool', () => {
 });
 
 // Helper functions
+// Extended header: 36 bytes (32 + 4-byte flags). flags=0 for positions-only (C++ and Rust both use this).
 function createVoxelDownsampleInput(
   pointCount,
   voxelSize,
@@ -148,7 +149,7 @@ function createVoxelDownsampleInput(
   maxZ,
   points
 ) {
-  const buffer = Buffer.allocUnsafe(32 + points.length * 4);
+  const buffer = Buffer.allocUnsafe(36 + points.length * 4);
   const view = new DataView(buffer.buffer, buffer.byteOffset);
 
   view.setUint32(0, pointCount, true);
@@ -159,9 +160,10 @@ function createVoxelDownsampleInput(
   view.setFloat32(20, maxX, true);
   view.setFloat32(24, maxY, true);
   view.setFloat32(28, maxZ, true);
+  view.setUint32(32, 0, true); // flags: positions-only
 
   points.forEach((point, i) => {
-    view.setFloat32(32 + i * 4, point, true);
+    view.setFloat32(36 + i * 4, point, true);
   });
 
   return buffer;
