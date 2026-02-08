@@ -228,14 +228,15 @@ export class LoadLaz {
       this.headerData = batchData.header;
     }
 
-    // Create individual batch mesh immediately - pass raw points array
-    this.createBatchMesh(batchData.points);
+    // Create individual batch mesh immediately - pass full batch (points + optional attributes)
+    this.createBatchMesh(batchData);
 
     this.batchCount++;
   }
 
-  private createBatchMesh(points: Float32Array): void {
-    if (points.length === 0) {
+  private createBatchMesh(batchData: LazBatchData): void {
+    const points = batchData.points;
+    if (!points || points.length === 0) {
       return;
     }
 
@@ -283,19 +284,37 @@ export class LoadLaz {
     const pointCount = points.length / 3;
     const pointCloudPoints: PointCloudPoint[] = new Array(pointCount);
 
-    // Pre-allocate objects to reduce garbage collection and center points around origin
+    const hasColor = batchData.hasColor === true && batchData.colors != null;
+    const hasIntensity = batchData.hasIntensity === true && batchData.intensities != null;
+    const hasClassification =
+      batchData.hasClassification === true && batchData.classifications != null;
+
+    // Pre-allocate objects and set optional attributes only when present
     for (let i = 0; i < pointCount; i++) {
       const arrayIndex = i * 3;
-      pointCloudPoints[i] = {
+      const pt: PointCloudPoint = {
         position: {
-          x: points[arrayIndex] - centroid.x, // Center around origin
-          y: points[arrayIndex + 1] - centroid.y, // Center around origin
-          z: points[arrayIndex + 2] - centroid.z, // Center around origin
+          x: points[arrayIndex] - centroid.x,
+          y: points[arrayIndex + 1] - centroid.y,
+          z: points[arrayIndex + 2] - centroid.z,
         },
       };
+      if (hasColor) {
+        pt.color = {
+          r: batchData.colors![i * 3],
+          g: batchData.colors![i * 3 + 1],
+          b: batchData.colors![i * 3 + 2],
+        };
+      }
+      if (hasIntensity) {
+        pt.intensity = batchData.intensities![i];
+      }
+      if (hasClassification) {
+        pt.classification = batchData.classifications![i];
+      }
+      pointCloudPoints[i] = pt;
     }
 
-    // Create individual batch mesh with unique ID
     const batchId = `${this.currentFileId}_batch_${this.batchCount + 1}`;
     this.totalPointsProcessed += pointCount;
     Log.Info(
@@ -308,10 +327,10 @@ export class LoadLaz {
       metadata: {
         name: batchId,
         totalPoints: pointCount,
-        bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } }, // Dummy bounds
-        hasColor: false,
-        hasIntensity: false,
-        hasClassification: false,
+        bounds: { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } },
+        hasColor,
+        hasIntensity,
+        hasClassification,
         centroid: centroid,
       },
     };

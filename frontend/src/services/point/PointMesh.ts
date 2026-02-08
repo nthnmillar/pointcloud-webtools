@@ -238,10 +238,16 @@ export class PointMesh {
           });
         }
 
-        // Use simple white color for all points - no expensive calculations
-        colors[colorIndex] = 1; // R
-        colors[colorIndex + 1] = 1; // G
-        colors[colorIndex + 2] = 1; // B
+        // Use per-point color when present, otherwise white
+        const useColor =
+          pointCloudData.metadata.hasColor &&
+          point.color &&
+          typeof point.color.r === 'number' &&
+          typeof point.color.g === 'number' &&
+          typeof point.color.b === 'number';
+        colors[colorIndex] = useColor ? point.color!.r : 1;
+        colors[colorIndex + 1] = useColor ? point.color!.g : 1;
+        colors[colorIndex + 2] = useColor ? point.color!.b : 1;
         colors[colorIndex + 3] = 1; // A
       }
     }
