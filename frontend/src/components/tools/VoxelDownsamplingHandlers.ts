@@ -453,21 +453,44 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
 
       const result = await serviceManager.toolsService.voxelDownsampleTS({
         pointCloudData: pointData.pointCloudData,
+        colors: pointData.colors,
+        intensities: pointData.intensities,
+        classifications: pointData.classifications,
         voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
         globalBounds: pointData.globalBounds,
       });
 
       if (result.success && result.downsampledPoints) {
         const tsId = `ts_downsampled_${Date.now()}`;
+        const pointCount = result.downsampledPoints.length / 3;
+        const colors =
+          result.downsampledColors != null &&
+          result.downsampledColors.length === pointCount * 3
+            ? new Float32Array(result.downsampledColors)
+            : undefined;
+        const intensities =
+          result.downsampledIntensities != null &&
+          result.downsampledIntensities.length === pointCount
+            ? new Float32Array(result.downsampledIntensities)
+            : undefined;
+        const classifications =
+          result.downsampledClassifications != null &&
+          result.downsampledClassifications.length === pointCount
+            ? new Uint8Array(result.downsampledClassifications)
+            : undefined;
         await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           tsId,
-          result.downsampledPoints,
+          new Float32Array(result.downsampledPoints),
           undefined,
           {
             name: 'TypeScript Downsampled Point Cloud',
-            hasIntensity: true,
-            hasClassification: true,
-          }
+            hasColor: colors != null,
+            hasIntensity: intensities != null,
+            hasClassification: classifications != null,
+          },
+          colors,
+          intensities,
+          classifications
         );
 
         const endToEndTime = performance.now() - startTime;

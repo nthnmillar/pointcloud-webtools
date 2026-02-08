@@ -22,15 +22,26 @@ export class VoxelDownsamplingTS extends BaseService {
       const startTime = performance.now();
 
       const pointCount = params.pointCloudData.length / 3;
-      const voxelMap = new Map<
-        string,
-        {
-          count: number;
-          sumX: number;
-          sumY: number;
-          sumZ: number;
-        }
-      >();
+      const useColors =
+        params.colors != null && params.colors.length === pointCount * 3;
+      const useIntensity =
+        params.intensities != null && params.intensities.length === pointCount;
+      const useClassification =
+        params.classifications != null &&
+        params.classifications.length === pointCount;
+
+      type VoxelEntry = {
+        count: number;
+        sumX: number;
+        sumY: number;
+        sumZ: number;
+        sumR?: number;
+        sumG?: number;
+        sumB?: number;
+        sumIntensity?: number;
+        classCounts?: Map<number, number>;
+      };
+      const voxelMap = new Map<string, VoxelEntry>();
 
       // OPTIMIZATION: Pre-calculate inverse voxel size (outside loop)
       const invVoxelSize = 1.0 / params.voxelSize;
@@ -50,7 +61,6 @@ export class VoxelDownsamplingTS extends BaseService {
           const y = params.pointCloudData[i3 + 1];
           const z = params.pointCloudData[i3 + 2];
 
-          // Calculate voxel coordinates - use multiplication for consistency with other implementations
           const voxelX = Math.floor(
             (x - params.globalBounds.minX) * invVoxelSize
           );
@@ -69,25 +79,80 @@ export class VoxelDownsamplingTS extends BaseService {
             voxel.sumX += x;
             voxel.sumY += y;
             voxel.sumZ += z;
+            if (useColors && params.colors) {
+              voxel.sumR! += params.colors[i3];
+              voxel.sumG! += params.colors[i3 + 1];
+              voxel.sumB! += params.colors[i3 + 2];
+            }
+            if (useIntensity && params.intensities) {
+              voxel.sumIntensity! += params.intensities[i];
+            }
+            if (useClassification && params.classifications) {
+              const c = params.classifications[i];
+              voxel.classCounts!.set(c, (voxel.classCounts!.get(c) ?? 0) + 1);
+            }
           } else {
-            voxelMap.set(voxelKey, {
+            const entry: VoxelEntry = {
               count: 1,
               sumX: x,
               sumY: y,
               sumZ: z,
-            });
+            };
+            if (useColors && params.colors) {
+              entry.sumR = params.colors[i3];
+              entry.sumG = params.colors[i3 + 1];
+              entry.sumB = params.colors[i3 + 2];
+            }
+            if (useIntensity && params.intensities) {
+              entry.sumIntensity = params.intensities[i];
+            }
+            if (useClassification && params.classifications) {
+              entry.classCounts = new Map();
+              entry.classCounts.set(params.classifications[i], 1);
+            }
+            voxelMap.set(voxelKey, entry);
           }
         }
       }
 
-      // OPTIMIZATION: Pre-allocate result array (matching C++/Rust)
       const voxelCount = voxelMap.size;
       const downsampledPoints = new Float32Array(voxelCount * 3);
+      const downsampledColors = useColors
+        ? new Float32Array(voxelCount * 3)
+        : undefined;
+      const downsampledIntensities = useIntensity
+        ? new Float32Array(voxelCount)
+        : undefined;
+      const downsampledClassifications = useClassification
+        ? new Uint8Array(voxelCount)
+        : undefined;
+
       let outputIndex = 0;
-      for (const [_, voxel] of voxelMap) {
+      let outVoxelIndex = 0;
+      for (const [, voxel] of voxelMap) {
         downsampledPoints[outputIndex++] = voxel.sumX / voxel.count;
         downsampledPoints[outputIndex++] = voxel.sumY / voxel.count;
         downsampledPoints[outputIndex++] = voxel.sumZ / voxel.count;
+        if (downsampledColors && voxel.sumR != null) {
+          downsampledColors[outVoxelIndex * 3] = voxel.sumR / voxel.count;
+          downsampledColors[outVoxelIndex * 3 + 1] = voxel.sumG! / voxel.count;
+          downsampledColors[outVoxelIndex * 3 + 2] = voxel.sumB! / voxel.count;
+        }
+        if (downsampledIntensities && voxel.sumIntensity != null) {
+          downsampledIntensities[outVoxelIndex] = voxel.sumIntensity / voxel.count;
+        }
+        if (downsampledClassifications && voxel.classCounts) {
+          let maxCount = 0;
+          let mode = 0;
+          voxel.classCounts.forEach((count, cls) => {
+            if (count > maxCount) {
+              maxCount = count;
+              mode = cls;
+            }
+          });
+          downsampledClassifications[outVoxelIndex] = mode;
+        }
+        outVoxelIndex++;
       }
 
       const processingTime = performance.now() - startTime;
@@ -95,6 +160,9 @@ export class VoxelDownsamplingTS extends BaseService {
       return {
         success: true,
         downsampledPoints,
+        downsampledColors,
+        downsampledIntensities,
+        downsampledClassifications,
         originalCount: pointCount,
         downsampledCount: voxelCount,
         processingTime,
