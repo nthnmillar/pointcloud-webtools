@@ -143,7 +143,10 @@ export class WorkerManager {
         return await this.rustWorker.processPointCloudSmoothing(
           pointCloudData,
           smoothingRadius,
-          iterations
+          iterations,
+          colors,
+          intensities,
+          classifications
         );
 
       default:

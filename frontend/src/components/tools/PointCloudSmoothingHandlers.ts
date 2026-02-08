@@ -163,7 +163,10 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
               'WASM_RUST',
               pointCloudData,
               smoothingRadius,
-              smoothingIterations
+              smoothingIterations,
+              pointData.colors,
+              pointData.intensities,
+              pointData.classifications
             );
 
           if (
@@ -178,6 +181,9 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
           result = {
             success: true,
             smoothedPoints: workerResult.data.smoothedPoints,
+            smoothedColors: workerResult.data.smoothedColors,
+            smoothedIntensities: workerResult.data.smoothedIntensities,
+            smoothedClassifications: workerResult.data.smoothedClassifications,
             originalCount: workerResult.data.originalCount,
             smoothedCount: workerResult.data.smoothedCount,
             processingTime: workerResult.data.processingTime,

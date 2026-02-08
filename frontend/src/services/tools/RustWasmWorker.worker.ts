@@ -406,6 +406,9 @@ interface PointCloudSmoothingData {
   pointCloudData: Float32Array;
   smoothingRadius: number;
   iterations: number;
+  colors?: Float32Array;
+  intensities?: Float32Array;
+  classifications?: Uint8Array;
 }
 
 // Handle point cloud smoothing
@@ -425,6 +428,20 @@ async function handlePointCloudSmoothing(
   );
   const processingTime = performance.now() - startTime;
   const smoothedPoints = new Float32Array(result);
+  const pointCount = smoothedPoints.length / 3;
+  // Pass through attributes (point count and order unchanged)
+  const smoothedColors =
+    data.colors != null && data.colors.length === pointCount * 3
+      ? new Float32Array(data.colors)
+      : undefined;
+  const smoothedIntensities =
+    data.intensities != null && data.intensities.length === pointCount
+      ? new Float32Array(data.intensities)
+      : undefined;
+  const smoothedClassifications =
+    data.classifications != null && data.classifications.length === pointCount
+      ? new Uint8Array(data.classifications)
+      : undefined;
 
   const response = {
     type: 'SUCCESS',
@@ -432,13 +449,20 @@ async function handlePointCloudSmoothing(
     messageId,
     data: {
       smoothedPoints,
+      smoothedColors,
+      smoothedIntensities,
+      smoothedClassifications,
       originalCount: data.pointCloudData.length / 3,
-      smoothedCount: smoothedPoints.length / 3,
+      smoothedCount: pointCount,
       processingTime,
     },
   };
 
-  self.postMessage(response, { transfer: [smoothedPoints.buffer] });
+  const transfer: Transferable[] = [smoothedPoints.buffer];
+  if (smoothedColors) transfer.push(smoothedColors.buffer);
+  if (smoothedIntensities) transfer.push(smoothedIntensities.buffer);
+  if (smoothedClassifications) transfer.push(smoothedClassifications.buffer);
+  self.postMessage(response, { transfer });
 }
 
 interface VoxelDebugData {
