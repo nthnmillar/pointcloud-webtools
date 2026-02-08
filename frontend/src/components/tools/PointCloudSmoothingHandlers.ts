@@ -104,6 +104,9 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
             await serviceManager.toolsService.performPointCloudSmoothingBEPython(
               {
                 points: pointCloudData,
+                colors: pointData.colors,
+                intensities: pointData.intensities,
+                classifications: pointData.classifications,
                 smoothingRadius,
                 iterations: smoothingIterations,
               }
