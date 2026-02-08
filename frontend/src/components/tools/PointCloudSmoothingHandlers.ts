@@ -93,6 +93,9 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
           result =
             await serviceManager.toolsService.performPointCloudSmoothingBERust({
               points: pointCloudData,
+              colors: pointData.colors,
+              intensities: pointData.intensities,
+              classifications: pointData.classifications,
               smoothingRadius,
               iterations: smoothingIterations,
             });

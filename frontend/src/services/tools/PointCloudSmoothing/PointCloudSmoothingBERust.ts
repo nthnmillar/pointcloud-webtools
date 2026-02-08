@@ -4,6 +4,9 @@ import { BACKEND_WS_URL } from '../../../config';
 
 export interface PointCloudSmoothingBERustParams {
   pointCloudData: Float32Array;
+  colors?: Float32Array;
+  intensities?: Float32Array;
+  classifications?: Uint8Array;
   smoothingRadius: number;
   iterations: number;
 }
@@ -11,6 +14,9 @@ export interface PointCloudSmoothingBERustParams {
 export interface PointCloudSmoothingBERustResult {
   success: boolean;
   smoothedPoints: Float32Array;
+  smoothedColors?: Float32Array;
+  smoothedIntensities?: Float32Array;
+  smoothedClassifications?: Uint8Array;
   originalCount: number;
   smoothedCount: number;
   processingTime: number;
@@ -38,6 +44,11 @@ export class PointCloudSmoothingBERust extends BaseService {
     {
       resolve: (value: PointCloudSmoothingBERustResult) => void;
       reject: (reason?: unknown) => void;
+      passThrough?: {
+        colors?: Float32Array;
+        intensities?: Float32Array;
+        classifications?: Uint8Array;
+      };
     }
   >();
   private reconnectAttempts = 0;
@@ -90,16 +101,32 @@ export class PointCloudSmoothingBERust extends BaseService {
                 0,
                 this.pendingHeader.dataLength
               );
-
+              const pointCount = smoothedPoints.length / 3;
               const pending = this.pendingRequests.get(
                 this.pendingHeader.requestId
               );
               if (pending) {
                 this.pendingRequests.delete(this.pendingHeader.requestId);
+                const passThrough = pending.passThrough;
+                const smoothedColors =
+                  passThrough?.colors != null && passThrough.colors.length === pointCount * 3
+                    ? new Float32Array(passThrough.colors)
+                    : undefined;
+                const smoothedIntensities =
+                  passThrough?.intensities != null && passThrough.intensities.length === pointCount
+                    ? new Float32Array(passThrough.intensities)
+                    : undefined;
+                const smoothedClassifications =
+                  passThrough?.classifications != null && passThrough.classifications.length === pointCount
+                    ? new Uint8Array(passThrough.classifications)
+                    : undefined;
 
                 const result: PointCloudSmoothingBERustResult = {
                   success: true,
                   smoothedPoints: smoothedPoints,
+                  smoothedColors,
+                  smoothedIntensities,
+                  smoothedClassifications,
                   originalCount: this.pendingHeader.originalCount,
                   smoothedCount: this.pendingHeader.smoothedCount,
                   processingTime: this.pendingHeader.processingTime,
@@ -123,16 +150,32 @@ export class PointCloudSmoothingBERust extends BaseService {
                 0,
                 this.pendingHeader.dataLength
               );
-
+              const pointCount = smoothedPoints.length / 3;
               const pending = this.pendingRequests.get(
                 this.pendingHeader.requestId
               );
               if (pending) {
                 this.pendingRequests.delete(this.pendingHeader.requestId);
+                const passThrough = pending.passThrough;
+                const smoothedColors =
+                  passThrough?.colors != null && passThrough.colors.length === pointCount * 3
+                    ? new Float32Array(passThrough.colors)
+                    : undefined;
+                const smoothedIntensities =
+                  passThrough?.intensities != null && passThrough.intensities.length === pointCount
+                    ? new Float32Array(passThrough.intensities)
+                    : undefined;
+                const smoothedClassifications =
+                  passThrough?.classifications != null && passThrough.classifications.length === pointCount
+                    ? new Uint8Array(passThrough.classifications)
+                    : undefined;
 
                 const result: PointCloudSmoothingBERustResult = {
                   success: true,
                   smoothedPoints: smoothedPoints,
+                  smoothedColors,
+                  smoothedIntensities,
+                  smoothedClassifications,
                   originalCount: this.pendingHeader.originalCount,
                   smoothedCount: this.pendingHeader.smoothedCount,
                   processingTime: this.pendingHeader.processingTime,
@@ -230,8 +273,15 @@ export class PointCloudSmoothingBERust extends BaseService {
 
       const requestId = `smooth_rust_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Store the promise resolvers
-      this.pendingRequests.set(requestId, { resolve, reject });
+      const passThrough =
+        params.colors != null || params.intensities != null || params.classifications != null
+          ? {
+              colors: params.colors,
+              intensities: params.intensities,
+              classifications: params.classifications,
+            }
+          : undefined;
+      this.pendingRequests.set(requestId, { resolve, reject, passThrough });
 
       // Send binary data directly - no JSON serialization of points!
       const header = {
