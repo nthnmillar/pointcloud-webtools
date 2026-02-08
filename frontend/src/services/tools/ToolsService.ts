@@ -39,6 +39,9 @@ export interface VoxelDownsampleResult {
 
 export interface PointCloudSmoothingParams {
   points: Float32Array;
+  colors?: Float32Array;
+  intensities?: Float32Array;
+  classifications?: Uint8Array;
   smoothingRadius: number;
   iterations: number;
 }
@@ -46,6 +49,9 @@ export interface PointCloudSmoothingParams {
 export interface PointCloudSmoothingResult {
   success: boolean;
   smoothedPoints?: Float32Array;
+  smoothedColors?: Float32Array;
+  smoothedIntensities?: Float32Array;
+  smoothedClassifications?: Uint8Array;
   originalCount?: number;
   smoothedCount?: number;
   processingTime?: number;

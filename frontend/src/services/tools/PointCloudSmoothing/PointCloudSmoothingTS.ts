@@ -23,6 +23,20 @@ export class PointCloudSmoothingTS extends BaseService {
 
       const pointCount = params.points.length / 3;
       const smoothedPoints = new Float32Array(params.points);
+      // Pass through attributes (point count and order unchanged)
+      const smoothedColors =
+        params.colors != null && params.colors.length === pointCount * 3
+          ? new Float32Array(params.colors)
+          : undefined;
+      const smoothedIntensities =
+        params.intensities != null && params.intensities.length === pointCount
+          ? new Float32Array(params.intensities)
+          : undefined;
+      const smoothedClassifications =
+        params.classifications != null &&
+        params.classifications.length === pointCount
+          ? new Uint8Array(params.classifications)
+          : undefined;
 
       // Ultra-optimized smoothing implementation using spatial hashing (O(n) complexity)
       const radiusSquared = params.smoothingRadius * params.smoothingRadius;
@@ -166,6 +180,9 @@ export class PointCloudSmoothingTS extends BaseService {
       return {
         success: true,
         smoothedPoints,
+        smoothedColors,
+        smoothedIntensities,
+        smoothedClassifications,
         originalCount: pointCount,
         smoothedCount: pointCount,
         processingTime,

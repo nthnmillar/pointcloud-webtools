@@ -45,11 +45,14 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
     isProcessingRef.current = true;
 
     try {
-      const pointCloudData = collectAllPointsForSmoothing(serviceManager);
-      if (!pointCloudData) return null;
+      const pointData = collectAllPointsForSmoothing(serviceManager);
+      if (!pointData) return null;
+
+      const pointCloudData = pointData.pointCloudData;
+      const pointCount = pointCloudData.length / 3;
 
       Log.Info('Tools', 'Starting point cloud smoothing', {
-        pointCount: pointCloudData.length / 3,
+        pointCount,
         smoothingRadius,
         iterations: smoothingIterations,
       });
@@ -70,6 +73,9 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
           result =
             await serviceManager.toolsService.performPointCloudSmoothingTS({
               points: pointCloudData,
+              colors: pointData.colors,
+              intensities: pointData.intensities,
+              classifications: pointData.classifications,
               smoothingRadius,
               iterations: smoothingIterations,
             });
@@ -174,57 +180,97 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
       }
 
       if (result.success && result.smoothedPoints) {
-        const smoothedPoints = [];
-        const pointCount = result.smoothedPoints.length / 3;
+        const outPointCount = result.smoothedPoints.length / 3;
+        const smoothedColors =
+          result.smoothedColors != null &&
+          result.smoothedColors.length === outPointCount * 3
+            ? result.smoothedColors
+            : undefined;
+        const smoothedIntensities =
+          result.smoothedIntensities != null &&
+          result.smoothedIntensities.length === outPointCount
+            ? result.smoothedIntensities
+            : undefined;
+        const smoothedClassifications =
+          result.smoothedClassifications != null &&
+          result.smoothedClassifications.length === outPointCount
+            ? result.smoothedClassifications
+            : undefined;
 
-        for (let i = 0; i < pointCount; i++) {
-          const pointIndex = i * 3;
-          smoothedPoints.push({
-            position: {
-              x: result.smoothedPoints[pointIndex],
-              y: result.smoothedPoints[pointIndex + 1],
-              z: result.smoothedPoints[pointIndex + 2],
+        if (
+          smoothedColors != null ||
+          smoothedIntensities != null ||
+          smoothedClassifications != null
+        ) {
+          const smoothedId = `smoothed_${Date.now()}`;
+          await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
+            smoothedId,
+            result.smoothedPoints,
+            undefined,
+            {
+              name: 'Smoothed Point Cloud',
+              hasColor: smoothedColors != null,
+              hasIntensity: smoothedIntensities != null,
+              hasClassification: smoothedClassifications != null,
+              originalCount: result.originalCount || 0,
+              smoothedCount: result.smoothedCount || 0,
+              smoothingRadius: smoothingRadius,
+              iterations: smoothingIterations,
+              processingTime: result.processingTime || 0,
             },
-            color: { r: 1, g: 1, b: 0 },
-            intensity: 1,
-            classification: 0,
-          });
+            smoothedColors,
+            smoothedIntensities,
+            smoothedClassifications
+          );
+        } else {
+          const smoothedPoints = [];
+          for (let i = 0; i < outPointCount; i++) {
+            const pointIndex = i * 3;
+            smoothedPoints.push({
+              position: {
+                x: result.smoothedPoints[pointIndex],
+                y: result.smoothedPoints[pointIndex + 1],
+                z: result.smoothedPoints[pointIndex + 2],
+              },
+              color: { r: 1, g: 1, b: 0 },
+              intensity: 1,
+              classification: 0,
+            });
+          }
+          const smoothedPointCloud = {
+            points: smoothedPoints,
+            metadata: {
+              name: 'Smoothed Point Cloud',
+              totalPoints: smoothedPoints.length,
+              bounds: {
+                min: {
+                  x: Math.min(...smoothedPoints.map(p => p.position.x)),
+                  y: Math.min(...smoothedPoints.map(p => p.position.y)),
+                  z: Math.min(...smoothedPoints.map(p => p.position.z)),
+                },
+                max: {
+                  x: Math.max(...smoothedPoints.map(p => p.position.x)),
+                  y: Math.max(...smoothedPoints.map(p => p.position.y)),
+                  z: Math.max(...smoothedPoints.map(p => p.position.z)),
+                },
+              },
+              hasColor: true,
+              hasIntensity: true,
+              hasClassification: true,
+              originalCount: result.originalCount || 0,
+              smoothedCount: result.smoothedCount || 0,
+              smoothingRadius: smoothingRadius,
+              iterations: smoothingIterations,
+              processingTime: result.processingTime || 0,
+            },
+          };
+          const smoothedId = `smoothed_${Date.now()}`;
+          await serviceManager.pointService?.loadPointCloud(
+            smoothedId,
+            smoothedPointCloud,
+            false
+          );
         }
-
-        const smoothedPointCloud = {
-          points: smoothedPoints,
-          metadata: {
-            name: 'WASM Smoothed Point Cloud',
-            totalPoints: smoothedPoints.length,
-            bounds: {
-              min: {
-                x: Math.min(...smoothedPoints.map(p => p.position.x)),
-                y: Math.min(...smoothedPoints.map(p => p.position.y)),
-                z: Math.min(...smoothedPoints.map(p => p.position.z)),
-              },
-              max: {
-                x: Math.max(...smoothedPoints.map(p => p.position.x)),
-                y: Math.max(...smoothedPoints.map(p => p.position.y)),
-                z: Math.max(...smoothedPoints.map(p => p.position.z)),
-              },
-            },
-            hasColor: true,
-            hasIntensity: true,
-            hasClassification: true,
-            originalCount: result.originalCount || 0,
-            smoothedCount: result.smoothedCount || 0,
-            smoothingRadius: smoothingRadius,
-            iterations: smoothingIterations,
-            processingTime: result.processingTime || 0,
-          },
-        };
-
-        const smoothedId = `wasm_smoothed_${Date.now()}`;
-        await serviceManager.pointService?.loadPointCloud(
-          smoothedId,
-          smoothedPointCloud,
-          false
-        );
 
         return {
           originalCount: result.originalCount || 0,
@@ -262,9 +308,10 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
     isProcessingRef.current = true;
 
     try {
-      const pointCloudData = collectAllPointsForSmoothing(serviceManager);
-      if (!pointCloudData) return;
+      const pointData = collectAllPointsForSmoothing(serviceManager);
+      if (!pointData) return;
 
+      const pointCloudData = pointData.pointCloudData;
       Log.Info('Tools', 'Starting Rust WASM Main point cloud smoothing', {
         pointCount: pointCloudData.length / 3,
         smoothingRadius,

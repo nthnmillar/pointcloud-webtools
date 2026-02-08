@@ -222,12 +222,20 @@ export function collectAllPoints(
   };
 }
 
+/** Collected positions and optional attributes for smoothing (no bounds). */
+export interface CollectedPointDataForSmoothing {
+  pointCloudData: Float32Array;
+  colors?: Float32Array;
+  intensities?: Float32Array;
+  classifications?: Uint8Array;
+}
+
 /**
- * Collect all points from all point clouds in the scene (for smoothing - no bounds needed)
+ * Collect all points from all point clouds in the scene (for smoothing - full data, no bounds)
  */
 export function collectAllPointsForSmoothing(
   serviceManager: ServiceManager | null
-): Float32Array | null {
+): CollectedPointDataForSmoothing | null {
   if (!serviceManager?.pointService) {
     Log.Error('Tools', 'Point service not available');
     return null;
@@ -242,15 +250,74 @@ export function collectAllPointsForSmoothing(
   }
 
   const allPositions: number[] = [];
+  const allColors: number[] = [];
+  const allIntensities: number[] = [];
+  const allClassifications: number[] = [];
+  let hasColor = false;
+  let hasIntensity = false;
+  let hasClassification = false;
 
   for (const pointCloudId of allPointCloudIds) {
     const pointCloud = serviceManager.pointService.getPointCloud(pointCloudId);
     if (pointCloud) {
-      // Check if we have positions array (for point clouds created from Float32Array)
+      const meta = pointCloud.metadata;
+      const useColor =
+        meta?.hasColor === true &&
+        pointCloud.points?.length &&
+        pointCloud.points.every(
+          p =>
+            p.color &&
+            typeof p.color.r === 'number' &&
+            typeof p.color.g === 'number' &&
+            typeof p.color.b === 'number'
+        );
+      const useIntensity =
+        meta?.hasIntensity === true &&
+        pointCloud.points?.length &&
+        pointCloud.points.every(
+          p => typeof p.intensity === 'number' && !Number.isNaN(p.intensity)
+        );
+      const useClassification =
+        meta?.hasClassification === true &&
+        pointCloud.points?.length &&
+        pointCloud.points.every(
+          p =>
+            typeof p.classification === 'number' &&
+            p.classification >= 0 &&
+            p.classification <= 255
+        );
+
       if (pointCloud.positions && pointCloud.positions.length > 0) {
         const positions = pointCloud.positions;
+        const posPointCount = positions.length / 3;
+        const posColorCount = positions.length;
+        const usePosColors =
+          pointCloud.colors != null && pointCloud.colors.length === posColorCount;
+        const usePosIntensities =
+          pointCloud.intensities != null &&
+          pointCloud.intensities.length === posPointCount;
+        const usePosClassifications =
+          pointCloud.classifications != null &&
+          pointCloud.classifications.length === posPointCount;
         for (let i = 0; i < positions.length; i += 3) {
           allPositions.push(positions[i], positions[i + 1], positions[i + 2]);
+          if (usePosColors && pointCloud.colors) {
+            const ci = i;
+            allColors.push(
+              pointCloud.colors[ci],
+              pointCloud.colors[ci + 1],
+              pointCloud.colors[ci + 2]
+            );
+            hasColor = true;
+          }
+          if (usePosIntensities && pointCloud.intensities) {
+            allIntensities.push(pointCloud.intensities[i / 3]);
+            hasIntensity = true;
+          }
+          if (usePosClassifications && pointCloud.classifications) {
+            allClassifications.push(pointCloud.classifications[i / 3]);
+            hasClassification = true;
+          }
         }
       } else if (pointCloud.points && pointCloud.points.length > 0) {
         for (const point of pointCloud.points) {
@@ -259,6 +326,18 @@ export function collectAllPointsForSmoothing(
             point.position.y,
             point.position.z
           );
+          if (useColor && point.color) {
+            allColors.push(point.color.r, point.color.g, point.color.b);
+            hasColor = true;
+          }
+          if (useIntensity && point.intensity != null) {
+            allIntensities.push(point.intensity);
+            hasIntensity = true;
+          }
+          if (useClassification && point.classification != null) {
+            allClassifications.push(point.classification);
+            hasClassification = true;
+          }
         }
       }
     }
@@ -269,5 +348,25 @@ export function collectAllPointsForSmoothing(
     return null;
   }
 
-  return new Float32Array(allPositions);
+  const pointCloudData = new Float32Array(allPositions);
+  const pointCount = allPositions.length / 3;
+  const colors =
+    hasColor && allColors.length === allPositions.length
+      ? new Float32Array(allColors)
+      : undefined;
+  const intensities =
+    hasIntensity && allIntensities.length === pointCount
+      ? new Float32Array(allIntensities)
+      : undefined;
+  const classifications =
+    hasClassification && allClassifications.length === pointCount
+      ? new Uint8Array(allClassifications)
+      : undefined;
+
+  return {
+    pointCloudData,
+    colors,
+    intensities,
+    classifications,
+  };
 }
