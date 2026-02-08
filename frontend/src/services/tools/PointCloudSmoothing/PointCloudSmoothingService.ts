@@ -110,6 +110,9 @@ export class PointCloudSmoothingService extends BaseService {
   ): Promise<PointCloudSmoothingResult> {
     return this.pointCloudSmoothingBECPP.pointCloudSmooth({
       pointCloudData: params.points,
+      colors: params.colors,
+      intensities: params.intensities,
+      classifications: params.classifications,
       smoothingRadius: params.smoothingRadius,
       iterations: params.iterations,
     });
