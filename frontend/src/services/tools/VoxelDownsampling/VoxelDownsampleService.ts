@@ -114,6 +114,9 @@ export class VoxelDownsampleService extends BaseService {
     const result =
       await this.voxelDownsamplingBEPython.performVoxelDownsampling({
         pointCloudData: params.pointCloudData,
+        colors: params.colors,
+        intensities: params.intensities,
+        classifications: params.classifications,
         voxelSize: params.voxelSize,
         globalBounds: params.globalBounds,
       });
@@ -121,6 +124,9 @@ export class VoxelDownsampleService extends BaseService {
     return {
       success: result.success,
       downsampledPoints: result.downsampledPoints,
+      downsampledColors: result.downsampledColors,
+      downsampledIntensities: result.downsampledIntensities,
+      downsampledClassifications: result.downsampledClassifications,
       originalCount: result.originalCount,
       downsampledCount: result.downsampledCount,
       processingTime: result.processingTime,

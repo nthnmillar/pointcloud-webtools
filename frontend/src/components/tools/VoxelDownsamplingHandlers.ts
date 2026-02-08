@@ -450,20 +450,42 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
 
       const result = await serviceManager.toolsService.voxelDownsampleBEPython({
         pointCloudData: pointData.pointCloudData,
+        colors: pointData.colors,
+        intensities: pointData.intensities,
+        classifications: pointData.classifications,
         voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
         globalBounds: pointData.globalBounds,
       });
 
       if (result.success && result.downsampledPoints) {
+        const n = result.downsampledPoints.length / 3;
+        const colors =
+          result.downsampledColors &&
+          result.downsampledColors.length === n * 3
+            ? result.downsampledColors
+            : undefined;
+        const intensities =
+          result.downsampledIntensities &&
+          result.downsampledIntensities.length === n
+            ? result.downsampledIntensities
+            : undefined;
+        const classifications =
+          result.downsampledClassifications &&
+          result.downsampledClassifications.length === n
+            ? result.downsampledClassifications
+            : undefined;
         await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           'BE Python Voxel Downsampled',
           result.downsampledPoints,
           undefined,
           {
             name: 'Python BE Downsampled Point Cloud',
-            hasIntensity: true,
-            hasClassification: true,
-          }
+            hasIntensity: Boolean(intensities),
+            hasClassification: Boolean(classifications),
+          },
+          colors,
+          intensities,
+          classifications
         );
 
         const endToEndTime = performance.now() - startTime;
