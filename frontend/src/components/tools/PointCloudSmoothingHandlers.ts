@@ -328,63 +328,106 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
         await serviceManager.toolsService.performPointCloudSmoothingRustWasmMain(
           {
             points: pointCloudData,
+            colors: pointData.colors,
+            intensities: pointData.intensities,
+            classifications: pointData.classifications,
             smoothingRadius,
             iterations: smoothingIterations,
           }
         );
 
       if (result.success && result.smoothedPoints) {
-        const smoothedPoints = [];
-        const pointCount = result.smoothedPoints.length / 3;
+        const outPointCount = result.smoothedPoints.length / 3;
+        const smoothedColors =
+          result.smoothedColors != null &&
+          result.smoothedColors.length === outPointCount * 3
+            ? result.smoothedColors
+            : undefined;
+        const smoothedIntensities =
+          result.smoothedIntensities != null &&
+          result.smoothedIntensities.length === outPointCount
+            ? result.smoothedIntensities
+            : undefined;
+        const smoothedClassifications =
+          result.smoothedClassifications != null &&
+          result.smoothedClassifications.length === outPointCount
+            ? result.smoothedClassifications
+            : undefined;
 
-        for (let i = 0; i < pointCount; i++) {
-          const pointIndex = i * 3;
-          smoothedPoints.push({
-            position: {
-              x: result.smoothedPoints[pointIndex],
-              y: result.smoothedPoints[pointIndex + 1],
-              z: result.smoothedPoints[pointIndex + 2],
+        if (
+          smoothedColors != null ||
+          smoothedIntensities != null ||
+          smoothedClassifications != null
+        ) {
+          const rustWasmMainId = `rust_wasm_main_smoothed_${Date.now()}`;
+          await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
+            rustWasmMainId,
+            result.smoothedPoints,
+            undefined,
+            {
+              name: 'Rust WASM Main Smoothed Point Cloud',
+              hasColor: smoothedColors != null,
+              hasIntensity: smoothedIntensities != null,
+              hasClassification: smoothedClassifications != null,
+              originalCount: result.originalCount,
+              smoothedCount: result.smoothedCount,
+              smoothingRadius: smoothingRadius,
+              iterations: smoothingIterations,
+              processingTime: result.processingTime || 0,
             },
-            color: { r: 1, g: 0.4, b: 0.28 },
-            intensity: 1,
-            classification: 0,
-          });
+            smoothedColors,
+            smoothedIntensities,
+            smoothedClassifications
+          );
+        } else {
+          const smoothedPoints = [];
+          for (let i = 0; i < outPointCount; i++) {
+            const pointIndex = i * 3;
+            smoothedPoints.push({
+              position: {
+                x: result.smoothedPoints[pointIndex],
+                y: result.smoothedPoints[pointIndex + 1],
+                z: result.smoothedPoints[pointIndex + 2],
+              },
+              color: { r: 1, g: 0.4, b: 0.28 },
+              intensity: 1,
+              classification: 0,
+            });
+          }
+          const rustWasmMainPointCloud = {
+            points: smoothedPoints,
+            metadata: {
+              name: 'Rust WASM Main Smoothed Point Cloud',
+              totalPoints: smoothedPoints.length,
+              bounds: {
+                min: {
+                  x: Math.min(...smoothedPoints.map(p => p.position.x)),
+                  y: Math.min(...smoothedPoints.map(p => p.position.y)),
+                  z: Math.min(...smoothedPoints.map(p => p.position.z)),
+                },
+                max: {
+                  x: Math.max(...smoothedPoints.map(p => p.position.x)),
+                  y: Math.max(...smoothedPoints.map(p => p.position.y)),
+                  z: Math.max(...smoothedPoints.map(p => p.position.z)),
+                },
+              },
+              hasColor: true,
+              hasIntensity: true,
+              hasClassification: true,
+              originalCount: result.originalCount,
+              smoothedCount: result.smoothedCount,
+              smoothingRadius: smoothingRadius,
+              iterations: smoothingIterations,
+              processingTime: result.processingTime || 0,
+            },
+          };
+          const rustWasmMainId = `rust_wasm_main_smoothed_${Date.now()}`;
+          await serviceManager.pointService?.loadPointCloud(
+            rustWasmMainId,
+            rustWasmMainPointCloud,
+            false
+          );
         }
-
-        const rustWasmMainPointCloud = {
-          points: smoothedPoints,
-          metadata: {
-            name: 'Rust WASM Main Smoothed Point Cloud',
-            totalPoints: smoothedPoints.length,
-            bounds: {
-              min: {
-                x: Math.min(...smoothedPoints.map(p => p.position.x)),
-                y: Math.min(...smoothedPoints.map(p => p.position.y)),
-                z: Math.min(...smoothedPoints.map(p => p.position.z)),
-              },
-              max: {
-                x: Math.max(...smoothedPoints.map(p => p.position.x)),
-                y: Math.max(...smoothedPoints.map(p => p.position.y)),
-                z: Math.max(...smoothedPoints.map(p => p.position.z)),
-              },
-            },
-            hasColor: true,
-            hasIntensity: true,
-            hasClassification: true,
-            originalCount: result.originalCount,
-            smoothedCount: result.smoothedCount,
-            smoothingRadius: smoothingRadius,
-            iterations: smoothingIterations,
-            processingTime: result.processingTime || 0,
-          },
-        };
-
-        const rustWasmMainId = `rust_wasm_main_smoothed_${Date.now()}`;
-        await serviceManager.pointService?.loadPointCloud(
-          rustWasmMainId,
-          rustWasmMainPointCloud,
-          false
-        );
 
         const endToEndTime = performance.now() - startTime;
         callbacks.onRustWasmMainResults?.({

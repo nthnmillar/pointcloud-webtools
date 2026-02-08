@@ -1,6 +1,10 @@
 import { BaseService } from '../../BaseService';
 import { ServiceManager } from '../../ServiceManager';
 import { Log } from '../../../utils/Log';
+import type {
+  PointCloudSmoothingParams,
+  PointCloudSmoothingResult,
+} from '../ToolsService';
 
 // Import the Rust WASM module
 import init, {
@@ -51,19 +55,13 @@ export class PointCloudSmoothingWASMRust extends BaseService {
   }
 
   async performPointCloudSmoothing(
-    pointCloudData: Float32Array,
-    smoothingRadius: number,
-    iterations: number
-  ): Promise<{
-    success: boolean;
-    smoothedPoints?: Float32Array;
-    originalCount?: number;
-    smoothedCount?: number;
-    processingTime?: number;
-    error?: string;
-  }> {
+    params: PointCloudSmoothingParams
+  ): Promise<PointCloudSmoothingResult> {
     if (!this.isInitialized || !this.wasmModule) {
-      throw new Error('Rust WASM module not initialized');
+      return {
+        success: false,
+        error: 'Rust WASM module not initialized',
+      };
     }
 
     const startTime = performance.now();
@@ -73,20 +71,17 @@ export class PointCloudSmoothingWASMRust extends BaseService {
         'PointCloudSmoothingWASMRust',
         'Starting Rust WASM point cloud smoothing',
         {
-          pointCount: pointCloudData.length / 3,
-          smoothingRadius,
-          iterations,
+          pointCount: params.points.length / 3,
+          smoothingRadius: params.smoothingRadius,
+          iterations: params.iterations,
         }
       );
 
-      // Use Float32Array directly for Rust WASM (now uses f32)
-      const pointsArray = pointCloudData;
-
       // Call Rust WASM point cloud smoothing
       const result = this.wasmModule.point_cloud_smooth(
-        pointsArray,
-        smoothingRadius,
-        iterations
+        params.points,
+        params.smoothingRadius,
+        params.iterations
       );
 
       const processingTime = performance.now() - startTime;
@@ -95,21 +90,36 @@ export class PointCloudSmoothingWASMRust extends BaseService {
         'PointCloudSmoothingWASMRust',
         'Rust WASM point cloud smoothing completed',
         {
-          pointCount: pointCloudData.length / 3,
+          pointCount: params.points.length / 3,
           processingTime: processingTime.toFixed(2) + 'ms',
         }
       );
 
-      // Result is already Float32Array (Rust WASM now returns f32)
       const smoothedPoints = result;
-      const originalCount = pointCloudData.length / 3;
-      const smoothedCount = smoothedPoints.length / 3;
+      const pointCount = smoothedPoints.length / 3;
+      // Pass through attributes (point count and order unchanged)
+      const smoothedColors =
+        params.colors != null && params.colors.length === pointCount * 3
+          ? new Float32Array(params.colors)
+          : undefined;
+      const smoothedIntensities =
+        params.intensities != null && params.intensities.length === pointCount
+          ? new Float32Array(params.intensities)
+          : undefined;
+      const smoothedClassifications =
+        params.classifications != null &&
+        params.classifications.length === pointCount
+          ? new Uint8Array(params.classifications)
+          : undefined;
 
       return {
         success: true,
         smoothedPoints,
-        originalCount,
-        smoothedCount,
+        smoothedColors,
+        smoothedIntensities,
+        smoothedClassifications,
+        originalCount: params.points.length / 3,
+        smoothedCount: pointCount,
         processingTime,
       };
     } catch (error) {

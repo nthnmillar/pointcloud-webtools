@@ -96,11 +96,7 @@ export class PointCloudSmoothingService extends BaseService {
   async performPointCloudSmoothingWASMRust(
     params: PointCloudSmoothingParams
   ): Promise<PointCloudSmoothingResult> {
-    return this.pointCloudSmoothingWASMRust.performPointCloudSmoothing(
-      params.points,
-      params.smoothingRadius,
-      params.iterations
-    );
+    return this.pointCloudSmoothingWASMRust.performPointCloudSmoothing(params);
   }
 
   async performPointCloudSmoothingTS(
