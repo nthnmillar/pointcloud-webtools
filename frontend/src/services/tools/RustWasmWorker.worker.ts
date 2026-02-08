@@ -326,6 +326,10 @@ async function handleVoxelDownsampling(
       throw new Error(`Invalid output count: ${outputCount}`);
     }
 
+    // Refresh heap views in case WASM memory grew (which detaches the old buffer)
+    heapF32 = new Float32Array(memory!.buffer);
+    heapU8 = new Uint8Array(memory!.buffer);
+
     const resultFloatCount = outputCount * 3;
     const outputFloatIndex = outputPtr >> 2;
     const downsampledPoints = new Float32Array(
