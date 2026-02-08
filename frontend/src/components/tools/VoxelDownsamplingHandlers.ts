@@ -640,11 +640,29 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         await serviceManager.toolsService.performVoxelDownsamplingWASMCPP({
           pointCloudData: pointData.pointCloudData,
           colors: pointData.colors,
+          intensities: pointData.intensities,
+          classifications: pointData.classifications,
           voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
           globalBounds: pointData.globalBounds,
         });
 
       if (result.success && result.downsampledPoints) {
+        const n = result.downsampledPoints.length / 3;
+        const colors =
+          result.downsampledColors &&
+          result.downsampledColors.length === n * 3
+            ? result.downsampledColors
+            : undefined;
+        const intensities =
+          result.downsampledIntensities &&
+          result.downsampledIntensities.length === n
+            ? result.downsampledIntensities
+            : undefined;
+        const classifications =
+          result.downsampledClassifications &&
+          result.downsampledClassifications.length === n
+            ? result.downsampledClassifications
+            : undefined;
         const wasmCppMainId = `wasm_cpp_main_downsampled_${Date.now()}`;
         await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           wasmCppMainId,
@@ -652,11 +670,12 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
           undefined,
           {
             name: 'WASM C++ Main Downsampled Point Cloud',
-            hasColor: result.downsampledColors != null,
-            hasIntensity: true,
-            hasClassification: true,
+            hasIntensity: Boolean(intensities),
+            hasClassification: Boolean(classifications),
           },
-          result.downsampledColors
+          colors,
+          intensities,
+          classifications
         );
 
         const endToEndTime = performance.now() - startTime;
