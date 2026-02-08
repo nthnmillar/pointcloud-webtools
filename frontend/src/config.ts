@@ -1,24 +1,23 @@
 // Configuration for backend connection
-// Automatically detects if running locally or on remote server
+// Uses hostname only (not the frontend port), so the app works whether the dev server
+// is on 3000, 3001, etc. Backend port is 3003 by default or from env.
 
 const getBackendUrl = (): string => {
-  // Allow override via environment variable (for testing)
+  // Full override (e.g. ws://localhost:3004 if backend is on 3004)
   if (import.meta.env.VITE_BACKEND_WS_URL) {
     return import.meta.env.VITE_BACKEND_WS_URL;
   }
 
-  // Check if we're in development (localhost) or production
   const hostname = window.location.hostname;
+  // Optional port override when backend runs on a different port (e.g. PORT=3004)
+  const port =
+    import.meta.env.VITE_BACKEND_PORT ?? '3003';
 
-  // If running on localhost, use localhost backend
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'ws://localhost:3003';
+    return `ws://localhost:${port}`;
   }
 
-  // Otherwise, use the same hostname with port 3003
-  // For Lightsail: ws://44.203.227.35:3003
-  // For any other domain: ws://yourdomain.com:3003
-  return `ws://${hostname}:3003`;
+  return `ws://${hostname}:${port}`;
 };
 
 export const BACKEND_WS_URL = getBackendUrl();

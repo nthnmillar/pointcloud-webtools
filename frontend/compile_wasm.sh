@@ -57,9 +57,8 @@ emcc "$FRONTEND_DIR/src/wasm/cpp/voxel_downsample.cpp" \
   -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'HEAPF32', 'HEAPU8']" \
   -s EXPORTED_FUNCTIONS="['_voxelDownsampleDirect', '_voxelDebugDirect', '_malloc', '_free']" \
   -s NO_DISABLE_EXCEPTION_CATCHING=1 \
-  -O3 \
+  -O2 \
   -ffast-math \
-  -flto \
   -msimd128 \
   --bind
 

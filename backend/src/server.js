@@ -93,20 +93,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize process pools - increase size for better parallelization
-// Note: These pools are reserved for future use
-const _voxelDownsamplePool = new ProcessPool(
-  path.join(__dirname, 'services', 'tools', 'build', 'voxel_downsample'),
-  8
-);
-const _voxelDebugPool = new ProcessPool(
-  path.join(__dirname, 'services', 'tools', 'build', 'voxel_debug'),
-  4
-);
-const _pointSmoothPool = new ProcessPool(
-  path.join(__dirname, 'services', 'tools', 'build', 'point_smooth_cpp'),
-  4
-);
+// Process pools are not created at startup so the server always listens.
+// Binaries are resolved per-request; missing binaries return errors to the client.
 
 const app = express();
 const server = createServer(app);
