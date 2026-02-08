@@ -6,35 +6,84 @@
 #include <emscripten/val.h>
 #include "common.h"
 
-// Forward declaration
-int voxelDownsampleInternal(float* inputData, int pointCount, float voxelSize, 
+// Forward declarations
+int voxelDownsampleInternal(float* inputData, int pointCount, float voxelSize,
                            float globalMinX, float globalMinY, float globalMinZ, float* outputData);
+int voxelDownsampleWithColorsInternal(float* inputData, float* inputColors,
+    int pointCount, float voxelSize, float globalMinX, float globalMinY, float globalMinZ,
+    float* outputData, float* outputColors);
+int voxelDownsampleWithAttributesInternal(
+    float* inputData, float* inputColors, float* inputIntensities, uint8_t* inputClassifications,
+    int pointCount, float voxelSize, float globalMinX, float globalMinY, float globalMinZ,
+    float* outputData, float* outputColors, float* outputIntensities, uint8_t* outputClassifications);
 
 extern "C" {
     // Direct pointer-based voxel downsampling for zero-copy input access
-    // JavaScript allocates memory, copies input data with HEAPF32.set(), calls this function,
-    // then reads results from outputPtr using the existing Embind function
     int voxelDownsampleDirect(
-        float* inputPtr,      // Pointer to input data in WASM heap (already copied via HEAPF32.set())
-        int pointCount,        // Number of points (length / 3)
+        float* inputPtr,
+        int pointCount,
         float voxelSize,
         float globalMinX,
         float globalMinY,
         float globalMinZ,
-        float* outputPtr      // Pointer to output buffer (pre-allocated, at least pointCount * 3 floats)
+        float* outputPtr
     ) {
         if (!inputPtr || !outputPtr || pointCount <= 0 || voxelSize <= 0) {
             return 0;
         }
-        
         return voxelDownsampleInternal(
-            inputPtr,
-            pointCount,
-            voxelSize,
-            globalMinX,
-            globalMinY,
-            globalMinZ,
+            inputPtr, pointCount, voxelSize,
+            globalMinX, globalMinY, globalMinZ,
             outputPtr
+        );
+    }
+
+    // Voxel downsampling with optional colors: averages RGB per voxel.
+    int voxelDownsampleDirectWithColors(
+        float* inputPtr,
+        float* inputColors,
+        int pointCount,
+        float voxelSize,
+        float globalMinX,
+        float globalMinY,
+        float globalMinZ,
+        float* outputPtr,
+        float* outputColors
+    ) {
+        if (!inputPtr || !outputPtr || pointCount <= 0 || voxelSize <= 0) {
+            return 0;
+        }
+        return voxelDownsampleWithColorsInternal(
+            inputPtr, inputColors, pointCount, voxelSize,
+            globalMinX, globalMinY, globalMinZ,
+            outputPtr, outputColors
+        );
+    }
+
+    // Full attributes: positions + optional colors, intensities, classifications.
+    // Null pointers for any attribute skip that attribute. Intensity = average per voxel; classification = mode (most frequent) per voxel.
+    int voxelDownsampleDirectWithAttributes(
+        float* inputPtr,
+        float* inputColors,
+        float* inputIntensities,
+        uint8_t* inputClassifications,
+        int pointCount,
+        float voxelSize,
+        float globalMinX,
+        float globalMinY,
+        float globalMinZ,
+        float* outputPtr,
+        float* outputColors,
+        float* outputIntensities,
+        uint8_t* outputClassifications
+    ) {
+        if (!inputPtr || !outputPtr || pointCount <= 0 || voxelSize <= 0) {
+            return 0;
+        }
+        return voxelDownsampleWithAttributesInternal(
+            inputPtr, inputColors, inputIntensities, inputClassifications,
+            pointCount, voxelSize, globalMinX, globalMinY, globalMinZ,
+            outputPtr, outputColors, outputIntensities, outputClassifications
         );
     }
 }
@@ -177,6 +226,199 @@ int voxelDownsampleInternal(
     }
     
     return outputIndex; // Return number of output points
+}
+
+// Voxel downsampling with color averaging per voxel
+int voxelDownsampleWithColorsInternal(
+    float* inputData,
+    float* inputColors,
+    int pointCount,
+    float voxelSize,
+    float globalMinX,
+    float globalMinY,
+    float globalMinZ,
+    float* outputData,
+    float* outputColors
+) {
+    if (!inputData || !outputData || pointCount <= 0 || voxelSize <= 0) {
+        return 0;
+    }
+    const bool useColors = (inputColors != nullptr && outputColors != nullptr);
+
+    float invVoxelSize = 1.0f / voxelSize;
+
+    struct VoxelWithColor {
+        int count;
+        float sumX, sumY, sumZ;
+        float sumR, sumG, sumB;
+        VoxelWithColor() : count(0), sumX(0), sumY(0), sumZ(0), sumR(0), sumG(0), sumB(0) {}
+    };
+    std::unordered_map<uint64_t, VoxelWithColor, FastHash> voxelMap;
+    int estimatedVoxels = pointCount / 100;
+    if (estimatedVoxels < 100) estimatedVoxels = 100;
+    voxelMap.reserve(estimatedVoxels);
+
+    const int CHUNK_SIZE = 1024;
+    for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
+        int chunkEnd = (chunkStart + CHUNK_SIZE < pointCount) ? chunkStart + CHUNK_SIZE : pointCount;
+        for (int i = chunkStart; i < chunkEnd; i++) {
+            int i3 = i * 3;
+            float x = inputData[i3];
+            float y = inputData[i3 + 1];
+            float z = inputData[i3 + 2];
+            int voxelX = static_cast<int>(std::floor((x - globalMinX) * invVoxelSize));
+            int voxelY = static_cast<int>(std::floor((y - globalMinY) * invVoxelSize));
+            int voxelZ = static_cast<int>(std::floor((z - globalMinZ) * invVoxelSize));
+            uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
+                               (static_cast<uint64_t>(voxelY) << 16) |
+                               static_cast<uint64_t>(voxelZ);
+
+            auto it = voxelMap.find(voxelKey);
+            if (it == voxelMap.end()) {
+                VoxelWithColor v;
+                v.count = 1;
+                v.sumX = x; v.sumY = y; v.sumZ = z;
+                if (useColors) {
+                    v.sumR = inputColors[i3];
+                    v.sumG = inputColors[i3 + 1];
+                    v.sumB = inputColors[i3 + 2];
+                }
+                voxelMap[voxelKey] = v;
+            } else {
+                VoxelWithColor& v = it->second;
+                v.count++;
+                v.sumX += x; v.sumY += y; v.sumZ += z;
+                if (useColors) {
+                    v.sumR += inputColors[i3];
+                    v.sumG += inputColors[i3 + 1];
+                    v.sumB += inputColors[i3 + 2];
+                }
+            }
+        }
+    }
+
+    int outputIndex = 0;
+    for (const auto& [voxelKey, voxel] : voxelMap) {
+        outputData[outputIndex * 3] = voxel.sumX / voxel.count;
+        outputData[outputIndex * 3 + 1] = voxel.sumY / voxel.count;
+        outputData[outputIndex * 3 + 2] = voxel.sumZ / voxel.count;
+        if (useColors) {
+            outputColors[outputIndex * 3] = voxel.sumR / voxel.count;
+            outputColors[outputIndex * 3 + 1] = voxel.sumG / voxel.count;
+            outputColors[outputIndex * 3 + 2] = voxel.sumB / voxel.count;
+        }
+        outputIndex++;
+    }
+    return outputIndex;
+}
+
+// Full attributes: colors (average), intensity (average), classification (mode per voxel)
+int voxelDownsampleWithAttributesInternal(
+    float* inputData,
+    float* inputColors,
+    float* inputIntensities,
+    uint8_t* inputClassifications,
+    int pointCount,
+    float voxelSize,
+    float globalMinX,
+    float globalMinY,
+    float globalMinZ,
+    float* outputData,
+    float* outputColors,
+    float* outputIntensities,
+    uint8_t* outputClassifications
+) {
+    if (!inputData || !outputData || pointCount <= 0 || voxelSize <= 0) {
+        return 0;
+    }
+    const bool useColors = (inputColors != nullptr && outputColors != nullptr);
+    const bool useIntensity = (inputIntensities != nullptr && outputIntensities != nullptr);
+    const bool useClassification = (inputClassifications != nullptr && outputClassifications != nullptr);
+
+    float invVoxelSize = 1.0f / voxelSize;
+
+    struct ClassCounts {
+        std::unordered_map<uint8_t, int> counts;
+        void add(uint8_t c) { counts[c]++; }
+        uint8_t mode() const {
+            int maxCount = 0;
+            uint8_t best = 0;
+            for (const auto& [cls, n] : counts) {
+                if (n > maxCount) { maxCount = n; best = cls; }
+            }
+            return best;
+        }
+    };
+
+    struct VoxelFull {
+        int count;
+        float sumX, sumY, sumZ, sumR, sumG, sumB, sumIntensity;
+        ClassCounts classCounts;
+        VoxelFull() : count(0), sumX(0), sumY(0), sumZ(0), sumR(0), sumG(0), sumB(0), sumIntensity(0) {}
+    };
+    std::unordered_map<uint64_t, VoxelFull, FastHash> voxelMap;
+    int estimatedVoxels = pointCount / 100;
+    if (estimatedVoxels < 100) estimatedVoxels = 100;
+    voxelMap.reserve(estimatedVoxels);
+
+    const int CHUNK_SIZE = 1024;
+    for (int chunkStart = 0; chunkStart < pointCount; chunkStart += CHUNK_SIZE) {
+        int chunkEnd = (chunkStart + CHUNK_SIZE < pointCount) ? chunkStart + CHUNK_SIZE : pointCount;
+        for (int i = chunkStart; i < chunkEnd; i++) {
+            int i3 = i * 3;
+            float x = inputData[i3];
+            float y = inputData[i3 + 1];
+            float z = inputData[i3 + 2];
+            int voxelX = static_cast<int>(std::floor((x - globalMinX) * invVoxelSize));
+            int voxelY = static_cast<int>(std::floor((y - globalMinY) * invVoxelSize));
+            int voxelZ = static_cast<int>(std::floor((z - globalMinZ) * invVoxelSize));
+            uint64_t voxelKey = (static_cast<uint64_t>(voxelX) << 32) |
+                               (static_cast<uint64_t>(voxelY) << 16) |
+                               static_cast<uint64_t>(voxelZ);
+
+            auto it = voxelMap.find(voxelKey);
+            if (it == voxelMap.end()) {
+                VoxelFull v;
+                v.count = 1;
+                v.sumX = x; v.sumY = y; v.sumZ = z;
+                if (useColors) {
+                    v.sumR = inputColors[i3];
+                    v.sumG = inputColors[i3 + 1];
+                    v.sumB = inputColors[i3 + 2];
+                }
+                if (useIntensity) v.sumIntensity = inputIntensities[i];
+                if (useClassification) v.classCounts.add(inputClassifications[i]);
+                voxelMap[voxelKey] = v;
+            } else {
+                VoxelFull& v = it->second;
+                v.count++;
+                v.sumX += x; v.sumY += y; v.sumZ += z;
+                if (useColors) {
+                    v.sumR += inputColors[i3];
+                    v.sumG += inputColors[i3 + 1];
+                    v.sumB += inputColors[i3 + 2];
+                }
+                if (useIntensity) v.sumIntensity += inputIntensities[i];
+                if (useClassification) v.classCounts.add(inputClassifications[i]);
+            }
+        }
+    }
+
+    int outputIndex = 0;
+    for (const auto& [voxelKey, voxel] : voxelMap) {
+        outputData[outputIndex * 3] = voxel.sumX / voxel.count;
+        outputData[outputIndex * 3 + 1] = voxel.sumY / voxel.count;
+        outputData[outputIndex * 3 + 2] = voxel.sumZ / voxel.count;
+        if (useColors) {
+            outputColors[outputIndex * 3] = voxel.sumR / voxel.count;
+            outputColors[outputIndex * 3 + 1] = voxel.sumG / voxel.count;
+            outputColors[outputIndex * 3 + 2] = voxel.sumB / voxel.count;
+        }
+        if (useIntensity) outputIntensities[outputIndex] = voxel.sumIntensity / voxel.count;
+        if (useClassification) outputClassifications[outputIndex] = voxel.classCounts.mode();
+        outputIndex++;
+    }
+    return outputIndex;
 }
 
 // Emscripten bindings for voxel downsampling

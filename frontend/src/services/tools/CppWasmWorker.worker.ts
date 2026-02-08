@@ -35,10 +35,15 @@ interface ToolsModule {
   ): number;
 }
 
-let toolsModule: ToolsModule | null = null;
-let voxelDownsampleDirectFunc: ((...args: number[]) => number) | null = null; // Cached wrapped function
-let voxelDebugDirectFunc: ((...args: number[]) => number) | null = null; // Cached wrapped function for voxel debug
-let previousOutputPtr: number | null = null; // Track output pointer for memory management
+let toolsModule: (ToolsModule & { HEAPU8?: Uint8Array }) | null = null;
+let voxelDownsampleDirectFunc: ((...args: number[]) => number) | null = null;
+let voxelDownsampleDirectWithColorsFunc: ((...args: number[]) => number) | null = null;
+let voxelDownsampleDirectWithAttributesFunc: ((...args: number[]) => number) | null = null;
+let voxelDebugDirectFunc: ((...args: number[]) => number) | null = null;
+let previousOutputPtr: number | null = null;
+let previousOutputColorPtr: number | null = null;
+let previousOutputIntensityPtr: number | null = null;
+let previousOutputClassificationPtr: number | null = null;
 
 // Initialize WASM module (exact same pattern as VoxelDownsampleWorker)
 async function initialize() {
@@ -118,17 +123,15 @@ async function initializeWasmModule() {
     },
   });
 
-  // OPTIMIZATION: Pre-wrap the function to avoid ccall overhead on every call
-  // cwrap caches the function pointer and reduces call overhead
   if (toolsModule.cwrap) {
     voxelDownsampleDirectFunc = toolsModule.cwrap(
       'voxelDownsampleDirect',
-      'number', // Return type: int
-      ['number', 'number', 'number', 'number', 'number', 'number', 'number'] // Parameter types
+      'number',
+      ['number', 'number', 'number', 'number', 'number', 'number', 'number']
     );
-    voxelDebugDirectFunc = toolsModule.cwrap(
-      'voxelDebugDirect',
-      'number', // Return type: int
+    voxelDownsampleDirectWithColorsFunc = toolsModule.cwrap(
+      'voxelDownsampleDirectWithColors',
+      'number',
       [
         'number',
         'number',
@@ -138,7 +141,42 @@ async function initializeWasmModule() {
         'number',
         'number',
         'number',
-      ] // Parameter types
+        'number',
+      ]
+    );
+    voxelDownsampleDirectWithAttributesFunc = toolsModule.cwrap(
+      'voxelDownsampleDirectWithAttributes',
+      'number',
+      [
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+      ]
+    );
+    voxelDebugDirectFunc = toolsModule.cwrap(
+      'voxelDebugDirect',
+      'number',
+      [
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+        'number',
+      ]
     );
     Log.Info(
       'CppWasmWorker',
@@ -149,7 +187,7 @@ async function initializeWasmModule() {
   Log.Info('CppWasmWorker', 'ToolsModule instance created');
 }
 
-// Process voxel downsampling
+// Process voxel downsampling (supports full attributes: colors, intensities, classifications)
 async function processVoxelDownsampling(data: {
   pointCloudData: Float32Array;
   voxelSize: number;
@@ -161,12 +199,14 @@ async function processVoxelDownsampling(data: {
     maxY: number;
     maxZ: number;
   };
+  colors?: Float32Array;
+  intensities?: Float32Array;
+  classifications?: Uint8Array;
 }) {
   if (!toolsModule) {
     throw new Error('WASM module not initialized');
   }
 
-  // Check if required functions are available
   if (!toolsModule._malloc || !toolsModule._free || !toolsModule.HEAPF32) {
     throw new Error(
       'Required WASM functions not available. Missing: ' +
@@ -177,84 +217,171 @@ async function processVoxelDownsampling(data: {
   }
 
   const startTime = performance.now();
-  const { pointCloudData, voxelSize, globalBounds } = data;
-
+  const { pointCloudData, voxelSize, globalBounds, colors, intensities, classifications } = data;
   const pointCount = pointCloudData.length / 3;
   const floatCount = pointCloudData.length;
+  const useColors = colors != null && colors.length === pointCount * 3;
+  const useIntensity = intensities != null && intensities.length === pointCount;
+  const useClassification =
+    classifications != null &&
+    classifications.length === pointCount &&
+    toolsModule.HEAPU8 != null;
+  const useAttributes =
+    (useColors || useIntensity || useClassification) &&
+    voxelDownsampleDirectWithAttributesFunc != null;
 
-  // Free previous output buffer if it exists (keep only one result alive at a time)
   if (previousOutputPtr !== null) {
     toolsModule._free(previousOutputPtr);
     previousOutputPtr = null;
   }
+  if (previousOutputColorPtr !== null) {
+    toolsModule._free(previousOutputColorPtr);
+    previousOutputColorPtr = null;
+  }
+  if (previousOutputIntensityPtr !== null) {
+    toolsModule._free(previousOutputIntensityPtr);
+    previousOutputIntensityPtr = null;
+  }
+  if (previousOutputClassificationPtr !== null) {
+    toolsModule._free(previousOutputClassificationPtr);
+    previousOutputClassificationPtr = null;
+  }
 
-  // Allocate memory in WASM heap for input and output
-  // Note: Output buffer must be worst-case (same as input) to avoid buffer overflow
-  const inputPtr = toolsModule._malloc(floatCount * 4); // 4 bytes per float
-  const outputPtr = toolsModule._malloc(floatCount * 4); // Worst-case: same size as input (safe)
+  const inputPtr = toolsModule._malloc(floatCount * 4);
+  const outputPtr = toolsModule._malloc(floatCount * 4);
+  let inputColorPtr = 0;
+  let outputColorPtr = 0;
+  let inputIntensityPtr = 0;
+  let outputIntensityPtr = 0;
+  let inputClassPtr = 0;
+  let outputClassPtr = 0;
+
+  if (useAttributes) {
+    if (useColors && colors) {
+      inputColorPtr = toolsModule._malloc(pointCount * 3 * 4);
+      outputColorPtr = toolsModule._malloc(floatCount * 4);
+    }
+    if (useIntensity && intensities) {
+      inputIntensityPtr = toolsModule._malloc(pointCount * 4);
+      outputIntensityPtr = toolsModule._malloc(floatCount * 4);
+    }
+    if (useClassification && classifications && toolsModule.HEAPU8) {
+      inputClassPtr = toolsModule._malloc(pointCount);
+      outputClassPtr = toolsModule._malloc(pointCount);
+    }
+  } else if (useColors && colors && voxelDownsampleDirectWithColorsFunc) {
+    inputColorPtr = toolsModule._malloc(pointCount * 3 * 4);
+    outputColorPtr = toolsModule._malloc(floatCount * 4);
+  }
 
   if (!inputPtr || !outputPtr) {
+    if (inputColorPtr) toolsModule._free(inputColorPtr);
+    if (outputColorPtr) toolsModule._free(outputColorPtr);
+    if (inputIntensityPtr) toolsModule._free(inputIntensityPtr);
+    if (outputIntensityPtr) toolsModule._free(outputIntensityPtr);
+    if (inputClassPtr) toolsModule._free(inputClassPtr);
+    if (outputClassPtr) toolsModule._free(outputClassPtr);
     throw new Error(
       `Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`
     );
   }
 
-  // OPTIMIZATION: Check if input is already in WASM memory (zero-copy optimization)
   const isInputInWasmMemory =
     pointCloudData.buffer === toolsModule.HEAPF32.buffer;
   let inputPtrToUse = inputPtr;
 
   try {
     if (isInputInWasmMemory) {
-      // Input is already in WASM memory - use it directly (zero-copy!)
       inputPtrToUse = pointCloudData.byteOffset;
-      // Free the allocated input buffer since we don't need it
       toolsModule._free(inputPtr);
     } else {
-      // OPTIMIZATION: Bulk copy input data using HEAPF32.set()
-      // This is much faster than element-by-element copy
-      const inputFloatIndex = inputPtr >> 2; // Convert byte pointer to float index
-      toolsModule.HEAPF32.set(pointCloudData, inputFloatIndex);
+      toolsModule.HEAPF32.set(pointCloudData, inputPtr >> 2);
     }
 
-    // OPTIMIZATION: Use cached wrapped function (cwrap) instead of ccall for better performance
-    // cwrap reduces function call overhead by caching the function pointer
-    const outputCount = voxelDownsampleDirectFunc
-      ? voxelDownsampleDirectFunc(
-          inputPtrToUse, // inputPtr (byte pointer, C will cast to float*)
-          pointCount, // pointCount
-          voxelSize, // voxelSize
-          globalBounds.minX, // globalMinX
-          globalBounds.minY, // globalMinY
-          globalBounds.minZ, // globalMinZ
-          outputPtr // outputPtr (byte pointer, C will cast to float*)
-        )
-      : toolsModule.ccall
-        ? toolsModule.ccall(
-            'voxelDownsampleDirect',
-            'number',
-            [
-              'number',
-              'number',
-              'number',
-              'number',
-              'number',
-              'number',
-              'number',
-            ],
-            [
-              inputPtrToUse,
-              pointCount,
-              voxelSize,
-              globalBounds.minX,
-              globalBounds.minY,
-              globalBounds.minZ,
-              outputPtr,
-            ]
+    if (useColors && colors && inputColorPtr) {
+      toolsModule.HEAPF32.set(colors, inputColorPtr >> 2);
+    }
+    if (useIntensity && intensities && inputIntensityPtr) {
+      toolsModule.HEAPF32.set(intensities, inputIntensityPtr >> 2);
+    }
+    if (useClassification && classifications && inputClassPtr && toolsModule.HEAPU8) {
+      toolsModule.HEAPU8.set(classifications, inputClassPtr);
+    }
+
+    let outputCount: number;
+    if (useAttributes && voxelDownsampleDirectWithAttributesFunc) {
+      outputCount = voxelDownsampleDirectWithAttributesFunc(
+        inputPtrToUse,
+        useColors ? inputColorPtr : 0,
+        useIntensity ? inputIntensityPtr : 0,
+        useClassification ? inputClassPtr : 0,
+        pointCount,
+        voxelSize,
+        globalBounds.minX,
+        globalBounds.minY,
+        globalBounds.minZ,
+        outputPtr,
+        useColors ? outputColorPtr : 0,
+        useIntensity ? outputIntensityPtr : 0,
+        useClassification ? outputClassPtr : 0
+      );
+    } else if (
+      useColors &&
+      inputColorPtr &&
+      outputColorPtr &&
+      voxelDownsampleDirectWithColorsFunc
+    ) {
+      outputCount = voxelDownsampleDirectWithColorsFunc(
+        inputPtrToUse,
+        inputColorPtr,
+        pointCount,
+        voxelSize,
+        globalBounds.minX,
+        globalBounds.minY,
+        globalBounds.minZ,
+        outputPtr,
+        outputColorPtr
+      );
+    } else {
+      outputCount = voxelDownsampleDirectFunc
+        ? voxelDownsampleDirectFunc(
+            inputPtrToUse,
+            pointCount,
+            voxelSize,
+            globalBounds.minX,
+            globalBounds.minY,
+            globalBounds.minZ,
+            outputPtr
           )
         : (() => {
+            const ccall = (toolsModule as { ccall?: (name: string, ret: string, types: string[], args: number[]) => number }).ccall;
+            if (ccall) {
+              return ccall(
+                'voxelDownsampleDirect',
+                'number',
+                [
+                  'number',
+                  'number',
+                  'number',
+                  'number',
+                  'number',
+                  'number',
+                  'number',
+                ],
+                [
+                  inputPtrToUse,
+                  pointCount,
+                  voxelSize,
+                  globalBounds.minX,
+                  globalBounds.minY,
+                  globalBounds.minZ,
+                  outputPtr,
+                ]
+              );
+            }
             throw new Error('No direct function available');
           })();
+    }
 
     if (outputCount <= 0 || outputCount > pointCount) {
       throw new Error(
@@ -262,40 +389,71 @@ async function processVoxelDownsampling(data: {
       );
     }
 
-    // ZERO-COPY OUTPUT: Create direct view of WASM memory
-    // Store output pointer to keep WASM memory alive - don't free it immediately
     const resultFloatCount = outputCount * 3;
     const outputFloatIndex = outputPtr >> 2;
-
-    // Create zero-copy view of WASM memory for processing
-    const downsampledPointsView = toolsModule.HEAPF32.subarray(
-      outputFloatIndex,
-      outputFloatIndex + resultFloatCount
+    const downsampledPoints = new Float32Array(
+      toolsModule.HEAPF32.subarray(
+        outputFloatIndex,
+        outputFloatIndex + resultFloatCount
+      )
     );
 
-    // OPTIMIZATION: Copy to new buffer only for transfer (WASM memory cannot be transferred)
-    // This is necessary because postMessage cannot transfer WASM/asm.js ArrayBuffers
-    // We still get zero-copy benefits during processing, only copy at the end
-    const downsampledPoints = new Float32Array(downsampledPointsView);
-
-    // Store output pointer to keep memory alive (for the view, even though we copied)
-    // Previous output pointer was already freed above
     previousOutputPtr = outputPtr;
+
+    let downsampledColors: Float32Array | undefined;
+    let downsampledIntensities: Float32Array | undefined;
+    let downsampledClassifications: Uint8Array | undefined;
+
+    if (useColors && outputColorPtr) {
+      previousOutputColorPtr = outputColorPtr;
+      downsampledColors = new Float32Array(
+        toolsModule.HEAPF32.subarray(
+          outputColorPtr >> 2,
+          (outputColorPtr >> 2) + resultFloatCount
+        )
+      );
+    }
+    if (useIntensity && outputIntensityPtr) {
+      previousOutputIntensityPtr = outputIntensityPtr;
+      downsampledIntensities = new Float32Array(
+        toolsModule.HEAPF32.subarray(
+          outputIntensityPtr >> 2,
+          (outputIntensityPtr >> 2) + outputCount
+        )
+      );
+    }
+    if (useClassification && outputClassPtr && toolsModule.HEAPU8) {
+      previousOutputClassificationPtr = outputClassPtr;
+      downsampledClassifications = toolsModule.HEAPU8.subarray(
+        outputClassPtr,
+        outputClassPtr + outputCount
+      ).slice(0);
+    }
 
     const processingTime = performance.now() - startTime;
 
     return {
       downsampledPoints,
+      downsampledColors,
+      downsampledIntensities,
+      downsampledClassifications,
       originalCount: pointCount,
       downsampledCount: outputCount,
       processingTime,
     };
   } finally {
-    // Free input memory only if we allocated it (not if it was already in WASM memory)
     if (!isInputInWasmMemory && inputPtr) {
       toolsModule._free(inputPtr);
     }
-    // Note: outputPtr is NOT freed here - it's stored in previousOutputPtr and freed on next call
+    if (inputColorPtr) {
+      toolsModule._free(inputColorPtr);
+    }
+    if (inputIntensityPtr) {
+      toolsModule._free(inputIntensityPtr);
+    }
+    if (inputClassPtr) {
+      toolsModule._free(inputClassPtr);
+    }
   }
 }
 
@@ -521,6 +679,16 @@ self.onmessage = async function (e) {
       });
     } else if (type === 'VOXEL_DOWNSAMPLE') {
       const result = await processVoxelDownsampling(data);
+      const transfer: Transferable[] = [result.downsampledPoints.buffer];
+      if (result.downsampledColors) {
+        transfer.push(result.downsampledColors.buffer);
+      }
+      if (result.downsampledIntensities) {
+        transfer.push(result.downsampledIntensities.buffer);
+      }
+      if (result.downsampledClassifications) {
+        transfer.push(result.downsampledClassifications.buffer);
+      }
       globalThis.postMessage(
         {
           type: 'SUCCESS',
@@ -528,7 +696,7 @@ self.onmessage = async function (e) {
           messageId,
           data: result,
         },
-        { transfer: [result.downsampledPoints.buffer] }
+        { transfer }
       );
     } else if (type === 'POINT_CLOUD_SMOOTHING') {
       const result = await processPointCloudSmoothing(data);

@@ -55,7 +55,7 @@ emcc "$FRONTEND_DIR/src/wasm/cpp/voxel_downsample.cpp" \
   -s MAXIMUM_MEMORY=512MB \
   -s ENVIRONMENT="web" \
   -s EXPORTED_RUNTIME_METHODS="['ccall', 'cwrap', 'HEAPF32', 'HEAPU8']" \
-  -s EXPORTED_FUNCTIONS="['_voxelDownsampleDirect', '_voxelDebugDirect', '_malloc', '_free']" \
+  -s EXPORTED_FUNCTIONS="['_voxelDownsampleDirect', '_voxelDownsampleDirectWithColors', '_voxelDownsampleDirectWithAttributes', '_voxelDebugDirect', '_malloc', '_free']" \
   -s NO_DISABLE_EXCEPTION_CATCHING=1 \
   -O2 \
   -ffast-math \

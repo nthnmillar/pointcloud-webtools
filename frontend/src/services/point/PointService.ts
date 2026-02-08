@@ -288,52 +288,70 @@ export class PointService extends BaseService {
   }
 
   /**
-   * Create point cloud mesh from Float32Array directly (optimized for WASM results)
-   * This avoids creating intermediate JS objects
+   * Create point cloud mesh from Float32Array (optimized for WASM results).
+   * @param perPointColors - Optional R,G,B per point (length = positionCount*3).
+   * @param perPointIntensities - Optional intensity per point (length = positionCount).
+   * @param perPointClassifications - Optional classification per point 0–255 (length = positionCount).
    */
   async createPointCloudMeshFromFloat32Array(
     id: string,
     positions: Float32Array,
     color: { r: number; g: number; b: number } = { r: 1, g: 1, b: 1 },
-    metadata: Partial<PointCloudMetadata>
+    metadata: Partial<PointCloudMetadata>,
+    perPointColors?: Float32Array,
+    perPointIntensities?: Float32Array,
+    perPointClassifications?: Uint8Array
   ): Promise<void> {
+    const pointCount = positions.length / 3;
+    const hasColor =
+      perPointColors != null && perPointColors.length === pointCount * 3;
+    const hasIntensity =
+      perPointIntensities != null && perPointIntensities.length === pointCount;
+    const hasClassification =
+      perPointClassifications != null &&
+      perPointClassifications.length === pointCount;
+
     Log.InfoClass(this, 'Creating point cloud from Float32Array', {
       id,
-      pointCount: positions.length / 3,
+      pointCount,
+      hasPerPointColors: hasColor,
+      hasIntensity,
+      hasClassification,
     });
 
-    // Calculate bounds from Float32Array
     const bounds = this.calculateBoundsFromFloat32Array(positions);
 
-    // Store minimal point cloud data
-    // Store positions array for later use (e.g., debug visualization)
     const pointCloudData: PointCloudData = {
-      points: [], // Empty - we don't store points, just metadata
-      positions: new Float32Array(positions), // Store a copy of positions for debug/tools
+      points: [],
+      positions: new Float32Array(positions),
       metadata: {
         name: metadata.name || 'Point Cloud',
-        totalPoints: positions.length / 3,
+        totalPoints: pointCount,
         bounds,
-        hasColor: true,
-        hasIntensity: false,
-        hasClassification: false,
+        hasColor,
+        hasIntensity,
+        hasClassification,
         ...metadata,
       },
     };
+    if (perPointColors) pointCloudData.colors = perPointColors;
+    if (perPointIntensities) pointCloudData.intensities = perPointIntensities;
+    if (perPointClassifications)
+      pointCloudData.classifications = perPointClassifications;
     this.pointClouds.set(id, pointCloudData);
 
     if (!this.activePointCloudId) {
       this.activePointCloudId = id;
     }
 
-    // Create the mesh directly using optimized method
     if (this.pointMesh) {
       await this.pointMesh.createPointCloudMeshFromFloat32Array(
         id,
         positions,
         color,
         metadata,
-        this.getRenderOptions()
+        this.getRenderOptions(),
+        perPointColors
       );
     }
   }
@@ -438,7 +456,27 @@ export class PointService extends BaseService {
       return;
     }
 
-    // Create the mesh directly
+    // Positions-based point clouds (e.g. voxel downsampled): use Float32Array path so colors are used
+    const hasPositionsOnly =
+      pointCloud.positions &&
+      pointCloud.positions.length > 0 &&
+      (!pointCloud.points || pointCloud.points.length === 0);
+    if (hasPositionsOnly) {
+      const pointCount = pointCloud.positions!.length / 3;
+      const useStoredColors =
+        pointCloud.colors != null && pointCloud.colors.length === pointCount * 3;
+      await this.pointMesh.createPointCloudMeshFromFloat32Array(
+        id,
+        pointCloud.positions!,
+        { r: 1, g: 1, b: 1 },
+        pointCloud.metadata,
+        options,
+        useStoredColors ? pointCloud.colors! : undefined
+      );
+      return;
+    }
+
+    // Create the mesh directly (points-based)
     await this.pointMesh.createPointCloudMesh(
       id,
       pointCloud,

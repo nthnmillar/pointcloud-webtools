@@ -7,6 +7,12 @@ import { VoxelDownsampleDebugService } from './VoxelDownsampleDebug/VoxelDownsam
 
 export interface VoxelDownsampleParams {
   pointCloudData: Float32Array;
+  /** Optional R,G,B per point (length = pointCount*3), same order as pointCloudData. */
+  colors?: Float32Array;
+  /** Optional intensity per point (length = pointCount). */
+  intensities?: Float32Array;
+  /** Optional classification per point (length = pointCount), 0–255. */
+  classifications?: Uint8Array;
   voxelSize: number;
   globalBounds: {
     minX: number;
@@ -21,6 +27,9 @@ export interface VoxelDownsampleParams {
 export interface VoxelDownsampleResult {
   success: boolean;
   downsampledPoints?: Float32Array;
+  downsampledColors?: Float32Array;
+  downsampledIntensities?: Float32Array;
+  downsampledClassifications?: Uint8Array;
   originalCount?: number;
   downsampledCount?: number;
   processingTime?: number;

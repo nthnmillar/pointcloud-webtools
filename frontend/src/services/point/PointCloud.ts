@@ -47,7 +47,13 @@ export interface PointCloudMetadata {
 export interface PointCloudData {
   points: PointCloudPoint[];
   metadata: PointCloudMetadata;
-  positions?: Float32Array; // Optional: stores positions for point clouds created from Float32Array
+  positions?: Float32Array;
+  /** Per-point RGB (length = position count * 3), when created from Float32Array with colors */
+  colors?: Float32Array;
+  /** Per-point intensity (same length as position count), when created from full-attribute pipeline */
+  intensities?: Float32Array;
+  /** Per-point classification 0–255 (same length as position count) */
+  classifications?: Uint8Array;
 }
 
 export interface RenderOptions {

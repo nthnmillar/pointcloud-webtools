@@ -33,7 +33,8 @@ export class PointMesh {
     positions: Float32Array,
     color: { r: number; g: number; b: number } = { r: 1, g: 1, b: 1 },
     _metadata: Partial<PointCloudMetadata>,
-    options: RenderOptions
+    options: RenderOptions,
+    perPointColors?: Float32Array
   ): Promise<PointsCloudSystem | null> {
     Log.Debug('PointMesh', 'Creating point cloud mesh from Float32Array', {
       id,
@@ -71,6 +72,8 @@ export class PointMesh {
     const colors = new Float32Array(pointsToRender * 4);
 
     // Process points in batches
+    const usePerPointColors =
+      perPointColors != null && perPointColors.length >= pointCount * 3;
     let renderIndex = 0;
     for (let i = 0; i < pointCount && renderIndex < pointsToRender; i += step) {
       const srcIndex = i * 3;
@@ -82,10 +85,15 @@ export class PointMesh {
       transformedPositions[dstIndex + 1] = positions[srcIndex + 2]; // up -> up
       transformedPositions[dstIndex + 2] = positions[srcIndex]; // forward -> forward
 
-      // Set color
-      colors[colorIndex] = color.r;
-      colors[colorIndex + 1] = color.g;
-      colors[colorIndex + 2] = color.b;
+      if (usePerPointColors && perPointColors) {
+        colors[colorIndex] = perPointColors[srcIndex];
+        colors[colorIndex + 1] = perPointColors[srcIndex + 1];
+        colors[colorIndex + 2] = perPointColors[srcIndex + 2];
+      } else {
+        colors[colorIndex] = color.r;
+        colors[colorIndex + 1] = color.g;
+        colors[colorIndex + 2] = color.b;
+      }
       colors[colorIndex + 3] = 1; // A
 
       renderIndex++;

@@ -68,7 +68,10 @@ export class WorkerManager {
       maxX: number;
       maxY: number;
       maxZ: number;
-    }
+    },
+    colors?: Float32Array,
+    intensities?: Float32Array,
+    classifications?: Uint8Array
   ) {
     if (!this.isInitialized) {
       throw new Error('Workers not initialized');
@@ -82,7 +85,10 @@ export class WorkerManager {
         return await this.cppWorker.processVoxelDownsampling(
           pointCloudData,
           voxelSize,
-          globalBounds
+          globalBounds,
+          colors,
+          intensities,
+          classifications
         );
 
       case 'WASM_RUST':

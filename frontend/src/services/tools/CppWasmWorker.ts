@@ -19,6 +19,9 @@ export interface CppWasmWorkerMessage {
       maxY: number;
       maxZ: number;
     };
+    colors?: Float32Array;
+    intensities?: Float32Array;
+    classifications?: Uint8Array;
     smoothingRadius?: number;
     iterations?: number;
   };
@@ -30,6 +33,9 @@ export interface CppWasmWorkerResponse {
   messageId: number;
   data?: {
     downsampledPoints?: Float32Array;
+    downsampledColors?: Float32Array;
+    downsampledIntensities?: Float32Array;
+    downsampledClassifications?: Uint8Array;
     smoothedPoints?: Float32Array;
     voxelCenters?: Float32Array;
     originalCount: number;
@@ -151,7 +157,10 @@ export class CppWasmWorker {
       maxX: number;
       maxY: number;
       maxZ: number;
-    }
+    },
+    colors?: Float32Array,
+    intensities?: Float32Array,
+    classifications?: Uint8Array
   ): Promise<CppWasmWorkerResponse> {
     if (!this.isInitialized || !this.worker) {
       throw new Error('Worker not initialized');
@@ -161,7 +170,14 @@ export class CppWasmWorker {
     const message: CppWasmWorkerMessage = {
       type: 'VOXEL_DOWNSAMPLE',
       messageId,
-      data: { pointCloudData, voxelSize, globalBounds },
+      data: {
+        pointCloudData,
+        voxelSize,
+        globalBounds,
+        colors,
+        intensities,
+        classifications,
+      },
     };
 
     return this.sendMessageToWorker(message);
