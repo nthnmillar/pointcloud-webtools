@@ -104,6 +104,14 @@ async function initializeFile(
   }
 }
 
+// LAS point layout: intensity at 12 (uint16), classification at 15 (uint8).
+// RGB: format 2 (26 bytes) at 20–25, format 3 (34 bytes) at 28–33 (uint16 each, 0–65535).
+function getRgbOffset(pointDataRecordLength: number): number {
+  if (pointDataRecordLength === 26) return 20;
+  if (pointDataRecordLength >= 34) return 28;
+  return -1;
+}
+
 // Process next batch
 async function processNextBatch() {
   if (!currentLaszip || currentBatchIndex >= totalBatches) {
@@ -121,15 +129,24 @@ async function processNextBatch() {
       throw new Error('lazPerf not initialized');
     }
 
-    // Create batch points array
+    const hasColor = pointDataRecordLength >= 26;
+    const rgbOffset = getRgbOffset(pointDataRecordLength);
+
     const batchPoints = new Float32Array(batchPointCount * 3);
+    const batchIntensities =
+      pointDataRecordLength >= 14 ? new Uint16Array(batchPointCount) : undefined;
+    const batchClassifications =
+      pointDataRecordLength >= 16 ? new Uint8Array(batchPointCount) : undefined;
+    const batchColors =
+      hasColor && rgbOffset >= 0
+        ? new Float32Array(batchPointCount * 3)
+        : undefined;
+
     const pointBufferPtr = lazPerf._malloc(pointDataRecordLength);
     const pointBuffer = new Uint8Array(pointDataRecordLength);
 
-    // Process points in this batch
     for (let i = 0; i < batchPointCount; i++) {
       try {
-        // Get the point at the current position (this advances the internal pointer)
         currentLaszip.getPoint(pointBufferPtr);
         pointBuffer.set(
           lazPerf.HEAPU8.subarray(
@@ -138,21 +155,16 @@ async function processNextBatch() {
           )
         );
 
-        // Extract coordinates - LAS points are stored as integers that need to be scaled
-        const x = new DataView(
+        const view = new DataView(
           pointBuffer.buffer,
-          pointBuffer.byteOffset
-        ).getInt32(0, true);
-        const y = new DataView(
-          pointBuffer.buffer,
-          pointBuffer.byteOffset
-        ).getInt32(4, true);
-        const z = new DataView(
-          pointBuffer.buffer,
-          pointBuffer.byteOffset
-        ).getInt32(8, true);
+          pointBuffer.byteOffset,
+          pointDataRecordLength
+        );
 
-        // Apply scale and offset from header
+        const x = view.getInt32(0, true);
+        const y = view.getInt32(4, true);
+        const z = view.getInt32(8, true);
+
         if (!currentHeader) {
           throw new Error('Header not initialized');
         }
@@ -163,19 +175,30 @@ async function processNextBatch() {
         const scaledZ =
           z * (currentHeader.ScaleFactorZ || 1) + (currentHeader.OffsetZ || 0);
 
-        // Store in batch array
         batchPoints[i * 3] = scaledX;
         batchPoints[i * 3 + 1] = scaledY;
         batchPoints[i * 3 + 2] = scaledZ;
+
+        if (batchIntensities !== undefined) {
+          batchIntensities[i] = view.getUint16(12, true);
+        }
+        if (batchClassifications !== undefined) {
+          batchClassifications[i] = view.getUint8(15);
+        }
+        if (batchColors !== undefined && rgbOffset >= 0) {
+          batchColors[i * 3] = view.getUint16(rgbOffset, true) / 65535;
+          batchColors[i * 3 + 1] =
+            view.getUint16(rgbOffset + 2, true) / 65535;
+          batchColors[i * 3 + 2] =
+            view.getUint16(rgbOffset + 4, true) / 65535;
+        }
       } catch {
         // Continue with next point
       }
     }
 
-    // Clean up point buffer
     lazPerf._free(pointBufferPtr);
 
-    // Send batch data
     const batchMessage = {
       type: 'BATCH_COMPLETE',
       data: {
@@ -184,6 +207,12 @@ async function processNextBatch() {
         progress: ((currentBatchIndex + 1) / totalBatches) * 100,
         totalBatches: totalBatches,
         header: currentHeader,
+        hasColor: batchColors !== undefined,
+        hasIntensity: batchIntensities !== undefined,
+        hasClassification: batchClassifications !== undefined,
+        ...(batchColors && { colors: batchColors }),
+        ...(batchIntensities && { intensities: batchIntensities }),
+        ...(batchClassifications && { classifications: batchClassifications }),
       },
     };
 

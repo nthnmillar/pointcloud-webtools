@@ -28,13 +28,19 @@ export interface LasHeaderData {
   [key: string]: unknown;
 }
 
-// Batch data structure from LazWorker
+// Batch data structure from LazWorker (optional attributes when present in file)
 export interface LazBatchData {
   batchId: string;
   points: Float32Array;
   progress: number;
   totalBatches: number;
   header?: LasHeaderData;
+  hasColor?: boolean;
+  hasIntensity?: boolean;
+  hasClassification?: boolean;
+  colors?: Float32Array;
+  intensities?: Uint16Array;
+  classifications?: Uint8Array;
 }
 
 export class LoadLaz {
