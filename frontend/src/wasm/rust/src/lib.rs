@@ -6,7 +6,7 @@ mod voxel_downsample;
 mod point_cloud_smoothing;
 mod voxel_debug;
 
-use voxel_downsample::voxel_downsample_internal;
+use voxel_downsample::{voxel_downsample_internal, voxel_downsample_with_attributes_internal};
 use point_cloud_smoothing::point_cloud_smooth_internal;
 use voxel_debug::generate_voxel_centers_internal;
 
@@ -76,6 +76,90 @@ impl PointCloudToolsRust {
                 min_y,
                 min_z,
                 output_ptr_f32,
+            )
+        }
+    }
+
+    /// Direct pointer-based voxel downsampling with optional colors, intensity, classification.
+    /// Pass 0 for any input or output pointer to skip that attribute.
+    #[wasm_bindgen]
+    pub fn voxel_downsample_direct_with_attributes_static(
+        input_ptr: usize,
+        input_color_ptr: usize,
+        input_intensity_ptr: usize,
+        input_class_ptr: usize,
+        point_count: usize,
+        voxel_size: f32,
+        min_x: f32,
+        min_y: f32,
+        min_z: f32,
+        output_ptr: usize,
+        output_color_ptr: usize,
+        output_intensity_ptr: usize,
+        output_class_ptr: usize,
+    ) -> usize {
+        if point_count == 0 || voxel_size <= 0.0 {
+            return 0;
+        }
+        if input_ptr % 4 != 0 || output_ptr % 4 != 0 {
+            return 0;
+        }
+        let input_len = point_count * 3;
+        unsafe {
+            let input_ptr_f32 = input_ptr as *const f32;
+            let points = std::slice::from_raw_parts(input_ptr_f32, input_len);
+            let colors = if input_color_ptr != 0 && output_color_ptr != 0 {
+                Some(std::slice::from_raw_parts(
+                    input_color_ptr as *const f32,
+                    input_len,
+                ))
+            } else {
+                None
+            };
+            let intensities = if input_intensity_ptr != 0 && output_intensity_ptr != 0 {
+                Some(std::slice::from_raw_parts(
+                    input_intensity_ptr as *const f32,
+                    point_count,
+                ))
+            } else {
+                None
+            };
+            let classifications = if input_class_ptr != 0 && output_class_ptr != 0 {
+                Some(std::slice::from_raw_parts(
+                    input_class_ptr as *const u8,
+                    point_count,
+                ))
+            } else {
+                None
+            };
+            let out_colors = if output_color_ptr != 0 {
+                Some(output_color_ptr as *mut f32)
+            } else {
+                None
+            };
+            let out_int = if output_intensity_ptr != 0 {
+                Some(output_intensity_ptr as *mut f32)
+            } else {
+                None
+            };
+            let out_cls = if output_class_ptr != 0 {
+                Some(output_class_ptr as *mut u8)
+            } else {
+                None
+            };
+            voxel_downsample_with_attributes_internal(
+                points,
+                colors,
+                intensities,
+                classifications,
+                voxel_size,
+                min_x,
+                min_y,
+                min_z,
+                output_ptr as *mut f32,
+                out_colors,
+                out_int,
+                out_cls,
             )
         }
     }

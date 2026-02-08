@@ -32,6 +32,21 @@ interface PointCloudToolsRustStatic {
     minZ: number,
     outputPtr: number
   ) => number;
+  voxel_downsample_direct_with_attributes_static: (
+    inputPtr: number,
+    inputColorPtr: number,
+    inputIntensityPtr: number,
+    inputClassPtr: number,
+    pointCount: number,
+    voxelSize: number,
+    minX: number,
+    minY: number,
+    minZ: number,
+    outputPtr: number,
+    outputColorPtr: number,
+    outputIntensityPtr: number,
+    outputClassPtr: number
+  ) => number;
 }
 
 interface RustWasmModule {
@@ -43,11 +58,20 @@ interface RustWasmModule {
 let wasmModule: PointCloudToolsRust | null = null;
 let wasmInstance: RustWasmInstance | null = null;
 let memory: WebAssembly.Memory | null = null;
-let heapF32: Float32Array | null = null; // Cached Float32Array view for zero allocation overhead
+let heapF32: Float32Array | null = null;
+let heapU8: Uint8Array | null = null;
 let voxelDownsampleDirectStaticFunc: ((...args: number[]) => number) | null =
-  null; // Cached static function
+  null;
+let voxelDownsampleWithAttributesStaticFunc: ((...args: number[]) => number) | null =
+  null;
 let previousOutputPtr: number | null = null;
 let previousOutputSize: number = 0;
+let previousOutputColorPtr: number | null = null;
+let previousOutputColorSize: number = 0;
+let previousOutputIntensityPtr: number | null = null;
+let previousOutputIntensitySize: number = 0;
+let previousOutputClassificationPtr: number | null = null;
+let previousOutputClassificationSize: number = 0;
 
 // Initialize Rust WASM module
 async function initialize() {
@@ -120,6 +144,10 @@ async function initialize() {
     }
     voxelDownsampleDirectStaticFunc =
       PointCloudToolsRust.voxel_downsample_direct_static;
+    if (typeof PointCloudToolsRust.voxel_downsample_direct_with_attributes_static === 'function') {
+      voxelDownsampleWithAttributesStaticFunc =
+        PointCloudToolsRust.voxel_downsample_direct_with_attributes_static;
+    }
 
     Log.Info(
       'RustWasmWorker',
@@ -150,9 +178,12 @@ interface VoxelDownsampleData {
     minY: number;
     minZ: number;
   };
+  colors?: Float32Array;
+  intensities?: Float32Array;
+  classifications?: Uint8Array;
 }
 
-// Handle voxel downsampling
+// Handle voxel downsampling (supports full attributes: colors, intensities, classifications)
 async function handleVoxelDownsampling(
   data: VoxelDownsampleData,
   messageId: number
@@ -162,114 +193,212 @@ async function handleVoxelDownsampling(
   }
 
   const startTime = performance.now();
-  const { pointCloudData, voxelSize, globalBounds } = data;
-
+  const { pointCloudData, voxelSize, globalBounds, colors, intensities, classifications } = data;
   const pointCount = pointCloudData.length / 3;
   const floatCount = pointCloudData.length;
+  const useColors = colors != null && colors.length === pointCount * 3;
+  const useIntensity = intensities != null && intensities.length === pointCount;
+  const useClassification =
+    classifications != null && classifications.length === pointCount;
+  const useAttributes =
+    (useColors || useIntensity || useClassification) &&
+    voxelDownsampleWithAttributesStaticFunc != null;
 
-  // Free previous output buffer if it exists
-  // wasm-bindgen exports free as __wbindgen_export_1(ptr, size, align)
-  if (previousOutputPtr !== null && wasmInstance.__wbindgen_export_1) {
-    wasmInstance.__wbindgen_export_1(previousOutputPtr, previousOutputSize, 4);
+  const free = wasmInstance.__wbindgen_export_1;
+  const malloc = wasmInstance.__wbindgen_export_0;
+
+  if (previousOutputPtr !== null && free) {
+    free(previousOutputPtr, previousOutputSize, 4);
     previousOutputPtr = null;
     previousOutputSize = 0;
   }
-
-  // Allocate memory in WASM heap (like C++ does)
-  // wasm-bindgen exports malloc as __wbindgen_export_0(size, align)
-  const inputPtr = wasmInstance.__wbindgen_export_0(floatCount * 4, 4) >>> 0;
-  const outputPtr = wasmInstance.__wbindgen_export_0(floatCount * 4, 4) >>> 0;
-
-  if (!inputPtr || !outputPtr) {
-    throw new Error(
-      `Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`
-    );
+  if (previousOutputColorPtr !== null && free) {
+    free(previousOutputColorPtr, previousOutputColorSize, 4);
+    previousOutputColorPtr = null;
+    previousOutputColorSize = 0;
+  }
+  if (previousOutputIntensityPtr !== null && free) {
+    free(previousOutputIntensityPtr, previousOutputIntensitySize, 4);
+    previousOutputIntensityPtr = null;
+    previousOutputIntensitySize = 0;
+  }
+  if (previousOutputClassificationPtr !== null && free) {
+    free(previousOutputClassificationPtr, previousOutputClassificationSize, 1);
+    previousOutputClassificationPtr = null;
+    previousOutputClassificationSize = 0;
   }
 
-  // Check if input is already in WASM memory (zero-copy optimization)
+  const inputPtr = malloc(floatCount * 4, 4) >>> 0;
+  const outputPtr = malloc(floatCount * 4, 4) >>> 0;
+  let inputColorPtr = 0;
+  let outputColorPtr = 0;
+  let inputIntensityPtr = 0;
+  let outputIntensityPtr = 0;
+  let inputClassPtr = 0;
+  let outputClassPtr = 0;
+
+  if (useAttributes) {
+    if (useColors && colors) {
+      inputColorPtr = malloc(pointCount * 3 * 4, 4) >>> 0;
+      outputColorPtr = malloc(floatCount * 4, 4) >>> 0;
+    }
+    if (useIntensity && intensities) {
+      inputIntensityPtr = malloc(pointCount * 4, 4) >>> 0;
+      outputIntensityPtr = malloc(floatCount * 4, 4) >>> 0;
+    }
+    if (useClassification && classifications) {
+      inputClassPtr = malloc(pointCount, 1) >>> 0;
+      outputClassPtr = malloc(pointCount, 1) >>> 0;
+    }
+  }
+
+  if (!inputPtr || !outputPtr) {
+    if (inputColorPtr) free(inputColorPtr, pointCount * 3 * 4, 4);
+    if (outputColorPtr) free(outputColorPtr, floatCount * 4, 4);
+    if (inputIntensityPtr) free(inputIntensityPtr, pointCount * 4, 4);
+    if (outputIntensityPtr) free(outputIntensityPtr, floatCount * 4, 4);
+    if (inputClassPtr) free(inputClassPtr, pointCount, 1);
+    if (outputClassPtr) free(outputClassPtr, pointCount, 1);
+    throw new Error(`Failed to allocate WASM memory: inputPtr=${inputPtr}, outputPtr=${outputPtr}`);
+  }
+
   const isInputInWasmMemory = pointCloudData.buffer === memory.buffer;
   let inputPtrToUse = inputPtr;
 
   try {
-    if (isInputInWasmMemory) {
-      // Input is already in WASM memory - use it directly (zero-copy!)
-      inputPtrToUse = pointCloudData.byteOffset;
-      // Free the allocated input buffer since we don't need it
-      wasmInstance.__wbindgen_export_1(inputPtr, floatCount * 4, 4);
-    } else {
-      // Input is in JS memory - copy to WASM memory (same as C++)
-      // OPTIMIZATION: Use cached heapF32 view instead of creating new Float32Array
-      if (!heapF32) {
-        heapF32 = new Float32Array(memory.buffer);
-      }
-      // Refresh view if memory grew (buffer may have changed)
-      if (heapF32.buffer !== memory.buffer) {
-        heapF32 = new Float32Array(memory.buffer);
-      }
-      const inputFloatIndex = inputPtr >> 2; // Bit shift is faster than division (same as C++)
-      heapF32.set(pointCloudData, inputFloatIndex);
+    if (!heapF32 || heapF32.buffer !== memory.buffer) {
+      heapF32 = new Float32Array(memory.buffer);
+    }
+    if (!heapU8 || heapU8.buffer !== memory.buffer) {
+      heapU8 = new Uint8Array(memory.buffer);
     }
 
-    // Use cached static function directly
-    if (!voxelDownsampleDirectStaticFunc) {
-      throw new Error('voxel_downsample_direct_static function not available');
+    if (isInputInWasmMemory) {
+      inputPtrToUse = pointCloudData.byteOffset;
+      free(inputPtr, floatCount * 4, 4);
+    } else {
+      heapF32.set(pointCloudData, inputPtr >> 2);
     }
-    const outputCount = voxelDownsampleDirectStaticFunc(
-      inputPtrToUse,
-      pointCount,
-      voxelSize,
-      globalBounds.minX,
-      globalBounds.minY,
-      globalBounds.minZ,
-      outputPtr
-    );
+
+    if (useColors && colors && inputColorPtr) {
+      heapF32.set(colors, inputColorPtr >> 2);
+    }
+    if (useIntensity && intensities && inputIntensityPtr) {
+      heapF32.set(intensities, inputIntensityPtr >> 2);
+    }
+    if (useClassification && classifications && inputClassPtr && heapU8) {
+      heapU8.set(classifications, inputClassPtr);
+    }
+
+    let outputCount: number;
+    if (useAttributes && voxelDownsampleWithAttributesStaticFunc) {
+      outputCount = voxelDownsampleWithAttributesStaticFunc(
+        inputPtrToUse,
+        useColors ? inputColorPtr : 0,
+        useIntensity ? inputIntensityPtr : 0,
+        useClassification ? inputClassPtr : 0,
+        pointCount,
+        voxelSize,
+        globalBounds.minX,
+        globalBounds.minY,
+        globalBounds.minZ,
+        outputPtr,
+        useColors ? outputColorPtr : 0,
+        useIntensity ? outputIntensityPtr : 0,
+        useClassification ? outputClassPtr : 0
+      );
+    } else {
+      if (!voxelDownsampleDirectStaticFunc) {
+        throw new Error('voxel_downsample_direct_static function not available');
+      }
+      outputCount = voxelDownsampleDirectStaticFunc(
+        inputPtrToUse,
+        pointCount,
+        voxelSize,
+        globalBounds.minX,
+        globalBounds.minY,
+        globalBounds.minZ,
+        outputPtr
+      );
+    }
 
     if (outputCount <= 0 || outputCount > pointCount) {
       throw new Error(`Invalid output count: ${outputCount}`);
     }
 
-    // OPTIMIZATION: Use cached heapF32 view instead of creating new Float32Array
-    // Refresh view if memory grew (buffer may have changed)
-    if (!heapF32 || heapF32.buffer !== memory.buffer) {
-      heapF32 = new Float32Array(memory.buffer);
-    }
     const resultFloatCount = outputCount * 3;
-    const outputFloatIndex = outputPtr >> 2; // Bit shift is faster than division (same as C++)
-    const downsampledPointsView = heapF32.subarray(
-      outputFloatIndex,
-      outputFloatIndex + resultFloatCount
+    const outputFloatIndex = outputPtr >> 2;
+    const downsampledPoints = new Float32Array(
+      heapF32.subarray(outputFloatIndex, outputFloatIndex + resultFloatCount)
     );
 
-    // OPTIMIZATION: Copy to new buffer only for transfer (WASM memory cannot be transferred)
-    // This is necessary because postMessage cannot transfer WASM/asm.js ArrayBuffers
-    // We still get zero-copy benefits during processing, only copy at the end
-    const downsampledPoints = new Float32Array(downsampledPointsView);
-
-    // Store output pointer and size to keep memory alive
     previousOutputPtr = outputPtr;
     previousOutputSize = floatCount * 4;
 
+    let downsampledColors: Float32Array | undefined;
+    let downsampledIntensities: Float32Array | undefined;
+    let downsampledClassifications: Uint8Array | undefined;
+
+    if (useColors && outputColorPtr) {
+      previousOutputColorPtr = outputColorPtr;
+      previousOutputColorSize = floatCount * 4;
+      downsampledColors = new Float32Array(
+        heapF32.subarray(
+          outputColorPtr >> 2,
+          (outputColorPtr >> 2) + resultFloatCount
+        )
+      );
+    }
+    if (useIntensity && outputIntensityPtr) {
+      previousOutputIntensityPtr = outputIntensityPtr;
+      previousOutputIntensitySize = floatCount * 4;
+      downsampledIntensities = new Float32Array(
+        heapF32.subarray(
+          outputIntensityPtr >> 2,
+          (outputIntensityPtr >> 2) + outputCount
+        )
+      );
+    }
+    if (useClassification && outputClassPtr && heapU8) {
+      previousOutputClassificationPtr = outputClassPtr;
+      previousOutputClassificationSize = pointCount;
+      downsampledClassifications = heapU8.subarray(
+        outputClassPtr,
+        outputClassPtr + outputCount
+      ).slice(0);
+    }
+
     const processingTime = performance.now() - startTime;
 
-    const response = {
-      type: 'SUCCESS',
-      method: 'WASM_RUST',
-      messageId,
-      data: {
-        downsampledPoints,
-        originalCount: pointCount,
-        downsampledCount: outputCount,
-        processingTime,
-      },
-    };
+    const transfer: Transferable[] = [downsampledPoints.buffer];
+    if (downsampledColors) transfer.push(downsampledColors.buffer);
+    if (downsampledIntensities) transfer.push(downsampledIntensities.buffer);
+    if (downsampledClassifications) transfer.push(downsampledClassifications.buffer);
 
-    self.postMessage(response, { transfer: [downsampledPoints.buffer] });
+    self.postMessage(
+      {
+        type: 'SUCCESS',
+        method: 'WASM_RUST',
+        messageId,
+        data: {
+          downsampledPoints,
+          downsampledColors,
+          downsampledIntensities,
+          downsampledClassifications,
+          originalCount: pointCount,
+          downsampledCount: outputCount,
+          processingTime,
+        },
+      },
+      { transfer }
+    );
   } finally {
-    // Free input memory only if we allocated it (not if it was already in WASM memory)
-    // wasm-bindgen exports free as __wbindgen_export_1(ptr, size, align)
     if (!isInputInWasmMemory) {
-      wasmInstance.__wbindgen_export_1(inputPtr, floatCount * 4, 4);
+      free(inputPtr, floatCount * 4, 4);
     }
+    if (inputColorPtr) free(inputColorPtr, pointCount * 3 * 4, 4);
+    if (inputIntensityPtr) free(inputIntensityPtr, pointCount * 4, 4);
+    if (inputClassPtr) free(inputClassPtr, pointCount, 1);
   }
 }
 

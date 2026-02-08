@@ -49,21 +49,44 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
       const result =
         await serviceManager.toolsService.performVoxelDownsamplingRustWasmMain({
           pointCloudData: pointData.pointCloudData,
+          colors: pointData.colors,
+          intensities: pointData.intensities,
+          classifications: pointData.classifications,
           voxelSize: showVoxelDebug ? debugVoxelSize : voxelSize,
           globalBounds: pointData.globalBounds,
         });
 
       if (result.success && result.downsampledPoints) {
         const rustWasmMainId = `rust_wasm_main_downsampled_${Date.now()}`;
+        const pointCount = result.downsampledPoints.length / 3;
+        const colors =
+          result.downsampledColors != null &&
+          result.downsampledColors.length === pointCount * 3
+            ? new Float32Array(result.downsampledColors)
+            : undefined;
+        const intensities =
+          result.downsampledIntensities != null &&
+          result.downsampledIntensities.length === pointCount
+            ? new Float32Array(result.downsampledIntensities)
+            : undefined;
+        const classifications =
+          result.downsampledClassifications != null &&
+          result.downsampledClassifications.length === pointCount
+            ? new Uint8Array(result.downsampledClassifications)
+            : undefined;
         await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           rustWasmMainId,
-          result.downsampledPoints,
+          new Float32Array(result.downsampledPoints),
           undefined,
           {
             name: 'Rust WASM Main Downsampled Point Cloud',
-            hasIntensity: true,
-            hasClassification: true,
-          }
+            hasColor: colors != null,
+            hasIntensity: intensities != null,
+            hasClassification: classifications != null,
+          },
+          colors,
+          intensities,
+          classifications
         );
 
         const endToEndTime = performance.now() - startTime;
@@ -641,7 +664,10 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
           maxX: pointData.globalBounds.maxX,
           maxY: pointData.globalBounds.maxY,
           maxZ: pointData.globalBounds.maxZ,
-        }
+        },
+        pointData.colors,
+        pointData.intensities,
+        pointData.classifications
       );
 
       if (
@@ -658,25 +684,57 @@ export function createVoxelDownsamplingHandlers(handlers: ToolHandlers) {
         );
       }
 
+      const data = workerResult.data as {
+        downsampledPoints?: Float32Array;
+        downsampledColors?: Float32Array;
+        downsampledIntensities?: Float32Array;
+        downsampledClassifications?: Uint8Array;
+        originalCount?: number;
+        downsampledCount?: number;
+        processingTime?: number;
+      };
       const result = {
         success: true,
-        downsampledPoints: workerResult.data.downsampledPoints,
-        originalCount: workerResult.data.originalCount,
-        downsampledCount: workerResult.data.downsampledCount,
-        processingTime: workerResult.data.processingTime,
+        downsampledPoints: data.downsampledPoints,
+        downsampledColors: data.downsampledColors,
+        downsampledIntensities: data.downsampledIntensities,
+        downsampledClassifications: data.downsampledClassifications,
+        originalCount: data.originalCount,
+        downsampledCount: data.downsampledCount,
+        processingTime: data.processingTime,
       };
 
       if (result.success && result.downsampledPoints) {
         const wasmRustId = `wasm_rust_downsampled_${Date.now()}`;
+        const pointCount = result.downsampledPoints.length / 3;
+        const colors =
+          result.downsampledColors != null &&
+          result.downsampledColors.length === pointCount * 3
+            ? new Float32Array(result.downsampledColors)
+            : undefined;
+        const intensities =
+          result.downsampledIntensities != null &&
+          result.downsampledIntensities.length === pointCount
+            ? new Float32Array(result.downsampledIntensities)
+            : undefined;
+        const classifications =
+          result.downsampledClassifications != null &&
+          result.downsampledClassifications.length === pointCount
+            ? new Uint8Array(result.downsampledClassifications)
+            : undefined;
         await serviceManager.pointService?.createPointCloudMeshFromFloat32Array(
           wasmRustId,
-          result.downsampledPoints,
+          new Float32Array(result.downsampledPoints),
           undefined,
           {
             name: 'WASM Rust Downsampled Point Cloud',
-            hasIntensity: true,
-            hasClassification: true,
-          }
+            hasColor: colors != null,
+            hasIntensity: intensities != null,
+            hasClassification: classifications != null,
+          },
+          colors,
+          intensities,
+          classifications
         );
 
         const endToEndTime = performance.now() - startTime;

@@ -105,11 +105,7 @@ export class VoxelDownsampleService extends BaseService {
   async voxelDownsampleWASMRust(
     params: VoxelDownsampleParams
   ): Promise<VoxelDownsampleResult> {
-    return this.voxelDownsamplingWASMRust.performVoxelDownsampling(
-      params.pointCloudData,
-      params.voxelSize,
-      params.globalBounds
-    );
+    return this.voxelDownsamplingWASMRust.voxelDownsample(params);
   }
 
   async voxelDownsampleBEPython(

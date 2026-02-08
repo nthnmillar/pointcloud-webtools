@@ -28,6 +28,11 @@ export class PointCloudToolsRust {
    */
   static voxel_downsample_direct_static(input_ptr: number, point_count: number, voxel_size: number, min_x: number, min_y: number, min_z: number, output_ptr: number): number;
   /**
+   * Direct pointer-based voxel downsampling with optional colors, intensity, classification.
+   * Pass 0 for any input or output pointer to skip that attribute.
+   */
+  static voxel_downsample_direct_with_attributes_static(input_ptr: number, input_color_ptr: number, input_intensity_ptr: number, input_class_ptr: number, point_count: number, voxel_size: number, min_x: number, min_y: number, min_z: number, output_ptr: number, output_color_ptr: number, output_intensity_ptr: number, output_class_ptr: number): number;
+  /**
    * Point cloud smoothing implementation in Rust
    * This matches the algorithm used in TS, WASM C++, and BE C++
    */
@@ -47,6 +52,7 @@ export interface InitOutput {
   readonly pointcloudtoolsrust_new: () => number;
   readonly pointcloudtoolsrust_get_memory: (a: number) => number;
   readonly pointcloudtoolsrust_voxel_downsample_direct_static: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+  readonly pointcloudtoolsrust_voxel_downsample_direct_with_attributes_static: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => number;
   readonly pointcloudtoolsrust_point_cloud_smooth: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
   readonly pointcloudtoolsrust_generate_voxel_centers: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;

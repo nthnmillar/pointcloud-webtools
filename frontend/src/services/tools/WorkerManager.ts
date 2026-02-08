@@ -98,7 +98,10 @@ export class WorkerManager {
         return await this.rustWorker.processVoxelDownsampling(
           pointCloudData,
           voxelSize,
-          globalBounds
+          globalBounds,
+          colors,
+          intensities,
+          classifications
         );
 
       default:

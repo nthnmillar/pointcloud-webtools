@@ -153,6 +153,28 @@ export class PointCloudToolsRust {
         return ret >>> 0;
     }
     /**
+     * Direct pointer-based voxel downsampling with optional colors, intensity, classification.
+     * Pass 0 for any input or output pointer to skip that attribute.
+     * @param {number} input_ptr
+     * @param {number} input_color_ptr
+     * @param {number} input_intensity_ptr
+     * @param {number} input_class_ptr
+     * @param {number} point_count
+     * @param {number} voxel_size
+     * @param {number} min_x
+     * @param {number} min_y
+     * @param {number} min_z
+     * @param {number} output_ptr
+     * @param {number} output_color_ptr
+     * @param {number} output_intensity_ptr
+     * @param {number} output_class_ptr
+     * @returns {number}
+     */
+    static voxel_downsample_direct_with_attributes_static(input_ptr, input_color_ptr, input_intensity_ptr, input_class_ptr, point_count, voxel_size, min_x, min_y, min_z, output_ptr, output_color_ptr, output_intensity_ptr, output_class_ptr) {
+        const ret = wasm.pointcloudtoolsrust_voxel_downsample_direct_with_attributes_static(input_ptr, input_color_ptr, input_intensity_ptr, input_class_ptr, point_count, voxel_size, min_x, min_y, min_z, output_ptr, output_color_ptr, output_intensity_ptr, output_class_ptr);
+        return ret >>> 0;
+    }
+    /**
      * Point cloud smoothing implementation in Rust
      * This matches the algorithm used in TS, WASM C++, and BE C++
      * @param {Float32Array} points
