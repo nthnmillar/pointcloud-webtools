@@ -113,7 +113,10 @@ export class WorkerManager {
     method: 'WASM_CPP' | 'WASM_RUST',
     pointCloudData: Float32Array,
     smoothingRadius: number,
-    iterations: number
+    iterations: number,
+    colors?: Float32Array,
+    intensities?: Float32Array,
+    classifications?: Uint8Array
   ) {
     if (!this.isInitialized) {
       throw new Error('Workers not initialized');
@@ -127,7 +130,10 @@ export class WorkerManager {
         return await this.cppWorker.processPointCloudSmoothing(
           pointCloudData,
           smoothingRadius,
-          iterations
+          iterations,
+          colors,
+          intensities,
+          classifications
         );
 
       case 'WASM_RUST':

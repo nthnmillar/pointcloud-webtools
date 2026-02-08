@@ -37,6 +37,9 @@ export interface CppWasmWorkerResponse {
     downsampledIntensities?: Float32Array;
     downsampledClassifications?: Uint8Array;
     smoothedPoints?: Float32Array;
+    smoothedColors?: Float32Array;
+    smoothedIntensities?: Float32Array;
+    smoothedClassifications?: Uint8Array;
     voxelCenters?: Float32Array;
     originalCount: number;
     downsampledCount?: number;
@@ -186,7 +189,10 @@ export class CppWasmWorker {
   async processPointCloudSmoothing(
     pointCloudData: Float32Array,
     smoothingRadius: number,
-    iterations: number
+    iterations: number,
+    colors?: Float32Array,
+    intensities?: Float32Array,
+    classifications?: Uint8Array
   ): Promise<CppWasmWorkerResponse> {
     if (!this.isInitialized || !this.worker) {
       throw new Error('Worker not initialized');
@@ -196,7 +202,14 @@ export class CppWasmWorker {
     const message: CppWasmWorkerMessage = {
       type: 'POINT_CLOUD_SMOOTHING',
       messageId,
-      data: { pointCloudData, smoothingRadius, iterations },
+      data: {
+        pointCloudData,
+        smoothingRadius,
+        iterations,
+        colors,
+        intensities,
+        classifications,
+      },
     };
 
     return this.sendMessageToWorker(message);

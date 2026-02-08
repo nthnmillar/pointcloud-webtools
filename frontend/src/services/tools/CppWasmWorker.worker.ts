@@ -462,13 +462,16 @@ async function processPointCloudSmoothing(data: {
   pointCloudData: Float32Array;
   smoothingRadius: number;
   iterations: number;
+  colors?: Float32Array;
+  intensities?: Float32Array;
+  classifications?: Uint8Array;
 }) {
   if (!toolsModule) {
     throw new Error('WASM module not initialized');
   }
 
   const startTime = performance.now();
-  const { pointCloudData, smoothingRadius, iterations } = data;
+  const { pointCloudData, smoothingRadius, iterations, colors, intensities, classifications } = data;
 
   Log.Info('CppWasmWorker', 'Processing point cloud smoothing', {
     pointCount: pointCloudData.length / 3,
@@ -495,17 +498,34 @@ async function processPointCloudSmoothing(data: {
   }
 
   const processingTime = performance.now() - startTime;
+  const pointCount = smoothedPoints.length / 3;
+  // Pass through attributes (point count and order unchanged)
+  const smoothedColors =
+    colors != null && colors.length === pointCount * 3
+      ? new Float32Array(colors)
+      : undefined;
+  const smoothedIntensities =
+    intensities != null && intensities.length === pointCount
+      ? new Float32Array(intensities)
+      : undefined;
+  const smoothedClassifications =
+    classifications != null && classifications.length === pointCount
+      ? new Uint8Array(classifications)
+      : undefined;
 
   Log.Info('CppWasmWorker', 'Point cloud smoothing completed', {
     originalCount: pointCloudData.length / 3,
-    smoothedCount: smoothedPoints.length / 3,
+    smoothedCount: pointCount,
     processingTime,
   });
 
   return {
     smoothedPoints,
+    smoothedColors,
+    smoothedIntensities,
+    smoothedClassifications,
     originalCount: pointCloudData.length / 3,
-    smoothedCount: smoothedPoints.length / 3,
+    smoothedCount: pointCount,
     processingTime,
   };
 }
@@ -700,6 +720,10 @@ self.onmessage = async function (e) {
       );
     } else if (type === 'POINT_CLOUD_SMOOTHING') {
       const result = await processPointCloudSmoothing(data);
+      const transfer: Transferable[] = [result.smoothedPoints.buffer];
+      if (result.smoothedColors) transfer.push(result.smoothedColors.buffer);
+      if (result.smoothedIntensities) transfer.push(result.smoothedIntensities.buffer);
+      if (result.smoothedClassifications) transfer.push(result.smoothedClassifications.buffer);
       globalThis.postMessage(
         {
           type: 'SUCCESS',
@@ -707,7 +731,7 @@ self.onmessage = async function (e) {
           messageId,
           data: result,
         },
-        { transfer: [result.smoothedPoints.buffer] }
+        { transfer }
       );
     } else if (type === 'VOXEL_DEBUG') {
       const result = await processVoxelDebug(data);
