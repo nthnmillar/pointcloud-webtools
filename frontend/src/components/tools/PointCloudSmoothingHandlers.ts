@@ -107,6 +107,9 @@ export function createPointCloudSmoothingHandlers(handlers: ToolHandlers) {
             await serviceManager.toolsService.performPointCloudSmoothingWASMCPP(
               {
                 points: pointCloudData,
+                colors: pointData.colors,
+                intensities: pointData.intensities,
+                classifications: pointData.classifications,
                 smoothingRadius,
                 iterations: smoothingIterations,
               }

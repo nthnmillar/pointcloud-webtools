@@ -112,12 +112,30 @@ export class PointCloudSmoothingWASMCPP extends BaseService {
       );
 
       const processingTime = performance.now() - startTime;
+      const pointCount = result.length / 3;
+      // Pass through attributes (point count and order unchanged)
+      const smoothedColors =
+        params.colors != null && params.colors.length === pointCount * 3
+          ? new Float32Array(params.colors)
+          : undefined;
+      const smoothedIntensities =
+        params.intensities != null && params.intensities.length === pointCount
+          ? new Float32Array(params.intensities)
+          : undefined;
+      const smoothedClassifications =
+        params.classifications != null &&
+        params.classifications.length === pointCount
+          ? new Uint8Array(params.classifications)
+          : undefined;
 
       return {
         success: true,
         smoothedPoints: result,
+        smoothedColors,
+        smoothedIntensities,
+        smoothedClassifications,
         originalCount: params.points.length / 3,
-        smoothedCount: result.length / 3,
+        smoothedCount: pointCount,
         processingTime,
       };
     } catch (error) {
